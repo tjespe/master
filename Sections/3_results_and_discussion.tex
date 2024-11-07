@@ -595,18 +595,15 @@ The most promising model in this subset of the sample is the DeepAR model propos
 
 \subsubsection{Volatility}
 
-Several models use volatility as their target variable, instead of modeling returns with uncertainty. However, since true volatility is unobservable, they must use some proxy variable as their target variable. Such proxies include realized volatility, historical volatility, [... list opp de relevante fra samplet ..] or market-based volatility proxies such as implied volatility and volatility indexes.
+While it is possible to infer volatility from the probabilistic outputs of some of the models mentioned in \ref{sec:distributions}, only five articles in the sample directly try to predict volatility or volatility proxies.
 
-For the forecasting problems where the target variable is a volatility proxy, probabilistic AI is most commonly used to estimate the model's epistemic uncertainty in the 
-predictions or to improve generalization. [... examples from sample ...]
-
-However, some authors also attempt to model the underlying aleatoric uncertainty of the proxy variable. [... examples from sample ...]
+In two articles -- \textcite{}
 
 
 %--------------------Financial risk measures----------------------%
 
 \subsubsection{Financial risk measures}
-In seven of the sample articles, financial risk measures such as Value at Risk (VaR) or Conditional Value at Risk (CVaR) are calculated. In most cases, these measures are inferred based on the distributional output from some AI model, while in other cases, they are predicted directly.
+In seven of the sample articles, financial risk measures such as Value at Risk (VaR) or Conditional Value at Risk (CVaR) are calculated. In most cases, these measures are inferred based on the distributional output from some AI model, while in other cases, they are predicted directly. 
 
 Using distributional forecasts to calculate e.g. VaR and CVaR is possible using both parametric and non-parametric distributions as output from the AI models. However, the most interesting approach is perhaps the non-parametric, considering that these models can provide fundamentally different predictions compared to traditional econometric models. Out of the seven articles in the sample where financial risk measures are calculated, five of them do it by first forecasting a full non-parametric distribution. [... skrive litt om de forskjellige her ...]
 
