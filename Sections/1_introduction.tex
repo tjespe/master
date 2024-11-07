@@ -1,0 +1,72 @@
+\section{Introduction}
+\label{sec:introduction}
+%Points to include: Motivation, Overview of research area, context, research question, contribution, structure of paper.... : 
+
+% Motivation
+\textbf{Motivation}\\
+\textit{Briefly touch upon the need for better uncertainty estimates in finance and how probabilistic AI models have started to fill gaps left by traditional econometric approaches.}
+
+In recent years, there has been a significant increase in the application of artificial intelligence (AI) and machine learning (ML) models within finance, mainly driven by the desire for enhanced prediction accuracy and robust uncertainty and risk quantification. 
+
+Accurate forecasting and reliable uncertainty estimates are extremely important... for a lot of different financial stakeholders (from risk mangers to fund managers...) [because]
+
+Traditional econometric models has often been used ... but fall short in ability to capture the complex, non-linear and unpredictable nature of financial time series.... this limit accuracy in capturing risk as they often rely on point estimates instead of capturing the full conditional probability distributions needed for a extensive view on uncertainty in financial forecasting. ... demand for better uncertainty estimates to ... [why]
+
+Supervised machine learning model like XGBoost and Long Short-Term Memory networks (LSTM)  have recently emerged as an alternative to handle non-linearity within data for financial prediction. However, these models mainly provide point predictions limiting their use for prediction full conditional probability distributions... Recent advances in Probabilistic AI ... show promising results... provides more informative forecast by providing full uncertainty distributions. ...
+
+
+
+
+% Overview of research area
+\textbf{Overview of Research Area}\\
+\textit{Discuss previous reviews in the field, emphasizing how they overlook key aspects of financial applications of uncertainty estimates (gaps). }
+
+Several studies exploring machine learning methods for point prediction XXX, XXX, few focus on quantifying uncertainty in financial time series??
+
+Been several other literature reviews on XXX, such as XX, XX.. XX. Manly focused on XXX. 
+
+Limited focus on finance and several new articles in a rapid developing area .. Lack financial interpretation ... 
+
+Gap.... [clary outline gap] need for systematic review on how probabilistic AI for improved uncertainty estimates in financial time series... 
+
+% Context
+\textbf{Context}\\
+\textit{Define probabilistic AI and its relevance to uncertainty quantification for financial time series. Mention prominent models and methods.}
+
+Probabilistic AI refers to a class of machine learning models that have the ability to generate.... full conditional probability distributions rather than only point predictions.[Definition of prob. AI from book Kevin murphy?]
+
+Probabilistic AI is an rapidly evolving area... models include Bayesian neural networks, transformers, large-language models, Gaussian processes and hidden markov models ... and has shown promise in capturing and quantifying different types of uncertainty.... Previous reviews/papers have largy overlooked their probabilistic nature in financial application, like volatility predictions and risk estimates, instead only point predictions?
+
+.
+Recently uncertainty quantification in financial time series using probabilistic AI / neural network model ... commonly two types of uncertainty ... aleatoric and epistemic.  [Definition]  
+
+
+% Reserach questions
+\textbf{Research Questions}\\
+To gain an understanding of the existing research, address the gaps identified in the literature,  and advance the understanding of the use of probabilistic AI for uncertainty estimates in financial time series, this review seeks to answer the following key research questions: 
+\begin{enumerate}
+    \item Summarize to what extent and in what way existing research are using uncertainty estimates from probabilistic AI models as a measure of volatility, model uncertainty or financial risk measures for financial time series.
+    {\color{orange} \item Analyze researchers' motivation for making predictions with uncertainty and how it differs for different asset classes.}
+    \item Compare the promise of these models compared to other machine learning models and traditional econometric models in uncertainty estimation.
+    \item How do probabilistic models improve the understanding of risk and volatility in comparison to econometric models?
+    \item Which metrics are used for assessing probabilistic AI models and what is the most appropriate metric for assessing the quality of the produced uncertainty estimates?
+    \item How do probabilistic AI models integrate with financial risk measures such as Value at Risk (VaR) and Expected Shortfall (ES)?
+    \item Identity possible areas for further research
+\end{enumerate}
+
+We will answer the research question directly in Section \ref{sec:discussion}, but they will shape the research and literature search and the presented results in Section \ref{sec:result_and_discussion}. 
+
+ 
+% Contributions
+\textbf{Contributions}\\
+\textit{How review addresses the specific applications in finance and recent advancements in probabilistic AI}
+
+Literature on probabilistic AI in finance is very limited.... Review focus on recent advances in probabilistic AI ... application within fiance ... and how Probabilistic AI model can improve uncertainty estimates in financial context  ... clarify strengths and limitation of probabilistic AI .... Because of the novelty and the rapid evolution, other researchers might have limited knowledge of the field .... Shine light on whether adopting and further researching machine learning for uncertainty estimates is useful or not .... Discussion on whether it is appropriate to interpret quantified uncertainty from AI models as volatility estimates ... Discussion on how to benchmark volatility estimates from AI models .... Which probabilistic machine learning models are most promising for further research ...
+.....highlight areas for future research and advancements in uncertainty quantification
+
+... The review will serve as an overview of the field and guide for researchers who want to aplly or advance probabilistic AI in finance.... 
+
+
+% Concluding paraghaph outlining the structure of the paper 
+\textbf{Structure of the Paper}\\
+The systematic literature review is structured as follows: Section \ref{sec:methodology} covers the Methodology, detailing the review and analysis process. Section \ref{sec:result_and_discussion} presents the Results and Discussion, including descriptive statistics and evaluation across different dimensions. Finally, Section \ref{sec:conclusion} provides the Conclusion, summarizing key findings and suggestions for future research. 

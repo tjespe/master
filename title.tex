@@ -1,0 +1,98 @@
+% Inspired by title template from ShareLaTeX Learn; Gubert Farnsworth & John Doe
+
+
+% =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+% Fill in paper and group details here
+% =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+% Fill in a user-selected name for the paper 
+\def\TITLE{Probabilistic AI for Improved Uncertainty Estimates in Financial Time Series: A Review}
+
+% Fill in groupname as displayed in blackboard 
+\def\GROUP{}
+
+% Fill in "Firstname Lastname NTNU-Username" for all group members
+\def\AUTHORS{
+    \\ Kristoffer Grude kngrude@stud.ntnu.no
+    \\ Sivert Eggen eggen@stud.ntnu.no
+    \\ Tord Johan Espe espe@stud.ntnu.no
+     
+}
+
+% =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+
+\begin{titlepage}
+
+\vbox{ }
+
+\vbox{ }
+
+\begin{center}
+% Upper part of the page
+\includegraphics[width=0.40\textwidth]{Images/NTNU_logo.png}\\[1cm]
+\textsc{\LARGE Department of Industrial Economics and Technology Management}\\[1.0cm]
+
+\textsc{\Large TIØ4550 - Specialization project}\\[0.5cm]
+
+
+\def\checktitle{Paper Title}
+\ifx\TITLE\checktitle
+    \todo[inline]{
+        Remember to fill in paper title, group name, and members in "title.tex"
+    }
+\fi
+
+\vbox{ }
+% Title
+\HRule \\[0.4cm]
+{ \huge \bfseries \TITLE }\\[0.4cm]
+\HRule \\[1.5cm]
+% Author and supervisor
+% Uncomment indented if you want to add a special collaborator:
+    %\begin{minipage}{0.4\textwidth}
+    %\begin{flushleft} 
+\large
+
+%\emph{Group:}\\
+%\GROUP
+
+\emph{Authors:}\\
+%\AUTHORS
+\begin{center}
+\begin{tabular}{>{\raggedright}p{4cm} p{4cm}}  
+    Kristoffer Grude & \href{mailto:kngrude@stud.ntnu.no}{kngrude@stud.ntnu.no} \\
+    Sivert Eggen & \href{mailto:sivertae@stud.ntnu.no}{sivertae@stud.ntnu.no} \\
+    Tord Johan Espe & \href{mailto:tjespe@stud.ntnu.no}{tjespe@stud.ntnu.no} \\
+\end{tabular}
+\end{center}
+
+\emph{Supervisors:}\\
+%\AUTHORS
+\begin{center}
+\small  % Makes the text smaller
+\begin{tabular}{>{\raggedright}p{4cm} p{4cm}}  
+    Morten Risstad & \href{mailto:morten.risstad@ntnu.no}{morten.risstad@ntnu.no} \\
+    Rickard Sandberg & \href{mailto:rickard.sandberg@hhs.se}{rickard.sandberg@hhs.se} \\
+\end{tabular}
+\end{center}
+
+
+\vfill
+% Bottom of the page
+{\large \today}
+\end{center}
+\end{titlepage}
+
+
+
+
+% \newcommand{\TITLE}{Paper Title}
+
+% \newcommand{\TOPIC}{Paper Topic}
+
+% \newcommand{\GROUP}{Group Name}
+
+% \newcommand{\AUTHORS}{Name of all Group Members}
+
+% \newcommand{\USERNAMES}{NTNU usernames}
