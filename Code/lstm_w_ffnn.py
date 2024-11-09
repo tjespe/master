@@ -1,11 +1,8 @@
 # %%
 # Define parameters
-LOOKBACK_DAYS = 10
-SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+
 MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
-TEST_ASSET = "GOOG"
-DATA_PATH = "data/sp500_stocks.csv"
-TRAIN_TEST_SPLIT = "2020-06-30"
 
 # %%
 from shared.mc_dropout import predict_with_mc_dropout

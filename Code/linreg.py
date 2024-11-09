@@ -1,28 +1,18 @@
 # %%
 # Define parameters
-LOOKBACK_DAYS = 10
-SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+
 MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
-TEST_ASSET = "GOOG"
-DATA_PATH = "data/sp500_stocks.csv"
-TRAIN_TEST_SPLIT = "2020-06-30"
 
 # %%
 import numpy as np
-from scipy.stats import chi2, norm
-from scipy.special import erfinv
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler
-from arch import arch_model
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input,
-    LSTM,
     Dense,
-    Dropout,
     Concatenate,
-    LayerNormalization,
     Flatten,
 )
 from tensorflow.keras.regularizers import l2
@@ -30,7 +20,6 @@ from tensorflow.keras.optimizers.legacy import Adam
 import tensorflow as tf
 import warnings
 import os
-from tensorflow.keras.initializers import Constant, RandomNormal
 
 warnings.filterwarnings("ignore")
 
