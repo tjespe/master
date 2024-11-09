@@ -137,6 +137,18 @@ preds_per_model.append(
     }
 )
 
+# Mini LSTM
+mini_lstm_preds = pd.read_csv(
+    f"predictions/lstm_mini_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+)
+preds_per_model.append(
+    {
+        "name": "Mini LSTM",
+        "mean_pred": mini_lstm_preds["Mean"].values,
+        "volatility_pred": mini_lstm_preds["Volatility"].values,
+    }
+)
+
 # GARCH + LSTM-MC ensemble
 preds_per_model.append(
     {
@@ -509,3 +521,5 @@ def plot_volatility_comparison(
 returns_test = df_test["LogReturn"]
 
 plot_volatility_comparison(preds_per_model, returns_test, abs_returns_test)
+
+# %%
