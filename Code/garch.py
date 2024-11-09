@@ -1,8 +1,6 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
-
-MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
+from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 # %%
 import numpy as np
@@ -98,3 +96,5 @@ df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
 df_test["Volatility"] = garch_vol_pred
 df_test["Mean"] = 0  # Assume mean is 0
 df_test.to_csv(f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+
+# %%

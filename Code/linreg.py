@@ -2,8 +2,6 @@
 # Define parameters
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
-MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
-
 # %%
 import numpy as np
 import pandas as pd
@@ -185,8 +183,11 @@ log_variance_out = Dense(
 # Concatenate outputs
 outputs = Concatenate()([mean_out, log_variance_out])
 
-# Define and compile the model
+# Define model
 linreg_model = Model(inputs=inputs, outputs=outputs)
+
+# %%
+# Compile model
 linreg_model.compile(optimizer=Adam(learning_rate=0.001), loss=nll_loss)
 
 # %%
@@ -292,3 +293,5 @@ plt.ylabel("Weight")
 plt.show()
 
 weight_df
+
+# %%

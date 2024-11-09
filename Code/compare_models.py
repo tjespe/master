@@ -1,10 +1,6 @@
 # %%
 # Define parameters
-LOOKBACK_DAYS = 10
-SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
-TEST_ASSET = "GOOG"
-DATA_PATH = "data/sp500_stocks.csv"
-TRAIN_TEST_SPLIT = "2020-06-30"
+from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 # %%
 import numpy as np
@@ -64,109 +60,135 @@ df_test
 preds_per_model = []
 
 # Linear Regression Model
-linreg_preds = pd.read_csv(
-    f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "Linear Regression",
-        "mean_pred": linreg_preds["Mean"].values,
-        "volatility_pred": linreg_preds["Volatility"].values,
-    }
-)
+try:
+    linreg_preds = pd.read_csv(
+        f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Linear Regression",
+            "mean_pred": linreg_preds["Mean"].values,
+            "volatility_pred": linreg_preds["Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Linear Regression predictions not found")
 
 # GARCH Model
-garch_vol_pred = pd.read_csv(
-    f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)["Volatility"].values
-preds_per_model.append(
-    {
-        "name": "GARCH",
-        "mean_pred": np.zeros_like(garch_vol_pred),
-        "volatility_pred": garch_vol_pred,
-    }
-)
+try:
+    garch_vol_pred = pd.read_csv(
+        f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )["Volatility"].values
+    preds_per_model.append(
+        {
+            "name": "GARCH",
+            "mean_pred": np.zeros_like(garch_vol_pred),
+            "volatility_pred": garch_vol_pred,
+        }
+    )
+except FileNotFoundError:
+    print("GARCH predictions not found")
 
 # LSTM Model
-lstm_preds = pd.read_csv(
-    f"predictions/lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "LSTM",
-        "mean_pred": lstm_preds["Mean"].values,
-        "volatility_pred": lstm_preds["Volatility"].values,
-    }
-)
+try:
+    lstm_preds = pd.read_csv(
+        f"predictions/lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM",
+            "mean_pred": lstm_preds["Mean"].values,
+            "volatility_pred": lstm_preds["Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM predictions not found")
 
 # LSTM with MC Dropout Model
-lstm_mc_preds = pd.read_csv(
-    f"predictions/lstm_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "LSTM-MC",
-        "mean_pred": lstm_mc_preds["Mean"].values,
-        "volatility_pred": lstm_mc_preds["Volatility"].values,
-        "epistemic_sd": lstm_mc_preds["Epistemic_Uncertainty_Volatility"].values,
-    }
-)
+try:
+    lstm_mc_preds = pd.read_csv(
+        f"predictions/lstm_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM-MC",
+            "mean_pred": lstm_mc_preds["Mean"].values,
+            "volatility_pred": lstm_mc_preds["Volatility"].values,
+            "epistemic_sd": lstm_mc_preds["Epistemic_Uncertainty_Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM-MC predictions not found")
 
 # LSTM with FFNN Model
-lstm_w_ffnn_preds = pd.read_csv(
-    f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "LSTM w/ FFNN",
-        "mean_pred": lstm_w_ffnn_preds["Mean"].values,
-        "volatility_pred": lstm_w_ffnn_preds["Volatility"].values,
-    }
-)
+try:
+    lstm_w_ffnn_preds = pd.read_csv(
+        f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM w/ FFNN",
+            "mean_pred": lstm_w_ffnn_preds["Mean"].values,
+            "volatility_pred": lstm_w_ffnn_preds["Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM w/ FFNN predictions not found")
 
 # LSTM with FFNN and MC Dropout Model
-lstm_w_ffnn_mc_preds = pd.read_csv(
-    f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "LSTM w/ FFNN and MC Dropout",
-        "mean_pred": lstm_w_ffnn_mc_preds["Mean"].values,
-        "volatility_pred": lstm_w_ffnn_mc_preds["Volatility"].values,
-        "epistemic_sd": lstm_w_ffnn_mc_preds["Epistemic_Uncertainty_Volatility"].values,
-    }
-)
+try:
+    lstm_w_ffnn_mc_preds = pd.read_csv(
+        f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM w/ FFNN and MC Dropout",
+            "mean_pred": lstm_w_ffnn_mc_preds["Mean"].values,
+            "volatility_pred": lstm_w_ffnn_mc_preds["Volatility"].values,
+            "epistemic_sd": lstm_w_ffnn_mc_preds[
+                "Epistemic_Uncertainty_Volatility"
+            ].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM w/ FFNN and MC Dropout predictions not found")
 
 # Mini LSTM
-mini_lstm_preds = pd.read_csv(
-    f"predictions/lstm_mini_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-)
-preds_per_model.append(
-    {
-        "name": "Mini LSTM",
-        "mean_pred": mini_lstm_preds["Mean"].values,
-        "volatility_pred": mini_lstm_preds["Volatility"].values,
-    }
-)
+try:
+    mini_lstm_preds = pd.read_csv(
+        f"predictions/lstm_mini_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Mini LSTM",
+            "mean_pred": mini_lstm_preds["Mean"].values,
+            "volatility_pred": mini_lstm_preds["Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Mini LSTM predictions not found")
 
 # GARCH + LSTM-MC ensemble
-preds_per_model.append(
-    {
-        "name": "GARCH + LSTM-MC ensemble",
-        "mean_pred": np.mean(
-            np.array(
-                [
-                    lstm_mc_preds["Mean"].values,
-                    np.zeros_like(lstm_mc_preds["Mean"].values),
-                ]
+try:
+    preds_per_model.append(
+        {
+            "name": "GARCH + LSTM-MC ensemble",
+            "mean_pred": np.mean(
+                np.array(
+                    [
+                        lstm_mc_preds["Mean"].values,
+                        np.zeros_like(lstm_mc_preds["Mean"].values),
+                    ]
+                ),
+                axis=0,
             ),
-            axis=0,
-        ),
-        "volatility_pred": np.mean(
-            np.array([garch_vol_pred, lstm_mc_preds["Volatility"]]), axis=0
-        ),
-    }
-)
+            "volatility_pred": np.mean(
+                np.array([garch_vol_pred, lstm_mc_preds["Volatility"]]), axis=0
+            ),
+        }
+    )
+except NameError:
+    print("Ensemble cannot be created due to either GARCH or LSTM-MC missing")
 
 
 # %%
@@ -377,7 +399,7 @@ def interpret_christoffersen_test(result):
 # Evaluate models
 alpha = 0.05
 y_test_actual = df_test["LogReturn"].values
-abs_returns_test = df_test["SquaredReturn"].values
+abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Plot volatility predictions
