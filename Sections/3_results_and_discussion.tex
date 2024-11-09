@@ -15,10 +15,26 @@ The review identified [68] articles published between 1992 and 2024. Scientific 
     \label{fig:scientific_productivity}
 \end{figure}
 
-% Most research originates from XUSAX and XX, having published X2X and XX papers respectively, as illustrated in Figure X. 
-Significant contributions to the field are made by authors from computer science and technical  faculties. Only a few author have a background from financial faculties. [LAGE ANALYSE OG SKRIVE UT]
+The majority of research originates from China and USA, with 17 and 8 papers contributed by authors from these countries, respectively, as shown in Figure \ref{fig:author_country_origin_per_paper}. Each country is counted only once per paper, regardless of the number of contributing authors from that country.  
 
-In terms of journal origins, the majority of the papers from the sample were published in engineering, technical, computer science, and artificial intelligence journals or other. There are only a minor representation in fiance and economics journals (15 out of 64 papers). Figure \ref{fig:num_papers_per_journal_category} shows the distribution of publications across journal categories. This distribution could suggest a potential gap in domain-specific financial research, indication a opportunity for increased financial focus journal contributions. The categorizing of journals is detailed in Appendix \ref{appendix:journal_category_mapping}. 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images/author_country_origin_per_paper.png}
+    \caption{Number of articles by authors' faculty country of origin, with each country counted once per article to reflect international collaboration.}
+    \label{fig:author_country_origin_per_paper}
+\end{figure}
+
+Notably, significant contributions to the field are made by authors from computer science and technical faculties, while only 20\% of authors have a background from financial, business or economics faculties, as illustrated in Figure \ref{fig:author_faculty_origin}. To capture the full scope of expertise, all authors are counted individually. 
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images/author_faculty_origin.png}
+    \caption{Percentage distribution of authors by faculty category.}
+    \label{fig:author_faculty_origin}
+\end{figure}
+
+In terms of journal origins, the majority of the papers from the sample were published in engineering, technical, computer science, and artificial intelligence journals or other. There are only a minor representation in finance and economics journals (15 out of 64 papers). Figure \ref{fig:num_papers_per_journal_category} shows the distribution of publications across journal categories. This distribution could suggest a potential gap in domain-specific financial research, indication a opportunity for increased financial focused journal contributions. The categorizing of journals is detailed in Appendix \ref{appendix:journal_category_mapping}. 
 
 \begin{figure}[H]
     \centering
@@ -26,14 +42,14 @@ In terms of journal origins, the majority of the papers from the sample were pub
     \caption{Distribution of sample papers by journal category.}
     \label{fig:num_papers_per_journal_category}
 \end{figure}
-The papers in the samples explores different predictive objectives within the financial domain. As shown in Figure \ref{fig:what_is_predicted}, most papers forecast asset prices, classifications or uncertainty quantification of asset prices. 
+The papers in the samples explores different predictive objectives within the financial domain. As shown in Figure \ref{fig:what_is_predicted}, most papers forecast asset prices, classifications or uncertainty quantification of asset prices. [CHANGE GRAPH AFTER NEW MAPPING]
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/what_is_predicted.png}
     \caption{Distribution of predictive objectives in the sample papers.}
     \label{fig:what_is_predicted}
 \end{figure}
-Figure \ref{fig:treemap_asset_by_market} illustrates the specific financial assets and markets that are focused on and forecast in the studies. The majority of papers focus on equites, primary stock and stock indices, but a notable number of papers also address derivatives and currencies.  
+Figure \ref{fig:treemap_asset_by_market} illustrates the specific financial assets and markets that are focused on and forecast in the studies. The majority of papers focus on equites, primarly stock and stock indices, but a notable number of papers also address derivatives and currencies.  
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/treemap_asset_by_market.png}
@@ -49,6 +65,7 @@ Figure \ref{fig:treemap_asset_by_market} illustrates the specific financial asse
 %----------------------------------------------------%
 
 \subsection{Analysis by Model}
+\label{sec:analysis_by_model}
 To give an overview of the field, we present the most predominantly used probabilistic models in the sample papers, give a description of them, depict their use, and provide an overview of how they are used to create uncertainly estimates in financial time series. Table \ref{table:model_categorization} provides an overview of probabilistic model categories created based on grouping the most commonly used model types, and specifically what model names in the papers they include. Figure \ref{fig:model_breakdown} illustrates the occurrence of each probabilistic model category, and if they are used independently or in combination with other machine learning or econometric models. Summarizing results and conclusions by model type are shown in Table \ref{table:conclusions_by_model}.
 
 \begin{table}[H]
@@ -231,13 +248,15 @@ Two articles in the final sample use HMMs to address multi-factor dependencies i
 
 \textcite{zhang2019high} extend the HMM to a second-order model, capturing both short-term and long-term dependencies for predicting next-day categorical trends in stock indices. In their higher order approach, the observation depends not only on the current state, but also on the previous $m-1$ hidden states. While the authors do not directly use the probabilistic distribution output to assess uncertainty, they suggest that the higher-order HMM has lower risk then the first-order model, supported by improved Sharpe ratios and reduced maximum drawdown in their trading strategy experiment. Additionally, the second-order HMM deliver better predictive performance compared to the first-order HMM.
 
-Similarly, \textcite{su2022hmm} applies the second-order HMM model to predict prices of the Hang Seng Index (HSI). Even though their model is capable of producing distributional forecasts, the authors focus exclusively on point predictions and do not assess uncertainty of any kind. When compared to models like NA-GARCH, CNN-BiLSTM-AM and AHMMAS, the second-order HMM showcases superior performance. 
+Similarly, \textcite{su2022hmm} applies the second-order HMM model to predict prices and directions of the Hang Seng Index (HSI). Even though their model is capable of producing distributional forecasts, the authors focus exclusively on point predictions and do not assess uncertainty of any kind. When compared to models like NA-GARCH, CNN-BiLSTM-AM and AHMMAS, the second-order HMM showcases superior performance. 
 
 
 %--------------------- Prob RNN extensions --------------------------%
 
 
 \subsubsection{Probabilistic RNN Extensions}
+\label{sec:prob_rnn}
+
 Probabilistic extensions of Recurrent Neural Networks (RNNs) refer to models augmenting standard RNN implantations with stochastic components, enabling them to generate probabilistic forecasts. RNNs are neural networks designed to handle sequential data by maintaining hidden states that capture information about previous inputs to shape subsequent behavior \parencite{Elman1990Finding}, making them suitable for financial time series analysis. In a standard RNN the hidden state$h_t$ at time step $t$ is updated based on the current input $x_t$ and the previous hidden state $h_{t-1}$:
 \begin{equation}
     \begin{gathered}
@@ -250,7 +269,7 @@ Standard RNNs suffer from the exploding and vanishing gradient problems \parenci
 
 Several articles apply Bayesian methods within RNN implementations, placing prior distribution over the network weights to estimate the posterior distribution (Equation \ref{eq:bayes_theorem}). \textcite{Hassan2024Bitcoin} utilize a Bayesian LSTM with MC dropout at inference, optimized with ADAM, to generate a distributional forecast of Bitcoin prices. The model outperforms non-Bayesian LSTMs in RMSE, $R^2$ and MAPE for point predictions, and the Bayesian approach facilitate model uncertainty quantification. The author argue that model uncertainty is accurately estimated, as it increases with prediction distance from actual data, but no other assessment measure of the quality of the uncertainty estimate is utilized. Similarly, \textcite{Dixon2022Industrial} incorporate exponential smoothing within a Bayesian RNN, smoothing hidden states to capture long-term dependencies in IBM stock predictions. The model provide more accurate forecasts compared to a standard LSTM and GRU implementation, with better coverage of confidence intervals across various predictive horizons. This improvement is presented as evidence of superior uncertainty estimation, though no distinction between model uncertainty and aleatoric uncertainty is made.
 
-\textcite{Parker2021BayesianHeteroskedastic} present a Bayesian general heteroskedacity model (GBHM) within an RNN framework to predict Dow Jones index volatility. Compared to a GARCH implementation, the model achieves superior log predictive scores. Additionally, the authors report more accurate uncertainty measured by coverage, with GARCH yielding an inflated 100\% coverage for the 50\% prediction interval, while the model attains nearly optimal 50\% .
+\textcite{Parker2021BayesianHeteroskedastic} present a Bayesian general heteroskedacity model (GBHM) within an RNN framework to predict Dow Jones index volatility. Compared to a GARCH implementation, the model achieves superior log predictive scores. Additionally, the authors report more accurate uncertainty measured by coverage, with GARCH yielding an inflated 100\% coverage for the 50\% prediction interval, while the model attains nearly optimal 50\%. Previous research has shown that GARCH generally produces reliable coverage probabilities when modeling stock indices [kilde], so this result raises questions about whether the GARCH model they have benchmarked against is misspecified.
 
 \textcite{Golnari2024Cryptocurrency} introduce a probabilistic GRU model incorporating Bayesian inference to treat network weights as probabilistic, enabling distributional forecasts
  for crypto price predictions. The model outperforms traditional LSTM and GRU implementations in MAPE and $R^2$ of point predictions. The authors use the standard deviation of the forecast distributions as a measure of prediction uncertainty, but do not further assess it's reliability or distinguish uncertainty types.  
@@ -273,7 +292,7 @@ The probabilistic capabilities of GANs comes from the generators ability to map 
 
 Four articles in the sample used GANs in their financial forecasting. For example, \textcite{lee2021estimation} proposed a modified conditional GAN (cGAN-UC) as probabilistic model to forecast price of NASDAQ-100 Future Index with uncertainty. The authors used the generator to predict rather than for sample generation to be used as a probabilistic predictive neural network. The cGAN model outperformed traditional deterministic models such as Artificial Neural Networks (ANNs), Random Forest, Ridge and Lasso regression and probabilistic models like Bayesian Neural Networks (BNNs) for both point accuracy and uncertainty estimation especially in noisy data due to the benefits of adversarial training. 
 
-\textcite{vuletic2024finGAN} introduced a specialized GAN model (Fin-GAN) for one-step-ahead probabilistic prediction of stock and stock indices price with uncertainty. The model use cGAN architecture with an economics-driven loss function, to enhance Sharpe Ratio and integrate risk directly in the model. The model outputs a full conditional probability distribution of returns witch allows it to estimate the financial uncertainty. The Fin-GAN model claims to outperform and achieve higher Sharpe Ratio compared to traditional time-series modes such as ARIMA and LSTM, and allows for uncertainty informed portfolio allocation due to its probabilistic outputs. However, the paper does not compare the uncertainty estimation against other probabilistic or ML models. 
+\textcite{vuletic2024finGAN} introduced a specialized GAN model (Fin-GAN) for one-step-ahead probabilistic prediction of stock and stock indices price with uncertainty. The model uses a cGAN architecture with an economics-driven loss function, to enhance Sharpe Ratio and integrate risk directly in the model. The model outputs a full conditional probability distribution of returns witch allows it to estimate the financial uncertainty. The Fin-GAN model claims to outperform and achieve higher Sharpe Ratio compared to traditional time-series modes such as ARIMA and LSTM, and allows for uncertainty informed portfolio allocation due to its probabilistic outputs. However, the paper does not compare the uncertainty estimation against other probabilistic or ML models. 
 
 For portfolio optimization, \textcite{kim2023portfolio} applies a predictive auxiliary classifier GAN (PredACGAN) on S\&P 500 and NASDAQ 100 stocks. The generator forecast future returns based on historical data and produce distributions reflecting prediction uncertainty. The authors construct a portfolio based on the predictions, where they combine the expected return with the distribution's entropy as a risk measure to maximize risk-adjusted returns. The PredACGAN portfolio resulted in higher Sharpe Ratio and lower maximum drawdowns in comparison to traditional risk-agnostic portfolios and other ML models (e.g. Ridge classifiers and gradient boosting).
 
@@ -338,16 +357,7 @@ The five omitted articles either employ similar models to those discussed, lack 
 
 %---------------------Conclusion----------------------%
 \subsubsection{Conclusion} % deside if we need this
-- [EXAMPLES ON WHAT TO INCLUDE]
-\begin{itemize}
-    \item  probabilistic models tend to outperform traditional econometric models (both point estimates and uncertainty quantification). 
-    \item More flexibility and can handle non-linear relationships better than econometric models
-    \item it is hard to know wich is best. many model type show promising results and are able to provide uncertainty quantification, not merely point predictions 
-    \item people use different models to benchmark making it difficult to compare 
-     \item Probabilistic models tend to outperform traditional econometric models (both point estimates and uncertainty quantification)
-    \item More flexibility and can handle non-linear relationships better than econometric models
-    \item People use different models to benchmark making it difficult to compare
-\end{itemize}
+
 
 \begin{table}[H]
     \centering
@@ -379,7 +389,7 @@ The five omitted articles either employ similar models to those discussed, lack 
         \hdashline[0.2pt/3pt]
         \addlinespace
         Hidden Markov Models (HMM) & 
-        \smallbullet{Mostly used and effective for categorical predictions, often outperforming traditional models} 
+        \smallbullet{Mostly used and effective for categorical predictions, outperforming traditional models} 
         \smallbullet{Minimal focus on leveraging distributional forecasts for uncertainty estimation}
         \smallbullet{Second-order HMMs show promising results but lack comprehensive benchmarking}\\
         \addlinespace
@@ -399,7 +409,7 @@ The five omitted articles either employ similar models to those discussed, lack 
         \addlinespace
         Probabilistic Neural Networks (PNN) & 
         \smallbullet{Primarily focused on classification, with reliable probabilistic outputs} 
-        \smallbullet{Limited emphasis on explicit uncertainty quantification despite probabilistic architecture} \\
+        \smallbullet{Limited emphasis on uncertainty quantification despite probabilistic architecture} \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
@@ -419,110 +429,6 @@ The five omitted articles either employ similar models to those discussed, lack 
     \end{adjustbox}
 \end{table}
 
-% ADD CONCLUTION TABLE HERE
-
-\begin{table*}[ht!]
-    \centering
-    \caption[Summarizing conclusions by model type]{Summarizing conclusions by model type}
-    \label{table:conclusions_by_model}
-    \small
-    \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{p{0.1\textwidth}p{0.9\textwidth}}
-        \toprule
-        \textbf{Model} & \textbf{Conclusion} \\
-        \midrule
-        BNN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Despite BNN's inherent capacity to produce probabilistic outputs, the main focus remains on point prediction accuracy rather than assessing the quality of uncertainty estimates.
-            \item Across different asset classes, BNN models have reported competitive predictive performance compared to traditional models like ARIMA and other neural network models. However, the models' comparative advantage in uncertainty quantification is not thoroughly explored or benchmarked.
-            \item Several studies integrate BNNs with hybrid architectures (e.g., with GANs, TCNs, and other deep learning methods). While Monte Carlo remains the most popular method for Bayesian inference, advanced techniques like MNF demonstrate promising results.
-        \end{itemize} \\
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        GP & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Point 1
-            \item Point 2
-        \end{itemize} \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        VAE & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item VAEs are primarily used in combination with other machine learning models or as a pre-processing tool to produce more robust inputs for downstream models
-            \item While authors recognize that the VAE’s probabilistic architecture capturing latent financial data patterns to simulate future outcomes can be used for risk management and uncertainty quantification, few articles leverage this potential fully. Those that do currently fail to create adequate results
-        \end{itemize}\\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        HMM & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most authors do categorical predictions when using HMMs
-            \item Even though the model produces distributional forecasts with probabilities, no authors assess the uncertainty of their predictions using HMMs
-            \item The second-order HMM seems to outperform the first-order HMM and shows some promising results when compared to other models, but they are not compared in a satisfactory way to be able to conclude that (not enough comparison or something like that)
-            \item The proposed models consistently outperform traditional models in terms of point predictions
-        \end{itemize}\\
-
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        PRNN Extensions & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most articles are very new (2023 or 2024)
-            \item DeepAR manages to pass Christoffersen's test and is shown to beat GARCH at VaR estimation in one article
-            \item The models show promising results for point predictions
-        \end{itemize}\\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        PGAN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most use a cGAN-based model for forecasting
-            \item 75\% perform a UQ quality assessment (often non-distinguishing)
-            \item Mainly used for price prediction with uncertainty
-            \item Outperforms traditional benchmarks in some cases, but is often not compared to ML models
-        \end{itemize}\\
-
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        PNN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Point 1
-            \item Point 2
-        \end{itemize}\\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Other Bayesian Methods & 
-        \vspace{-4mm}
-        \begin{itemize}[left=0pt]
-            \item The Bayesian methods are mainly concerned with stock movement/categorical prediction, and authors report promising reports of accuracy
-            \item While Bayesian methods in this category produce probabilistic outputs, many models do not fully leverage these outputs to quantify uncertainty explicitly
-            \item Lacking benchmarking to other models make it hard to quantify the exact promise of the models
-        \end{itemize}\\
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Other Probabilistic Methods & 
-        \vspace{-4mm}
-        \begin{itemize}[left=0pt]
-            \item Probabilistic models tend to outperform traditional econometric models (both point estimates and uncertainty quantification)
-            \item More flexibility and can handle non-linear relationships better than econometric models
-            \item People use different models to benchmark making it difficult to compare
-        \end{itemize} \\
-        \addlinespace
-        \addlinespace
-        \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{table*}
 
 
 
@@ -532,10 +438,11 @@ The five omitted articles either employ similar models to those discussed, lack 
 
 
 \subsection{Analysis by Model Output}
+\label{sec:analysis_by_model_output}
 To enhance the understanding of probabilistic AI applications in financial time series forecasting, this section categorizes the sample based on what the model outputs. While the majority of models in the sample focus on predicting returns or prices, often incorporating uncertainty estimates, some studies use volatility or volatility proxies as target variables. Figure \ref{fig:target_variable} shows a breakdown of all articles in the sample by model output. Summarizing results and conclusions by model output are shown in Table \ref{table:conclusions_by_target_variable}.
 
 \subsubsection{Price}
-Eleven articles in the sample employ probabilistic AI models to predict asset prices or returns without estimating uncertainty, focusing solely on enhancing predictive accuracy. Despite using probabilistic models, these studies do not exploit their inherent capability to quantify uncertainty.
+14 articles in the sample employ probabilistic AI models to predict asset prices or returns without estimating uncertainty, focusing solely on enhancing predictive accuracy. Despite using probabilistic models, these studies do not exploit their inherent capability to quantify uncertainty.
 
 \textcite{jang2018generative} adopt a Bayesian approach to incorporate prior knowledge about option prices, specifically encoding in the prior that forecasted prices of deep in-the-money (ITM) or out-of-the-money (OTM) options should remain close to their previous prices. However, they do not utilize the model's ability to quantify epistemic uncertainty, concentrating exclusively on point predictions.
 
@@ -545,46 +452,58 @@ In \textcite{jang2018empirical}, they use a Bayesian neural network for improved
 
 In \textcite{Sharma2021}, a clear motivation for the chosen Recurrent Dictionary Learning (RDL) structure is its ability to make predictions with uncertainty, and they mention that a knowledgeable trader can use the uncertainty estimates to make better trading decisions. However, they do not present or analyze the produced uncertainty estimates, and there is no evaluation of whether the uncertainty estimates are useful.
 
-In the other seven articles, the authors do not have a clear rationale for using a probabilistic AI model. In \textcite{Zmuk2020gpr}, \textcite{Park2014gpr} and \textcite{Papaioannou2022gpr}, they test several models, including both deterministic models and Gaussian process regression (GPR). Both \textcite{Park2014gpr} and \textcite{Papaioannou2022gpr} show GPR as the best performing model, while in \textcite{Zmuk2020gpr} the results are more mixed.
+In \textcite{Daniali2021} they combine a CNN model with a conditional variance layer. The probabilistic output is not used, but the results show that the proposed model outperforms a traditional CNN in terms of point predictions.
+
+In the other seven articles, the authors do not present a clear rationale for using a probabilistic AI model. In \textcite{Zmuk2020gpr}, \textcite{Park2014gpr} and \textcite{Papaioannou2022gpr}, they test several models, including both deterministic models and Gaussian process regression (GPR). Both \textcite{Park2014gpr} and \textcite{Papaioannou2022gpr} show GPR as the best performing model, while in \textcite{Zmuk2020gpr} the results are more mixed.
 
 In \textcite{li2020multivariate}, a variational auto-encoder is used to "relief the curse of dimensions", but the authors do not state why a \textit{variational} auto-encoder is used, rather than a traditional auto-encoder.
 
 In \textcite{salama2024gan}, a cGAN is used, but it seems like the author only uses the model to generate one sample at prediction time, thus not exploiting the model's ability to predict multiple future scenarios. The accuracy of the point predictions, measured in correlation between predicted returns and actual returns is as high as ~0.999, raising questions about model overfitting or data leakage in the training process [kilde?].
 
-In conclusion, although the use of probabilistic AI models for point prediction of asset prices appears somewhat arbitrary, several studies demonstrate their strong performance.
+In conclusion, while the use of probabilistic AI models for point prediction of asset prices may often appear arbitrary, several studies highlight their strong performance. Notably, \textcite{Daniali2021} demonstrates that their probabilistic model outperforms an otherwise identical deterministic counterpart.
 
 \subsubsection{Distributional forecast}
-There are 23 articles in the sample where the proposed model predicts a distribution over future prices, a promising capability of probabilistic AI as it allows for new risk estimation approaches, free from the constraints of traditional models. Of these, 16 articles involve models outputting flexible distributions, which is beneficial in finance given that financial returns are not normally distributed [source]. The remaining 11 models assume fixed distributional forms, similar to traditional methods, but retain the advantage of capturing non-linear dependencies typical of AI models.
+\label{sec:distribution}
+There are 28 articles in the sample where the proposed model predicts a distribution over future prices, a promising capability of probabilistic AI as it allows for new risk estimation approaches, free from the constraints of traditional models. Of these, 16 articles involve models outputting flexible distributions, which is beneficial in finance given that financial returns are not normally distributed [source]. The remaining 12 models assume fixed distributional forms, similar to traditional methods, but retain the advantage of capturing non-linear dependencies typical of AI models.
 
 \textbf{Parametric Distributions}
 
-Ten articles use models that output parameters for an assumed distribution form, similar to GARCH predicting variance while requiring an assumed distribution type. Seven of these articles use Gaussian Process Regression (GPR), which limits distributional output to Gaussian forms and cannot handle heteroskedastic noise, restricting its utility in financial applications.
+11 articles use models that output parameters for an assumed distribution form, similar to GARCH predicting variance while requiring an assumed distribution type.
+
+Seven of these articles use Gaussian Process Regression (GPR). GPR limits the distributional output to Gaussian forms and cannot by default handle heteroskedastic noise, restricting its utility in financial applications. However, \textcite{Risk2018gpr} works around this by introducing a conditional variance term in the GPR equation. The output distribution then becomes a combination of one Gaussian distribution representing the epistemic model-uncertainty and one Gaussian distribution representing the underlying data uncertainty. This allows them to estimate portfolio VaR and CVaR with an epistemic confidence interval. The results show that the estimates are of comparable quality to estimates achieved through computationally expensive nested Monte Carlo simulation where the value of all portfolio assets are calculated for a range of possible economic scenarios.
 
 \textcite{Law2017Practical} employs Bayesian SVR (B-SVR) with explicit error bars incorporating both model-driven (epistemic) uncertainty and intrinsic noise (volatility). However, intrinsic noise is assumed constant across the time series, disregarding financial heteroskedasticity and reducing its utility as an uncertainty measure. The study also lacks validation of uncertainty estimates, though the B-SVR does outperform a traditional SVR in point prediction accuracy. Theoretically, B-SVR's epistemic uncertainty isn't distribution-constrained because it is a sum of many distributions—one for each support vector—allowing for flexibility in the output distribution shape. In this article, however, the practical implementation only considers the variance, removing any non-parametric characteristics.
 
 Two other studies, \textcite{Guo2022} and \textcite{Tian2023}, analyze fitting errors to estimate uncertainty and construct prediction intervals for non-probabilistic models. These intervals account for both model uncertainty and asset volatility but have uniform widths across the series, ignoring financial heteroskedasticity and limiting their risk analysis utility.
 
+\textcite{Horenko2020} propose a simple model that is slightly freer in terms of the generated distributions where the user can choose how many moments to output—beyond just mean and variance. The results show that this model outperforms GARCH in terms of log likelihood and BIC.
+
+In \textcite{Li2024DeepAR}, the proposed DeepARA model outputs mean and variance, thus predicting both the expected returns and the volatility of stocks, but with an assumed distribution of returns. The usefulness of the uncertainty estimate is not assessed or benchmarked.
+
 \textbf{Non-Parametric Distributions}
 
 The remaining 14 articles generate non-parametric distributions, allowing for arbitrary shapes. Non-parametric distributions are particularly useful for risk analysis, enabling more accurate estimation of measures such as Value at Risk (VaR) or Expected Shortfall (CVaR), given the non-normal distribution of financial returns and frequent extreme events [source]. Several probabilistic AI methods are used to generate these distributions.
 
-Seven articles utilize Bayesian Neural Networks (BNNs), including both feed-forward and recurrent networks [burde alle refereres til her?]. As mentioned in section \ref{sec:bnn}, BNNs model weights as random variables. While the weight distributions often assume normality, the complex interactions of hidden layers and multiple nodes allow for flexible output distributions. However, the uncertainty is tied to model weights rather than data, implying that the output primarily captures epistemic uncertainty rather than aleatoric uncertainty (volatility). The models can in theory be extended to also output aleatoric uncertainty, for example by outputting variance alongside expected return and train the model using an appropriate loss function, but none of the models in the sample do that [double-check this claim]. Thus, these models are less suited for financial risk analysis as the uncertainty reflects model unfamiliarity rather than inherent asset risk.
+Seven articles utilize Bayesian Neural Networks (BNNs), including both feed-forward and recurrent networks [burde alle refereres til her?]. As mentioned in section \ref{sec:bnn}, BNNs model weights as random variables. While the weight distributions often assume normality, the complex interactions of hidden layers and multiple nodes allow for flexible output distributions. However, the uncertainty is tied to model weights rather than data, implying that the output primarily captures epistemic uncertainty rather than aleatoric uncertainty (volatility). The models can in theory be extended to also output aleatoric uncertainty, for example by outputting variance alongside expected return and train the model using an appropriate loss function, but none of the models in the sample do that [double-check this claim]. Thus, while many of the authors claim that the predicted uncertainty can be useful in investment decisions, these models are less suited for financial risk analysis as the uncertainty reflects model unfamiliarity rather than inherent asset risk.
+
+As noted earlier, GPR models are typically limited to parametric Gaussian output distributions and assume homoscedastic noise. Nevertheless, \textcite{Platanios2014gpr} overcome these constraints by incorporating heteroscedastic noise into the GPR framework and employing a Pitman-Yor process to integrate a potentially infinite set of GPR models, thereby enabling the modeling of highly complex distributions. Despite these advancements, the authors do not explicitly analyze the shape of the resulting distributions. However, they demonstrate that the volatility estimates produced by their model align more closely with squared returns than those of GARCH. Their stock index modeling experiment with data from 1993 to 2003 shows a reduction to roughly one-tenth of GARCH's RMSE, while the forex experiment and the experiment on newer stock index data exhibit notable, though less extreme, improvements. Unfortunately, they do not test for significance or measure and benchmark other relevant metrics such as coverage probability.
 
 \textcite{arian2022encoded} employ a Variational Auto-Encoder (VAE) to generate return samples for each stock in a portfolio, preserving correlations between assets. This is achieved by repeatedly sampling from the random variables in the latent space and passing these samples through the deterministic decoder part of the network. These samples can be used to construct non-parametric distributions for both individual assets and portfolio returns. From these distributions, the authors calculate VaR for three portfolios, outperforming traditional models in scoring functions, but failing Christoffersen's test for adequacy.
 
 \textcite{Fatouros2023DeepVaR} and \textcite{Almeida2024RiskForecasting} use DeepAR to model asset and portfolio returns. DeepAR, inherently a multi-series model, outputs expected return and volatility for each asset, assuming a distributional form. However, the authors generate samples for portfolio returns where each sample includes simulated returns for every stock in the portfolio. This sampling process allows the construction of non-parametric distributions for the portfolio returns. In \textcite{Fatouros2023DeepVaR}, they show that the proposed model for FX and FX portfolio VaR estimation passes both Christoffersen's conditional coverage test and the Dynamic Quantile (DQ) test [referere til hva det er?]. Aditionally, it outperforms a diverse set of appropriate baseline models, such as GARCH, RiskMetrics (RM), Bidirectional Generative
 Adversarial Networks (BiGAN), Historical Simulation (HS) and the Monte Carlo method. The proposed model by \textcite{Almeida2024RiskForecasting} for cryptocurrency VaR and CVaR estimation is also extensively tested, but the results show that it is consistently outperformed by GARCH.
 
-\textcite{lee2021estimation} employ a conditional Generative Adversarial Network (cGAN) to forecast prices of the NASDAQ-100 Future Index. By inputting recent returns alongside generated noise vectors into the cGAN, they produce samples representing diverse future scenarios, thereby forming a non-parametric distribution. Their analysis focuses exclusively on the standard deviation of this distribution, however, overlooking its other potentially informative properties. Nonetheless, they demonstrate the meaningfulness of the uncertainty estimate by comparing the performance of long-short portfolios that take positions only when the predicted standard deviation falls below certain thresholds to that of a portfolio maintaining continuous positions. However, they do not check the informativeness of their uncertainty estimate using e.g. Christoffersen's test, and they do not benchmark against traditional models such as GARCH.
+\textcite{lee2021estimation} and \textcite{vuletic2024finGAN} employ conditional Generative Adversarial Networks (cGAN) to forecast prices of stocks and stock indices. By inputting recent returns alongside generated noise vectors into the cGAN, they produce samples representing diverse future scenarios, thereby forming a non-parametric distribution. Similarly, \textcite{Park2024UncertaintyAware} use reinforcement learning and quantile regression to construct non-parametric distributions. However, all these articles only focus on the standard deviations of the produced distributions, however, overlooking their other potentially informative properties. Nonetheless, they demonstrate the meaningfulness of the uncertainty estimates by comparing the performance of trading strategies where the predicted standard deviations are taken into account to simpler strategies. However, they do not check the informativeness of their uncertainty estimate using e.g. Christoffersen's test, and they do not benchmark against traditional models such as GARCH.
+
+\textcite{Park2024UncertaintyAware} and \textcite{vuletic2024finGAN} generate non-parametric distributions using reinforcement learning and a cGAN model, respectively. While these studies focus less on the distribution characteristics, they leverage distribution variance in portfolio construction, achieving performance gains over alternative strategies and underscoring the value of probabilistic outputs.
 
 Finally, \textcite{wang2020fastconformal} apply a Conformal Predictive System (CPS) with a regularized extreme learning machine to produce non-parametric cumulative distribution functions (CDFs) of returns. Though not benchmarked against other models, the generated predictions appear reliable, with the observed quantiles closely matching expected frequencies.
 
 \textbf{Conclusion on Distributional Forecasts}
 
-None of the models producing parametric distributions provide uncertainty quantification that is especially interesting from a financial risk perspective, as they primarily quantify the models' uncertainty and not the underlying data uncertainty. The same goes for the BNNs. The VAE model presented by \textcite{arian2022encoded}, as well as the cGAN model presented by \textcite{Almeida2024RiskForecasting} and the CPS presented by \textcite{wang2020fastconformal} are more interesting, because they take market randomness into account and can model distributions of any form, giving them an edge over traditional models. However, the VAE fails Christoffersen's test, and the testing and benchmarking of the cGAN and the CPS is limited.
+Most parametric distribution models provide uncertainty quantification primarily of the model itself, rather than the underlying data, limiting their relevance for financial risk assessment. Among these, only the models proposed by \textcite{Risk2018gpr} and \textcite{Horenko2020} offer parametric distributions with potential financial interpretations, with \textcite{Horenko2020} alone demonstrating superior performance over traditional models like GARCH.
 
-The most promising model in this subset of the sample is the DeepAR model proposed by \textcite{Fatouros2023DeepVaR} for forex VaR estimation, as it is extensively tested and shows positive results.
-
+In the "non-parametric" category, all models, except Bayesian Neural Networks (BNNs), yield distributions with potential implications for risk management. However, most either fail to pass relevant tests or lack sufficient rigorous evaluation to confirm their superiority over traditional risk modeling methods. The notable exception is the DeepAR model by \textcite{Fatouros2023DeepVaR}, developed for forex Value-at-Risk (VaR) estimation, which has undergone extensive testing with favorable results. Additionally, the DeepAR model can model multiple assets simultaneously, accounting for their correlations—a feature rarely achievable with traditional models [source].
 
 \subsubsection{Confidence interval}
 
@@ -595,21 +514,42 @@ The most promising model in this subset of the sample is the DeepAR model propos
 
 \subsubsection{Volatility}
 
-While it is possible to infer volatility from the probabilistic outputs of some of the models mentioned in \ref{sec:distributions}, only five articles in the sample directly try to predict volatility or volatility proxies.
+While volatility can be inferred from the probabilistic outputs of some models discussed in \ref{sec
+}, only six articles in the sample explicitly predict volatility or its proxies.
 
-In two articles -- \textcite{}
+Three articles—\textcite{Parker2021BayesianHeteroskedastic}, \textcite{xing2019sentiment} and \textcite{Platanios2014gpr}—attempt to model latent, unobservable volatility directly, without relying on proxies.
+
+\textcite{xing2019sentiment} achieves this by using a negative ELBO loss function to train a proposed hybrid model, combining a VAE and an RNN with sentiment data. Theoretically, minimizing the negative ELBO enables the model to make optimal predictions for latent volatility. Model performance is evaluated through negative log-likelihood (NLL) and compared against traditional models like GARCH variants and other machine learning methods, showing consistent outperformance. They also perform statistical tests to see if the outperformance is significant, showing strong evidence against other machine learning models, but weak evidence against GARCH, and no evidence against modified GARCH models.
+
+In \textcite{Parker2021BayesianHeteroskedastic}, the authors argue that the proposed Echo State Volatility Model (ESVM) provides better volatility estimates than GARCH. However, as mentioned in Section \ref{sec:prob_rnn} is is difficult to assess whether this result is reliable.
+
+\textcite{Platanios2014gpr} estimate volatility using a complex non-parametric distribution derived from GPR models, as detailed in Section \ref{sec:distribution}. In these models, volatility is treated as heteroskedastic noise, similar to in GARCH, but with seemingly higher accuracy in terms of RMSE against squared returns.
+
+The other three articles try to predict some observable proxy for volatility. \textcite{Daniali2021} uses a CNN to predict the VIX with high precision. \textcite{Tian2023} uses an RNN-based model to predict several volatility indices, outperforming a diverse set of benchmark models, including ARIMA and various neural networks. The last one, \textcite{Hocht2024gpr} uses a GPR to predict realized volatility with the purpose of pricing complex options.
+
+In conclusion, the models proposed by \textcite{xing2019sentiment} and \textcite{Platanios2014gpr} appear promising, demonstrating potential superiority over traditional models, though their evaluation methodology could be more exhaustive. \textcite{Parker2021BayesianHeteroskedastic} also claim to outperform GARCH; however, the reported metrics raise concerns about the fairness of the comparison. Evaluating the performance of the three proposed models for point predictions of volatility indices is challenging, given that the authors only benchmark against models they themselves have developed—potentially with unequal effort.
+
 
 
 %--------------------Financial risk measures----------------------%
 
-\subsubsection{Financial risk measures}
-In seven of the sample articles, financial risk measures such as Value at Risk (VaR) or Conditional Value at Risk (CVaR) are calculated. In most cases, these measures are inferred based on the distributional output from some AI model, while in other cases, they are predicted directly. 
+\subsubsection{Financial Risk Measures}
 
-Using distributional forecasts to calculate e.g. VaR and CVaR is possible using both parametric and non-parametric distributions as output from the AI models. However, the most interesting approach is perhaps the non-parametric, considering that these models can provide fundamentally different predictions compared to traditional econometric models. Out of the seven articles in the sample where financial risk measures are calculated, five of them do it by first forecasting a full non-parametric distribution. [... skrive litt om de forskjellige her ...]
+Many articles in Section \ref{sec} produce uncertainty distributions that can be utilized to calculate financial risk measures like Value at Risk (VaR) or Conditional Value at Risk (CVaR). However, only six articles in the sample explicitly aim to produce risk measures.
 
-Other authors attempt to directly estimate financial risk measures. Examples include [...]
+Five of these articles estimate VaR or CVaR from the uncertainty distributions generated by the models discussed in Section \ref{sec}. The remaining article, \textcite{caprioli2023quantifying}, employs a distinct method using a Variational Autoencoder (VAE) to generate synthetic correlation matrices as inputs for VaR calculation. Instead of deriving VaR from a single observed distribution, the VAE samples multiple plausible correlation structures to represent various market conditions. These correlation matrices are then used in a Monte Carlo simulation within a multi-factor Vasicek model to derive a distribution of portfolio losses, from which VaR is calculated.
 
-[skal vi skrive her om hvordan man tester sånne estimater?]
+Although there are six articles making VaR predictions, their approaches to evaluating the correctness of these predictions vary.
+
+The most straightforward method to assess prediction intervals and VaR estimates is to verify whether the frequency of violations—i.e., the occurrence of data points exceeding the predicted VaR—matches the chosen significance level. For instance, with a VaR estimate at a 5\% significance level, approximately 5\% of observed values should lie outside the predicted range. Over the short term, discrepancies may arise, but in the long term this should hold. This property can be statistically tested via an unconditional coverage test, commonly referred to as Kupiec's test. \textcite{Fatouros2023DeepVaR} and \textcite{arian2022encoded} both pass this test, even when GARCH models do not. \textcite{Horenko2020} also reference Kupiec and report VaR violation frequencies, though the absence of p-values makes it unclear if the model passes the test. In the other three articles, no such test is conducted \textcite{Almeida2024RiskForecasting, Risk2018gpr, caprioli2023quantifying}.
+
+For heteroscedastic time series, verifying only that the violation frequency matches the expected proportion is inadequate, as volatility in financial time series is time-varying. VaR estimates must vary correspondingly. A model predicting constant VaR could pass the unconditional coverage test, yet still be inadequate. To address this, \textcite{Christoffersen1998} proposed a conditional coverage test that evaluates whether VaR violations are independent across time. Models making constant VaR predictions typically fail this test due to clusters of violations in periods of high volatility. Only \textcite{Fatouros2023DeepVaR} and \textcite{arian2022encoded} conduct the conditional coverage test, also known as Christoffersen's test, and the model in \textcite{arian2022encoded} fails.
+
+Testing CVaR estimates is more complex, but several tests, such as the Acerbi and Szekely test and the Du and Escanciano test, have been developed. However, neither of the two articles that estimate CVaR apply these tests; instead, they rely on scoring functions for evaluation. \textcite{Risk2018gpr} assess CVaR using RMSE against Harrell-Davis estimates as a proxy for the "ground truth," without benchmarking against traditional models. \textcite{Almeida2024RiskForecasting} use the Continuous Ranked Probability Score (CRPS) and demonstrate outperformance relative to GARCH.
+
+Additionally, to demonstrate that a VaR or CVaR model is an improvement over traditional approaches, appropriate scoring functions and benchmarking are essential. All six articles employ scoring functions, yet only four benchmark their models against traditional ones, with only \textcite{Fatouros2023DeepVaR} and \textcite{Horenko2020} demonstrating clear outperformance.
+
+
 
 
 %-----------------------Categorization -------------------------%
@@ -617,7 +557,7 @@ Other authors attempt to directly estimate financial risk measures. Examples inc
 \subsubsection{Categorization}
 Instead of predicting the precise future prices of financial assets, many researchers concentrate on forecasting price movements—specifically, whether prices will rise or fall—or use similar categorical target variables. Although most machine learning classification models can output class probabilities, these probabilities are often poorly calibrated and do not reflect the true class proportions ([kilder]). Because accurate probability estimates are essential for interpretability and risk assessment, this review includes only models that produce well-calibrated probabilities. Such probabilities serve as a form of uncertainty quantification, enabling the evaluation of a position's riskiness.
 
-Notable examples of models that yield well-calibrated probabilities include the Hidden Markov Models proposed by \textcite{...} and \textcite{...}, as well as the Bayesian Neural Networks with softmax output layers introduced by \textcite{...} and \textcite{...}, among others. \textcite{magris2023bayesian}
+Notable examples of models that yield well-calibrated probabilities include the Hidden Markov Models proposed by \textcite{zhang2019high} and \textcite{su2022hmm}, as well as the Bayesian Neural Networks with softmax output layers introduced by \textcite{magris2023bayesian}, among others. 
 
 However, none of the reviewed articles employing categorization models offer a clear financial interpretation of their uncertainty estimates. Moreover, they do not differentiate between model (epistemic) uncertainty and data (aleatoric) uncertainty. As a result, these models are not well-suited for modeling asset volatility, since it is impossible to determine whether prediction uncertainty stems from inherent market volatility or from an inadequate model fit. While well-calibrated probabilities may facilitate human interpretation of the model's confidence and could be useful for portfolio construction, they offer limited insights into the nature of risk.
 
@@ -667,6 +607,7 @@ However, none of the reviewed articles employing categorization models offer a c
 %----------------------------------------------------%
 
 \subsection{Analysis by Asset Class}
+\label{sec:analysis_by_asset}
 The motivations for making predictions and quantifying uncertainty, as well as the feasibility of doing so, vary among different asset classes. In the following sections, we provide an overview of how probabilistic AI has been applied to these asset classes, examining the purposes it serves and the specific challenges encountered in each case. Figure \ref{fig:asset_type_predicted} illustrates the distribution of which asset classes the proposed models in our sample is trained to predict. Summarizing results and conclusions by asset classes are shown in Table \ref{table:conclusions_by_asset_classes}.
 
 \begin{figure}[H]
@@ -694,26 +635,26 @@ The motivations for making predictions and quantifying uncertainty, as well as t
 \subsubsection{Stocks}
 Individual stocks are the most frequently analyzed asset class in the sample, with 25 articles. While a few studies focus on a single stock, the majority apply a common model to multiple stocks. Accurately predicting stock prices has proven challenging due to market efficiency \parencite{fama1970efficient}, which posits that prices fully incorporate all available information. In contrast, volatility has demonstrated greater  \parencite{poon2003forecasting}, emphasizing the relevance of uncertainty estimation for stocks. 
 
-Most authors are motivated by the need for accurate forecasts of individual stock fluctuations to inform investor decisions and develop trading strategies. Trading strategies rely on informed beliefs about future price movements \parencite{vuletic2024finGAN}, and accurate range predictions are valuable for risk management \parencite{Li2024DeepAR}, as improved uncertainty estimates can help investors make more informed decisions regarding individual stocks and optimize profits. As \cite{govindasamy2014prediction} note, the main problem faced by investors is that they do not have a clear idea on what stocks to invest in to maximize profits.  
+Most authors are motivated by the need for accurate forecasts of individual stock fluctuations to inform investor decisions and develop trading strategies. Trading strategies rely on informed beliefs about future price movements \parencite{vuletic2024finGAN}, and accurate range predictions are valuable for risk management \parencite{Li2024DeepAR}, as improved uncertainty estimates can help investors make more informed decisions regarding individual stocks and optimize profits. As \textcite{govindasamy2014prediction} note, the main problem faced by investors is that they do not have a clear idea on what stocks to invest in to maximize profits.  
 
-Some studies do however study how external factors impact the uncertainty of individual stocks across countries and sectors differently \parencite{chandra2021bayesian, soleymani2022longterm}. Notably, \cite{chandra2021bayesian} select stocks from mutiple counties to analyze the COVID-19 pandemic effect on different individual stock's fluctuations, highlighting the varying impact global events on asset-level uncertainty and underscoring the need for robust uncertainty quantification. 
+Some studies do however study how external factors impact the uncertainty of individual stocks across countries and sectors differently \parencite{chandra2021bayesian, soleymani2022longterm}. Notably, \textcite{chandra2021bayesian} select stocks from mutiple counties to analyze the COVID-19 pandemic effect on different individual stock's fluctuations, highlighting the varying impact global events on asset-level uncertainty and underscoring the need for robust uncertainty quantification. 
 
 % --------- stock Indicies-------------------------%
 \subsubsection{Stock indices}
 Stock indices are the second most prevalent category in the sample with 20 articles, with American, European and Asian indices dominating. Since indices are typically composed by multiple stocks from different sectors, they are generally less volatile than individual stocks and more indicative of the general state of the economy \parencite{sezer2020financial}. Therefore, uncertainty quantification can provide valuable insight into underlying market volatility. 
 
-While most authors are motivated by the trading purposes of accurately forecasting indices, given that they are among the most important assets in the financial market, any of those emphasizing uncertainty are motivated by underlying market investigation. \cite{Suphawan2022gpr} point out that stock price indices reflect the market, and reliable uncertainty estimates are therefore valuable in financial decision-making and risk management \parencite{Wang2021gpr}. Furthermore, \cite{Wang2021gprensemble} state that accurate forecasts of fluctuation characteristics of indices can help government departments to timely and effectively supervise and guide the market to avoid financial risk. In addition, with the globalization of the world economy, several studies are focused on the interdependencies between indices in different across the world \parencite{cao2019multi} \parencite{Malagrino2018Forecasting}, making uncertainty estimates important to support risk management strategies on international scale.
+While most authors are motivated by the trading purposes of accurately forecasting indices, given that they are among the most important assets in the financial market, any of those emphasizing uncertainty are motivated by underlying market investigation. \textcite{Suphawan2022gpr} point out that stock price indices reflect the market, and reliable uncertainty estimates are therefore valuable in financial decision-making and risk management \parencite{Wang2021gpr}. Furthermore, \textcite{Wang2021gprensemble} state that accurate forecasts of fluctuation characteristics of indices can help government departments to timely and effectively supervise and guide the market to avoid financial risk. In addition, with the globalization of the world economy, several studies are focused on the interdependencies between indices in different across the world \parencite{cao2019multi} \parencite{Malagrino2018Forecasting}, making uncertainty estimates important to support risk management strategies on international scale.
 
 % --------- Portfolios --------------------------%
 \subsubsection{Portfolios}
-9 articles in the sample focus on portfolios, referring to articles where the authors explicitly construct combinations of assets and forecasts it's value, returns or assess risk measures. Across the studies, the primary motivation is to maximize portfolio returns while incorporating financial risk measures to assess and manage uncertainty. In addition, \cite{Risk2018gpr} actualize regulatory compliance with Solvency II requirements in insurance for risk assessment at the 99.5\% confidence-level. \cite{kim2023portfolio} highlight the motivation for using a probabilistic model as opposed to deterministic models due to distributional outputs, and as the variance of predicted distributions can signify uncertainty, the models maximizing returns and minimizing risk in parallel. Most studies derive quantile-based risk measures from distributional outputs, with \cite{Fatouros2023DeepVaR, arian2022encoded, caprioli2023quantifying} focusing on VaR, and  \cite{Risk2018gpr, Min2023BlackLitterman} extend use to TVaR and CVaR respectfully. 
+9 articles in the sample focus on portfolios, referring to articles where the authors explicitly construct combinations of assets and forecasts it's value, returns or assess risk measures. Across the studies, the primary motivation is to maximize portfolio returns while incorporating financial risk measures to assess and manage uncertainty. In addition, \textcite{Risk2018gpr} actualize regulatory compliance with Solvency II requirements in insurance for risk assessment at the 99.5\% confidence-level. \textcite{kim2023portfolio} highlight the motivation for using a probabilistic model as opposed to deterministic models due to distributional outputs, and as the variance of predicted distributions can signify uncertainty, the models maximizing returns and minimizing risk in parallel. Most studies derive quantile-based risk measures from distributional outputs, with \textcite{Fatouros2023DeepVaR, arian2022encoded, caprioli2023quantifying} focusing on VaR, and  \textcite{Risk2018gpr, Min2023BlackLitterman} extend use to TVaR and CVaR respectfully. 
 
 % --------- Crypto -----------------------------%
 \subsubsection{Crypto}
 There are 5 articles in the sample focused on forecasting cryptocurrencies, with Bitcoin being the most prevalent subject. Cryptocurrency markets are known for high volatility and fluctuating dynamics, posing significant challenge for accurate point predictions making uncertainty quantification especially relevant for risk-aware trading. Recent studies of the most frequently traded cryptocurrencies suggest that the markets are becoming increasingly efficient and intereconncted, although efficiency and volatility fluctuate significantly over time \parencite{noda2021evolution, liu2019volatility, gupta2022empirical}. This evolving efficiency makes the integration of cryptocurrencies into investment portfolios more attractive to investors.
 
-Despite increasing efficiency, most articles in the sample are motivated by the fluctuating volatility and its implications for risk management. \cite{Golnari2024Cryptocurrency} note that rapid value fluctuations make accurate prediction challenging and emphasize that understanding the inherent uncertainty in predictions and price dynamics is crucial for effective risk management in investment and trading. Similarly, 
-\cite{Almeida2024RiskForecasting} highlight the substantial loss potential in crypto markets, underscoring the paramount importance of understanding risk and implementing effective risk management strategies. \cite{cocco2021predictions} state that the high volatility of cryptocurrencies, has made trading highly relevant in recent years, suggesting speculation may be profitable. 
+Despite increasing efficiency, most articles in the sample are motivated by the fluctuating volatility and its implications for risk management. \textcite{Golnari2024Cryptocurrency} note that rapid value fluctuations make accurate prediction challenging and emphasize that understanding the inherent uncertainty in predictions and price dynamics is crucial for effective risk management in investment and trading. Similarly, 
+\textcite{Almeida2024RiskForecasting} highlight the substantial loss potential in crypto markets, underscoring the paramount importance of understanding risk and implementing effective risk management strategies. \textcite{cocco2021predictions} state that the high volatility of cryptocurrencies, has made trading highly relevant in recent years, suggesting speculation may be profitable. 
 
 
 % --------- Forex -----------------------------%
@@ -722,8 +663,8 @@ Despite increasing efficiency, most articles in the sample are motivated by the 
 % Use forex volatility as external input to stock forecasting .. 
 Foreign exchange (Forex) are one of the most liquid and interconnected asset class globally. The market is driven by several macroeconomic factors, geopolitical dynamics and international trading making uncertainty quantification essential for short and long term risk management and trade decisions. [KILDE]
 In the sample, six articles address forex forecasting. They usually predict forex as part of several different application scenarios for testing their model, often motivated by inter-market dependencies, rater than uncertainty in the forex market alone. 
-\cite{li2010stochastic} argue that vagueness and uncertainty often present in certain data cannot effectively be managed by traditional models and necessitates probabilistic models to handled the forecasting challenges and integrate uncertainty in predictions \parencite{Moller2007Uncertainty, li2010stochastic}. 
-\cite{cao2019multi} highlight that understanding cross-market influences, like those between forex is essential for international risk management, where uncertainty estimates help to understand forex response to global market dynamics.  
+\textcite{li2010stochastic} argue that vagueness and uncertainty often present in certain data cannot effectively be managed by traditional models and necessitates probabilistic models to handled the forecasting challenges and integrate uncertainty in predictions \parencite{Moller2007Uncertainty, li2010stochastic}. 
+\textcite{cao2019multi} highlight that understanding cross-market influences, like those between forex is essential for international risk management, where uncertainty estimates help to understand forex response to global market dynamics.  
 
 \cite{Papaioannou2022gpr, Platanios2014gpr, 
 tang2024period} all emphasize the importance of uncertainty estimates in financial market forecasting, motivated by the complex, high-volatility nature of the markets like forex markets. Their studies are motivated by making forecasting under unpredictability better and improve risk management ability to take informed decisions in interconnected markets.  
@@ -733,30 +674,24 @@ tang2024period} all emphasize the importance of uncertainty estimates in financi
 \subsubsection{Derivatives}
 Nine articles in the sample focus on derivatives, which in this context are financial instruments whose value are derived from the underlying asset, such as stocks, bonds or indices. 
 
-The most frequent derivative among the articles are volatility indices. \cite{hortua2024forecasting, Daniali2021} analyze the VIX, while \cite{Tian2023} extend their analysis to include the COEVI and TYVIX. Volatility indices, and the VIX in particular, are recognized as good indicators of investor sentiment and market turbulence, making it valuable for asset managers and regulators to foresee, but it remains difficult to forecast \parencite{hortua2024forecasting}. Probabilistic forecasts  of these indices could therefore be valuable to quantify the uncertainty around future volatility.
+The most frequent derivative among the articles are volatility indices. \textcite{hortua2024forecasting, Daniali2021} analyze the VIX, while \textcite{Tian2023} extend their analysis to include the COEVI and TYVIX. Volatility indices, and the VIX in particular, are recognized as good indicators of investor sentiment and market turbulence, making it valuable for asset managers and regulators to foresee, but it remains difficult to forecast \parencite{hortua2024forecasting}. Probabilistic forecasts  of these indices could therefore be valuable to quantify the uncertainty around future volatility.
 
-Options are another commonly derivative, with studies such as \cite{Park2014gpr} focusing on KOSPI options, \cite{DeSpiegeleer2018gpr} S\&P options and \cite{tang2024period} different ETF options. \cite{Park2014gpr} highlight a key limitation of traditional models like Black-Scholes: their inability to provide predictive distributions of the option prices. Probabilistic models, such as the GPR employed in their study, address this gap by offering predictions with uncertainty improving risk assessment - a primary motivation for the authors. 
+Options are another commonly derivative, with studies such as \textcite{Park2014gpr} focusing on KOSPI options, \textcite{DeSpiegeleer2018gpr} S\&P options and \textcite{tang2024period} different ETF options. \textcite{Park2014gpr} highlight a key limitation of traditional models like Black-Scholes: their inability to provide predictive distributions of the option prices. Probabilistic models, such as the GPR employed in their study, address this gap by offering predictions with uncertainty improving risk assessment - a primary motivation for the authors. 
 
 Lastly, the sample include studies on credit default swap spreads \parencite{Law2017Practical} and capped volatility swaps \parencite{Hocht2024gpr}. 
 
 
 \subsubsection{Commodities}
-There are six articles in the sample that predict commodities, either gold or oil price, or commodity futures. 
+There are six articles in the sample that predict commodities, either gold or oil price, or commodity futures based on the exclusion criteria outlined in Section \ref{sec:methodology}. 
 
+\textcite{Ahmed2023Enhancing} predict crude oil price with the aim to support strategic decision-making in energy investment. The motivation for using uncertainty estimates is crude oil's volatile price fluctuations which the authors claim to have an effect on stock of of renewable energy companies, therefore important to asses risk in investment timing and make informed decisions in the energy sector in unpredictable market conditions. 
 
+\textcite{Wang2024GoldForecasting} is motivated by developing a probabilistic forecasting framework for gold prices to golds market dynamics. The authors point out golds important position in the global economy, both as a physical commodity and as a financial asset that has significant macroeconomic influence \parencite{Wang2024GoldForecasting, Pierdzioch2014Efficiency, Pierdzioch2014International}, and that gold cannot be effectivity foretasted using point estimates with reliable and credible forecasts, in particular in situation with extreme uncertainty \parencite{Wang2024GoldForecasting, Li2012Quantile}. Similar motivation can be seen in \textcite{Law2017Practical} where they predict commodity futures of gold and crude oil, and \textcite{Guo2022Risk} prediction crude oil futures.  
 
+In the paper by \textcite{li2020multivariate}, where they predict agriculture future price, they highlights the importance of accurate forecast in order to reduce market uncertainty and support decision making in agriculture risk management and crop insurance programs, and being vital for policymakers and investors \parencite{li2020multivariate, Wang2017Performance, Ouyang2019Agricultural}. They also note that traditional models often assume independent variables and normal distribution but underscores that this assumption do not align with the real market conditions for commodities. 
 
+\textcite{Guo2022} created interval predictions for non-ferrous metal futures. The authors highlights the economic importance of good uncertainty estimates due to the volatility of non-ferrous metal futures, which unpredictable price patters impact stocks, metal mining firms and futures investors \parencite{Guo2022, Zhang2022, Shao2016Productivity}. They are motivated by exploring a probabilistic model as they claim traditional models are not able to adequately capture these assets non-linear and non-stationary characteristic, which shows the need for more advance methods and interval predictions. 
 
-
-
-
-
-\cite{Ahmed2023Enhancing} - crude oil price
-\cite{Law2017Practical} - commodity futures gold and crude oil
-\cite{Wang2024GoldForecasting} - gold price
-\cite{Guo2022Risk} - crude oil futures
-\cite{Guo2022} - Non-ferrous metal futures
-\cite{li2020multivariate} - agricultural commodity futures price (soybean)
 
 
 
@@ -794,7 +729,7 @@ Table \ref{table:conclusions_by_asset_classes} provides a summary of the primary
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        Forex & \smallbullet{Point 1} \smallbullet{Point 2} \\
+        Forex & \smallbullet{Highly liquid and interconnected asset global driven by multiple factors making uncertainty quantification important for short- and long-term risk and trade management} \smallbullet{Cross-market dependencies necessitate probabilistic models for enhanced uncertainty estimation} \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
@@ -802,7 +737,7 @@ Table \ref{table:conclusions_by_asset_classes} provides a summary of the primary
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        Commodities & \smallbullet{Point 1} \smallbullet{Point 2} \\
+        Commodities & \smallbullet{Uncertainty estimation important for strategic decisions making in i.e energy investment and agriculture risk management and policymakers} \smallbullet{Probabilistic models improve forecasting accuracy for commodities with non-stationary and non-linear characteristics} \\
         \addlinespace
         \addlinespace
         \bottomrule
@@ -813,13 +748,14 @@ Table \ref{table:conclusions_by_asset_classes} provides a summary of the primary
 
 
 %----------------------------------------------------%
-% --------- Analysis by Type of Uncertaint-----------%
+% --------- Analysis by Type of Uncertainty-----------%
 %----------------------------------------------------%
 
 %Remember to include somehow the measures/how autors assess their uncertainty estimate - we also need to evaulate the strenght of these estimates, but that might be conclusion %
 
 
 \subsection{Analysis by Type of Uncertainty}
+\label{sec:analysis_by_type_of_uncertainty}
 All the proposed models in our sample can provide estimates with some form of quantified uncertainty. However, the type of uncertainty and how the authors interpret it vary significantly. As shown in Figure \ref{fig:uncertainty_quantification_by_type_and_assessment}, many authors neither use nor interpret the uncertainty estimates at all. When they do present uncertainty estimates, they usually treat them as total uncertainty, without assessing whether it arises from modeling limitations (epistemic uncertainty) or from the inherent volatility of the underlying asset (aleatoric uncertainty). This distinction is crucial for investment decisions because it's important to know whether the uncertainty is due to an unreliable model or a risky asset.
 
 Furthermore, only a minority of articles evaluate the quality and usefulness of the uncertainty estimates, and even fewer compare these estimates against traditional models. The following sections explore the various ways uncertainty quantification has been used in the sample articles, the financial relevance of each type of uncertainty, and how different uncertainty estimates have been and can be assessed. Summarizing results and conclusions by type of uncertainty are shown in Table \ref{table:conclusions_by_uncertainty}.
@@ -836,14 +772,11 @@ Furthermore, only a minority of articles evaluate the quality and usefulness of 
 %--------------------Not Interpreted or not used-------------------------%
 \subsubsection{Not used}
 
-Among the 61 articles in the sample, 13 do not mention that their models can produce outputs with uncertainty. Instead, they leverage probabilistic frameworks to produce better point estimates.
-
-
-[.. skrive noe om hvorfor de bruker prob AI da .. sikkert pga. regularisering eller bedre generalisering ..]
+Among the 62 articles in the sample, [19] do not in any way mention or illustrate that their models can produce outputs with uncertainty, even though they are utilizing models that inherently have the capability. Instead, they leverage probabilistic frameworks attempting to produce better point estimates. For most authors the motivation for using a probabilistic models nevertheless is pre-discovered accuracy in point predictions, e.g. \parencite{jang2018generative,Park2014gpr}, pre-processing or optimization e.g. \parencite{li2020multivariate, choudhury2020enhancing} or for better generalization e.g. \parencite{Papaioannou2022gpr,Thawornwong2004pnn}.
 
 \subsubsection{Not interpreted}
 
-In 11 articles, the probabilistic outputs from the model are presented, but not interpreted or assigned any financial or technical meaning. [ .. skrive veldig kort om hvorfor .. sikkert bare fordi det ikke er i fokus for dem .. ]
+In 7 articles, the probabilistic outputs from the model are presented, but not interpreted or assigned any financial or technical meaning. Generally, this is simply due to a non-existing focus on uncertainty estimation, but rather accuracy of point predictions \parencite{DeSpiegeleer2018gpr} or accuracy of category classifications e.g. \parencite{Malagrino2018Forecasting, Zhang2016}
 
 
 %-----------------------Epistemic-----------------------------%
@@ -888,6 +821,12 @@ Only five articles estimate both epistemic and aleatoric uncertainty and disting
 
 In three of the articles, the probabilistic output from the probabilistic AI model is not presented or interpreted directly, but is used as input to another model. [.. her kan vi kanskje nevne eksempler ..]
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images/UQ assesment measures.png}
+    \caption{UQ Assessment Measures}
+    \label{fig:assesment_measures}
+\end{figure}
 
 %----------------------Conclusion----------------------------%
 
@@ -941,33 +880,83 @@ In three of the articles, the probabilistic output from the probabilistic AI mod
 
 \subsection{Discussion}
 \label{sec:discussion}
-This section will analyse the results in relation to each of the research questions presented in Section \ref{sec:introduction} .
-...% go through each reserach question and answer explicitly
+This section will analyze the results in relation to each of the research questions presented in Section \ref{sec:introduction}.
+% go through each reserach question and answer explicitly
+
+
+
 
 \textbf{Summarize to what extent and in what way existing research are using uncertainty estimates from probabilistic AI models as a measure of volatility, model uncertainty or financial risk measures for financial time series}
 \\ % Write here
 
-\textbf{Compare the promise of these models compared to other machine learning models and traditional econometric models in uncertainty estimation}
+Throughout this review we have seen how existing research frequently employ various probabilistic AI models to forecast financial time series, with frequently employed models discussed in section \ref{sec:analysis_by_model} being Bayesian Neural Networks (BNNs), Gaussian Regression Processes (GPRs) and probabilistic Recurrent Neural Network (RNN) extension. The primary focus of existing research seems to concern improving point prediction accuracy for different assets, and that potential for uncertainty estimation is underutilized. Out of the [64] articles reviewed, only [XX] make a meaningful interpretation of uncertainty estimates generated by their models, only [XX] of these explicitly assess the quality of their estimates, while [XX] studies do not use or interpret uncertainty estimates at all. 
+
+ - 2. Measure of volatility: (aleatoric uncertainty), how many do it, what models are they using, of those predicting the VIX what do they do?, 
+
+ 3. Model uncertainty (epistemic): very few do it, what models do they use, and why do people not do it? - because they just don't distinguish and just interpret model uncertainty as total. What models can inherently do it, and can be a area for future research?
+
+ 4. Financial risk measures: how many do it, what models are promising, what, Christoffersen's test or other adequacy metrics are underutilized, with only X studies rigorously validating their risk measures with adequacy and accuracy. 
+
+ 5. Inadequate benchmarking: often outperform in point-predictions, but generally lack good/standardized testing validation for uncertainty estimates. Standardized benchmarks or frameworks could help quantify true value of the estimates in a financial context. 
+
+
+\textbf{Analyze researchers' motivation for making predictions with uncertainty and how it differs for different asset classes}
 \\ % Write here
-\begin{itemize}
+A primary motivation for authors utilizing probabilistic models across asset classes is to estimate uncertainty without having to assume any underlying distribution of data when employing non-parametric models. Traditional models usually rely on normality assumptions, a suboptimal restriction given the documented deviations of financial data from normal distribution. Additionally, several researchers highlight the self-learning and noise-tolerant capabilities of probabilistic and machine learning models.
 
-\item There are only four articles in the sample where the uncertainty estimates are benchmarked against traditional models, and in only two of the cases do the proposed model clearly outperform the traditional.
+The motivations for making predictions with uncertainty estimates also vary among the asset classes, and are primarily influenced by the unique market characteristics and investor needs inherent in each class. For assets known to have high volatility, like individual stocks or cryptocurrencies, the authors seem motivated mainly by the need to manage risk for investors and enhancing trading strategies. The frequent price fluctuations of these assets underscore the importance of accurate uncertainty estimation, both to inform investment decisions and mitigate potential losses or facilitate speculation, a main motivational factors of the authors. 
 
-\item In 23 articles, the authors benchmark the point predictions from their proposed model against traditional models, and in 21 of the cases, the proposed model outperforms the traditional. However, there is strong evidence of publishing bias in finance, making it difficult to conclude on whether this outperformance is real \parencite{Kim2015SignificanceTI}.
+For stock indices, researches still seem primarily motivated by risk management considerations for investment and trading. However, given that some indices like the S\&P 500 closely represent overall market performance and conditions, some researches extend their motivations beyond this perspective to encompass a broader understanding of market volatility. This include uncertainty estimation for insights into systematic risk and market dynamics. Additionally, in Forex and large international indices, some researches seem motivated by the understanding global interconnection and cross-market influences through uncertainty estimations.
 
-\item In conclusion, these models seem to provide improved point predictions and have interesting properties for financial modeling, such as being able to estimate non-parametric distributions and capturing non-linear patterns, but the limited benchmarking makes it difficult to say how promising they are for uncertainty estimation.
+For the researchers assessing portfolios, the primary motivation lies in  the need for uncertainty estimations for financial risk measures and regulatory compliance. Most studies construct measures like VaR, utilizing distributional output from the probabilistic models in attempt to provide more accurate risk assessment of portfolios.
 
-\end{itemize}
+\textbf{Compare the promise of these models compared to other machine learning models and traditional econometric models in uncertainty estimation}
+% Write here
 
-\textbf{How do probabilistic models improve the understanding of risk and volatility in comparison to econometric models?}
+There are only 6 models in the sample where created uncertainty estimates are benchmarked against traditional models. In 5 of these articles authors benchmark against GARCH variants, and only in 2 cases does the proposed model clearly outperform the traditional one. These models are the DeepVaR proposed by \textcite{Fatouros2023DeepVaR} and the GPMCH by \textcite{Platanios2014gpr}. However, there are 11 articles in which the authors compare the uncertainty estimate of their model with another machine learning model, where only 1 also compare against a traditional econometric model. All models outperform the machine learning model benchmark. These findings suggest lacking and unsatisfactory benchmarking against traditional econometric like GARCH, making it difficult to draw definitive conclusions.
+
+When it comes to point predictions there are 26 articles where the researchers benchmark their points predictions against traditional models. Of these, 17 show clear superior performance, demonstrating promise in accurate predictive power. A total of 45 articles benchmark their model against other machine learning models, and a 37 of them outperform their benchmarks. Once again, this suggest a bias towards comparing with other machine learning models rather then traditional econometric models. Even though these results demonstrate promising accuracy for point predictions for probabilistic models, there is strong evidence of publishing bias in finance, making it difficult to conclude on the soundness of these results \parencite{Kim2015SignificanceTI}.
+
+In conclusion, probabilistic models seem to provide improved point predictions and have interesting properties for financial modeling, such as being able to estimate non-parametric distributions and capturing non-linear patterns. There are some models demonstrating promising results in uncertainty estimation, but limited benchmarking especially with traditional models makes it difficult to conclude on the real promise of the models.
+
+
+\textbf{Can probabilistic models provide an improved understanding of risk and volatility compared to econometric models}
 \\ % Write here
 - It is well known that distributions of asset returns have fatter tails than the normal distribution [kilde] which makes probabilistic AI models ability to estimate non parametric distributions interesting
+
+- As an investor it is important and valuable to know where the uncertainty is coming from, something probabilistic models may provide better compared to traditional econometric models 
+
+- maybe say something about epistemic and aleatoric uncertainty in this part
 
 \textbf{Which metrics are used for assessing probabilistic AI models and what is the most appropriate metric for assessing the quality of the produced uncertainty estimates?}
 \\ % Write here
 
+People use this and this and that. (Coverage, calibration, width, interval score). However, many articles fail to test the significance of their uncertainty estimates using significance tests such as ... 
+Generally a standardized testing procedure is lacking both in common model benchmarks, but also in the tests performed. 
+ 
+ 
+ - Perhaps propose a Christoffersen's testing framework here, with accuracy measures as a second step: To conclusively say that an AI model for volatility is useful it must pass something like Christoffersen’s test, and it must outperform e.g. GARCH in terms of coverage relative to interval width (resolution vs. reliability or whatever you want to call it) OR some scoring/accuracy function
+
+ [tenker key takeaway i denne seksjonen bør være at man må teste at modellen gir riktig unconditional coverage og at violations er independent over tid, aka. christoffersen's test, og at man også må bruke scoring funksjoner som kan vise at estimatene man produserer er bedre enn tradisjonelle modeller, f.eks. coverage probability ifht. intervallbredde. mangler man et av disse punktene er det umulig å si om modellen har noe for seg.]
+
 \textbf{How do probabilistic AI models integrate with financial risk measures such as Value at Risk (VaR) and Expected Shortfall (ES)?}
-\\ % Write here
+% Write here
+
+There are 8 articles in total creating financial risk measures using probabilistic models, where tail-risk estimates for portfolios such as VaR is the most prevalent. Several authors argue that traditional parametric methods for VaR estimation are limited by explicit return distribution and linear dependency assumptions, which necessarily do not hold for financial time series \parencite{arian2022encoded,Fatouros2023DeepVaR}. Probabilistic models like Variational Auto-Encoders (VAE) and DeepAR, utilized in several articles for VaR estimation, directly address this limitation by generating probabilistic forecasts of the entire return distribution without explicit parametric assumptions. The distributional output of the models can be used directly for tail-risk estimation. Probabilistic models therefore integrate well with financial risk measures such as VaR or ES, and can be used to effectively address limitations of traditional models. While achieved results vary compared to traditional models, largely due to partially insignificant estimates, further research on different non-parametric probabilistic models show promise to create more meaningful VaR estimates for financial risk management.
 
 \textbf{Identity possible areas for further research}
 % Write here
+
+- testing different probabilistic models to create significant financial risk estimates such as VaR
+
+her syns jeg vi burde komme med en del tydelige recommendations for fremtidig research:
+
+1. man burde alltid skille mellom epistemic og aleatoric uncertainty når man modellerer finansielle tidsserier
+
+2. dersom man lager en modell der usikkerhet er i fokus er det kritisk at de aleatoriske usikkerhetsestimatene testes rigorously, med f.eks. en kombinasjon av christoffersen's test og scoring-funksjoner der man sammenligner med andre modeller
+
+3. hvis det ikke finnes allerede burde noen lage et tydelig rammeverk for hvordan man tester fulle distribusjoner, altså ikke bare f.eks. 95\% VaR men hver eneste kvantil
+
+4. det er veldig få artikler hvor ai-modellers evne til å produsere ikke-parametriske distribusjoner utnyttes fullt ut, det hadde vært interessant om det ble gjort i større grad og om det ble testet ordentlig
+
+5. Combine probabilistic AI models with traditional models like GARCH to estimate the uncertainty, where few articles propose such a hybrid model

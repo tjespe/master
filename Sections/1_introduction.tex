@@ -3,52 +3,49 @@
 %Points to include: Motivation, Overview of research area, context, research question, contribution, structure of paper.... : 
 
 % Motivation
-\textbf{Motivation}\\
-\textit{Briefly touch upon the need for better uncertainty estimates in finance and how probabilistic AI models have started to fill gaps left by traditional econometric approaches.}
+%\textit{Briefly touch upon the need for better uncertainty estimates in finance and how probabilistic AI models have started to fill gaps left by traditional econometric approaches.}
+In recent years, there has been a significant increase in the application of artificial intelligence (AI)\footnote{See Table \ref{table:abbreviations} for a list of all abbreviations used in this paper.
+} and machine learning (ML) models within finance, mainly driven by the desire for enhanced prediction accuracy and robust uncertainty and risk quantification. Accurate forecasting and reliable uncertainty estimates are essential for a lot of different financial stakeholders, from risk or fund managers to policymakers and investors, to mitigate risk and make informed decision and investments [BECAUSE - source?]. 
 
-In recent years, there has been a significant increase in the application of artificial intelligence (AI) and machine learning (ML) models within finance, mainly driven by the desire for enhanced prediction accuracy and robust uncertainty and risk quantification. 
+Traditional econometric models such as autoregressive integrated moving average (ARIMA) by \textcite{boxJenkins2016time}, orgininally published in 1970, and autoregressive conditional heteroskedasticity (ARCH) by \textcite{Engle1982ARCH} with its extension to generalized autoregressive conditional heteroskedasticity (GARCH) by \textcite{BOLLERSLEV1986GARCH} has been fundamental in financial forecasting and used to capture volatility and volatility clustering in financial time series. GARCH models and their extensions have proven to be highly effective in financial applications; however, their parametric and relatively simplistic structure restricts their capacity to capture the non-linear and complex interactions that characterize financial time series [KILDE]. This limit accuracy in capturing risk as some signals are ignored [KILDE?]. The demand for better and richer uncertainty estimates is increasing as financial systems grow in complexity.
 
-Accurate forecasting and reliable uncertainty estimates are extremely important... for a lot of different financial stakeholders (from risk mangers to fund managers...) [because]
-
-Traditional econometric models has often been used ... but fall short in ability to capture the complex, non-linear and unpredictable nature of financial time series.... this limit accuracy in capturing risk as they often rely on point estimates instead of capturing the full conditional probability distributions needed for a extensive view on uncertainty in financial forecasting. ... demand for better uncertainty estimates to ... [why]
-
-Supervised machine learning model like XGBoost and Long Short-Term Memory networks (LSTM)  have recently emerged as an alternative to handle non-linearity within data for financial prediction. However, these models mainly provide point predictions limiting their use for prediction full conditional probability distributions... Recent advances in Probabilistic AI ... show promising results... provides more informative forecast by providing full uncertainty distributions. ...
-
-
-
-
-% Overview of research area
-\textbf{Overview of Research Area}\\
-\textit{Discuss previous reviews in the field, emphasizing how they overlook key aspects of financial applications of uncertainty estimates (gaps). }
-
-Several studies exploring machine learning methods for point prediction XXX, XXX, few focus on quantifying uncertainty in financial time series??
-
-Been several other literature reviews on XXX, such as XX, XX.. XX. Manly focused on XXX. 
-
-Limited focus on finance and several new articles in a rapid developing area .. Lack financial interpretation ... 
-
-Gap.... [clary outline gap] need for systematic review on how probabilistic AI for improved uncertainty estimates in financial time series... 
+Supervised machine learning model like XGBoost and Long Short-Term Memory networks (LSTM) have recently emerged as an alternative to handle non-linearity within data for financial prediction [KILDE]. However, these models have mainly been applied to provide point predictions for returns, rather than full conditional probability distributions [KILDE]. Point forecast alone are inadequate for financial stakeholders. This gap has driven an interest and recent advances in Probabilistic AI, as these models are able to provide provide more informative forecast with full uncertainty distributions.
 
 % Context
+%\textit{Define probabilistic AI and its relevance to uncertainty quantification for financial time series. Mention prominent models and methods.}
 \textbf{Context}\\
-\textit{Define probabilistic AI and its relevance to uncertainty quantification for financial time series. Mention prominent models and methods.}
+Probabilistic AI refers to a class of machine learning models that have the ability to estimate likelihood of outcomes and generate full conditional probability distributions rather than only point predictions. [KILDE] This makes probabilistic AI models especially useful for uncertainty quantification, since it gives a better understanding of potential future states and risk. A principal advantage of probabilistic models is the ability to automate inference of latent variables within the model based on observed data \parencite{Ghahramani2015}.
 
-Probabilistic AI refers to a class of machine learning models that have the ability to generate.... full conditional probability distributions rather than only point predictions.[Definition of prob. AI from book Kevin murphy?]
+Probabilistic AI is a rapidly evolving area, as this review will also demonstrate, and includes models like Bayesian neural networks, transformers, Variational Auto-Encoders, Gaussian processes and Hidden Markov models, among others. The number of articles within this field has risen sharply the last years, with many articles showing positive results. However, the majority of AI applications in finance have focused on generating precise point forecasts for prices or returns, and the potential usefulness of probabilistic predictions has received less attention [kilde?].
 
-Probabilistic AI is an rapidly evolving area... models include Bayesian neural networks, transformers, large-language models, Gaussian processes and hidden markov models ... and has shown promise in capturing and quantifying different types of uncertainty.... Previous reviews/papers have largy overlooked their probabilistic nature in financial application, like volatility predictions and risk estimates, instead only point predictions?
+In finance, terms like volatility and uncertainty are frequently discussed, but in order to accurate quantify the uncertainty, distinguishing between aleatoric and epistemic uncertainty is needed, which many fail to differentiate. Aleatoric uncertainty, often known as data uncertainty, is uncertainty from intrinsic data variability. However, epistemic uncertainty, often known as model-uncertainty, is uncertainty that stem from and from model limitations or lack of knowledge. \parencite[7,34]{pml1Book, KIUREGHIAN2009105, hullermeier2021aleatoric} [NEED A SO WHAT - WHY WE MENTION THIS]
+% Overview of research area
 
-.
-Recently uncertainty quantification in financial time series using probabilistic AI / neural network model ... commonly two types of uncertainty ... aleatoric and epistemic.  [Definition]  
+\textbf{Overview of Research Area}\\
+There have been several studies and reviews over the last years on the application of AI and machine learning for financial time series prediction. \textcite{preethi2012stock}, \textcite{soni2015cloud} and \textcite{gandhmalstockmarket2019} all review machine learning techniques for stock market trend or point predictions. The studies review literature up to 2012, 2015, and 2018 respectively. \textcite{soni2015cloud} show that Neural Networks look promising compared to traditional methods in extracting meaningful non-linear patterns in financial data, finding NN architectures to provide accurate forecasts, supported by \textcite{gandhmalstockmarket2019} concluding that ANN models and fuzzy-based techniques show the most promise for accurate stock market predictions, amongst the machine learning approaches they review. \textcite{shi2019soft} review soft computing approaches for stock market forecasting, also finding ANN architectures to consistently outperform other machine learning models in point prediction accuracy. 
+
+A newer study was conducted by \textcite{Khattak2023SurveyAIModels}, providing an in-depth review of machine learning methods used to forecast various financial assets between 2018 and 2023. The study finds new hybrid integrations of LTSM and SVM architectures to be the most effective in financial market predictions, outperforming traditional models in point accuracy.
+
+While there is a growing body of literature on AI and machine learning for financial applications, the aforementioned reviews focus solely on point prediction accuracy. Even though volatility and market uncertainty is an essential component of financial decision making, fewer reviews have been conducted on the topic of uncertainty quantification in a financial context using machine learning methods and probabilistic models specifically. \textcite{abdar2021ReviewUQ} conduct a thorough review on uncertainty quantification in deep learning techniques, discussing the advantages and disadvantages of several models and techniques, but do not focus on financial time series predictions. The authors conclude that Deep Ensembles and Bayesian Neural Networks show promising capabilities for uncertainty quantification distinguishing between aleatoric and epistemic uncertainty, possibly applicable to financial forecasting, but find that lack of standardized benchmarks make it difficult to compare frameworks. \textcite{Calvo-Pardo2020NeuralFinance} discuss approaches like Monte-Carlo dropout and Bootstrap methods as possible way to create prediction intervals to assess uncertainty in financial predictions empirically, but do not review existing literature on the topic. 
+
+\textcite{Blasco_et_al_2024} conduct a survey on uncertainty quantification using deep learning techniques in financial time series. The focus is solely on deep learning techniques and not probabilistic AI specifically, but several articles forecasting various financial time series using probabilistic techniques are included. The study shows that most articles do not distinguish between aleatoric and epistemic uncertainty, and few authors perform analysis of the financial implications of predictive uncertainty. The survey includes literature on deep learning up to 2022, but as we show in this review, production has seen an explosive increase over the last two years.
+
+Reviews and studies specifically addressing the role of probabilistic AI in uncertainty estimations for financial time series prediction are scarce, but some work has been conducted in other fields. \textcite{Zhang2014WindForecasting} and \textcite{Huang2024UQMedical} conduct reviews on probabilistic AI for wind power generation forecasting and uncertainty quantification in medical image-analysis respectively. \textcite{Huang2024UQMedical} find that Bayesian approaches in Neural Networks are are the most prevalent for uncertainty estimation in the field. 
+
+Given the rapid growth of published articles within probabilistic AI the last couple of years, and the lack of reviews on the use of these models for uncertainty quantification for various financial time series recently, this review aims to address these gaps to summarize state-of-the art research. In addition, previous financial research shows a primary focus on stock markets, which we address by including various assets and review how uncertainty quantification differ among asset classes. A lacking focus on distinguishing model (epistemic) and underlying data (aleatoric) uncertainty when interpreting previous research is addressed by clearly defining and discussing how this is done in the financial context. Lastly, existing research show that there is missing consensus on how to evaluate the uncertainty estimates created by probabilistic models, and we therefore summarize how existing research do it and based on this propose a clear framework for future work. 
+
+
+
 
 
 % Reserach questions
 \textbf{Research Questions}\\
-To gain an understanding of the existing research, address the gaps identified in the literature,  and advance the understanding of the use of probabilistic AI for uncertainty estimates in financial time series, this review seeks to answer the following key research questions: 
+To gain an understanding of the existing research, address the gaps identified in the literature, and advance the understanding of the use of probabilistic AI for uncertainty estimates in financial time series, this review seeks to answer the following key research questions: 
 \begin{enumerate}
     \item Summarize to what extent and in what way existing research are using uncertainty estimates from probabilistic AI models as a measure of volatility, model uncertainty or financial risk measures for financial time series.
-    {\color{orange} \item Analyze researchers' motivation for making predictions with uncertainty and how it differs for different asset classes.}
+    \item Analyze researchers' motivation for making predictions with uncertainty and how it differs for different asset classes.
     \item Compare the promise of these models compared to other machine learning models and traditional econometric models in uncertainty estimation.
-    \item How do probabilistic models improve the understanding of risk and volatility in comparison to econometric models?
+    \item Can probabilistic models provide an improved understanding of risk and volatility compared to econometric models?
     \item Which metrics are used for assessing probabilistic AI models and what is the most appropriate metric for assessing the quality of the produced uncertainty estimates?
     \item How do probabilistic AI models integrate with financial risk measures such as Value at Risk (VaR) and Expected Shortfall (ES)?
     \item Identity possible areas for further research
@@ -58,15 +55,13 @@ We will answer the research question directly in Section \ref{sec:discussion}, b
 
  
 % Contributions
+% \textit{How review addresses the specific applications in finance and recent advancements in probabilistic AI}
 \textbf{Contributions}\\
-\textit{How review addresses the specific applications in finance and recent advancements in probabilistic AI}
+The literature on probabilistic AI applications in finance is very limited, and this review aims to fill the gap by focusing on recent advances in probabilistic AI and application within fiance due to the novelty and rapid evolution of probabilistic AI. Specifically, the review explores how probabilistic AI model can improve uncertainty estimates, and clarify the potential strengths highlighted in literature of such models in a financial context. Given the novelty and the rapid evolution, many researchers might have limited knowledge of the field and its potential. This review shine light on whether adopting and further researching machine learning for uncertainty estimates in finance is useful or not. Furthermore, we will discuss whether it is appropriate to interpret quantified uncertainty from AI models as volatility estimates and how to benchmark volatility estimates from probabilistic AI models. It identifies which probabilistic machine learning models are used in the field and are most promising for further research and highlights areas for future research and where advancements in uncertainty quantification is needed. 
 
-Literature on probabilistic AI in finance is very limited.... Review focus on recent advances in probabilistic AI ... application within fiance ... and how Probabilistic AI model can improve uncertainty estimates in financial context  ... clarify strengths and limitation of probabilistic AI .... Because of the novelty and the rapid evolution, other researchers might have limited knowledge of the field .... Shine light on whether adopting and further researching machine learning for uncertainty estimates is useful or not .... Discussion on whether it is appropriate to interpret quantified uncertainty from AI models as volatility estimates ... Discussion on how to benchmark volatility estimates from AI models .... Which probabilistic machine learning models are most promising for further research ...
-.....highlight areas for future research and advancements in uncertainty quantification
-
-... The review will serve as an overview of the field and guide for researchers who want to aplly or advance probabilistic AI in finance.... 
+Ultimately, the review will serve as an overview of the field and guide for researchers who want to apply or advance probabilistic AI in finance. 
 
 
 % Concluding paraghaph outlining the structure of the paper 
 \textbf{Structure of the Paper}\\
-The systematic literature review is structured as follows: Section \ref{sec:methodology} covers the Methodology, detailing the review and analysis process. Section \ref{sec:result_and_discussion} presents the Results and Discussion, including descriptive statistics and evaluation across different dimensions. Finally, Section \ref{sec:conclusion} provides the Conclusion, summarizing key findings and suggestions for future research. 
+The literature review is structured as follows: Section \ref{sec:methodology} covers the Methodology, detailing the review and analysis process. Section \ref{sec:result_and_discussion} presents the Results and Discussion, including descriptive statistics and evaluation across different dimensions. Finally, Section \ref{sec:conclusion} provides the Conclusion, summarizing key findings and suggestions for future research. 

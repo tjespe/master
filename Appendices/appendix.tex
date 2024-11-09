@@ -13,9 +13,15 @@
         \midrule
         \text{Web of Science} & \texttt{TS=("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TS=("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TS=("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TS=("cryptocurrency" AND "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))} \\
         \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
         \text{Scopus} & \texttt{(TITLE-ABS-KEY("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TITLE-ABS-KEY("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TITLE-ABS-KEY("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TITLE-ABS-KEY("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND (LIMIT-TO(DOCTYPE, "ar") OR LIMIT-TO(DOCTYPE, "re")) AND (LIMIT-TO(LANGUAGE, "English"))} \\
         \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
         \text{ProQuest} & \texttt{SUMMARY,IF,TITLE(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND stype.exact("Scholarly Journals" OR "Dissertations \& Theses") AND la.exact("ENG")} \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
         \addlinespace
         \text{IEEE Xplore} & \texttt{(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*")))} \\
         \bottomrule
@@ -131,7 +137,7 @@
     \begin{adjustbox}{width=1\textheight, center} % Fit table to text height
     \begin{tabular}{p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth}}
         \toprule
-        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Frequency} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria of UQ} & \textbf{Code Disclosed} \\
+        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Frequency} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria of UQ} & \textbf{Code} \\
         \midrule
         Article 1 & Forex & AUD/USD, CAD/USD, CHF/USD, DKK/USD, EUR/USD, GBP/USD, JPY/USD, NOK/USD, NZD/USD, SEK/USD & History & 1 day & N/A & Price & Gaussian Process Regression (GPR) & None & Multivariate Autoregressive (MVAR) & Not used & No & N/A & No \\
 
@@ -160,3 +166,162 @@
 
 \subsection{Journals per category}
 
+
+
+
+
+
+
+\subsection{TESTING AV GRUDE FOR Å LAGE TABELLER}
+\begin{sidewaystable} % Only rotates the table itself
+    \centering
+    \caption[Descriptive table of all papers in sample]{Summary of Paper Information}
+    \label{table:paper_info_summary}
+    \scriptsize % Set smaller font size for readability
+    \begin{adjustbox}{width=1\textheight, center} % Fits table to text height for rotation
+    \begin{tabular}{p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth}}
+        \toprule
+        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Frequency} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria of UQ} & \textbf{Code} \\
+        \midrule
+        \csvreader[
+            late after line=\\\addlinespace,
+            filter test={\ifnumless{\thecsvinputline}{7}}, % Optional: limits to the first 10 rows
+            head to column names,
+             separator=semicolon
+        ]{Tables/all_articles_tagged.csv}{} % Path to your CSV file
+        {
+            \csvcoli & \csvcolii & \csvcoliii & \csvcoliv & \csvcolv & \csvcolvi & \csvcolvii & \csvcolviii & \csvcolix & \csvcolx & \csvcolxi & \csvcolxii & \csvcolxiii & \csvcolxiv
+        }
+        \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+\end{sidewaystable}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+% ADD CONCLUTION TABLE HERE
+\subsection{Old conclusion table of model type (remove when we don't need points anymore)}
+\begin{table}[H]
+    \centering
+    \caption[Summarizing conclusions by model type]{Summarizing conclusions by model type}
+    \label{table:conclusions_by_model}
+    \small
+    \begin{adjustbox}{width=1\textwidth,center}
+    \begin{tabular}{p{0.1\textwidth}p{0.9\textwidth}}
+        \toprule
+        \textbf{Model} & \textbf{Conclusion} \\
+        \midrule
+        BNN & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Despite BNN's inherent capacity to produce probabilistic outputs, the main focus remains on point prediction accuracy rather than assessing the quality of uncertainty estimates.
+            \item Across different asset classes, BNN models have reported competitive predictive performance compared to traditional models like ARIMA and other neural network models. However, the models' comparative advantage in uncertainty quantification is not thoroughly explored or benchmarked.
+            \item Several studies integrate BNNs with hybrid architectures (e.g., with GANs, TCNs, and other deep learning methods). While Monte Carlo remains the most popular method for Bayesian inference, advanced techniques like MNF demonstrate promising results.
+        \end{itemize} \\
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        GP & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Point 1
+            \item Point 2
+        \end{itemize} \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        VAE & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item VAEs are primarily used in combination with other machine learning models or as a pre-processing tool to produce more robust inputs for downstream models
+            \item While authors recognize that the VAE’s probabilistic architecture capturing latent financial data patterns to simulate future outcomes can be used for risk management and uncertainty quantification, few articles leverage this potential fully. Those that do currently fail to create adequate results
+        \end{itemize}\\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        HMM & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Most authors do categorical predictions when using HMMs
+            \item Even though the model produces distributional forecasts with probabilities, no authors assess the uncertainty of their predictions using HMMs
+            \item The second-order HMM seems to outperform the first-order HMM and shows some promising results when compared to other models, but they are not compared in a satisfactory way to be able to conclude that (not enough comparison or something like that)
+            \item The proposed models consistently outperform traditional models in terms of point predictions
+        \end{itemize}\\
+
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        PRNN Extensions & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Most articles are very new (2023 or 2024)
+            \item DeepAR manages to pass Christoffersen's test and is shown to beat GARCH at VaR estimation in one article
+            \item The models show promising results for point predictions
+        \end{itemize}\\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        PGAN & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Most use a cGAN-based model for forecasting
+            \item 75\% perform a UQ quality assessment (often non-distinguishing)
+            \item Mainly used for price prediction with uncertainty
+            \item Outperforms traditional benchmarks in some cases, but is often not compared to ML models
+        \end{itemize}\\
+
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        PNN & 
+        \begin{itemize}[left=0pt]
+        \vspace{-4mm}
+            \item Point 1
+            \item Point 2
+        \end{itemize}\\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Other Bayesian Methods & 
+        \vspace{-4mm}
+        \begin{itemize}[left=0pt]
+            \item The Bayesian methods are mainly concerned with stock movement/categorical prediction, and authors report promising reports of accuracy
+            \item While Bayesian methods in this category produce probabilistic outputs, many models do not fully leverage these outputs to quantify uncertainty explicitly
+            \item Lacking benchmarking to other models make it hard to quantify the exact promise of the models
+        \end{itemize}\\
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Other Probabilistic Methods & 
+        \vspace{-4mm}
+        \begin{itemize}[left=0pt]
+            \item Probabilistic models tend to outperform traditional econometric models (both point estimates and uncertainty quantification)
+            \item More flexibility and can handle non-linear relationships better than econometric models
+            \item People use different models to benchmark making it difficult to compare
+        \end{itemize} \\
+        \addlinespace
+        \addlinespace
+        \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+\end{table}

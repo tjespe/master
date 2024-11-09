@@ -1,0 +1,3 @@
+﻿Reference;Asset category;Asset;Input;Horizon;Frequency;Predicted;Prob. AI Model;Composed with ML Model;Composed with Trad. model;Use of UQ;UQ Quality Assessment;Assessment Criteria of UQ;Code
+\parencite{Ghahramani2015};Forex;AUD/USD;History;1 day, 1 week;N/A;Price;Gaussian Process Regression (GPR);None;Multivariate Autoregressive (MVAR);Not used;No;N/A;No
+Article 2;Options;KOSPI 200 Index options;Technical;Flexible;N/A;Price;Gaussian Process Regression (GPR);Feed Forward Neural Network (FFNN), Support Vector Regression (SVR);Black-Scholes, Heston Model, Merton Model;Not used;No;N/A;No
