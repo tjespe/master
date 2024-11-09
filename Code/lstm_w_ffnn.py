@@ -8,11 +8,12 @@ DATA_PATH = "data/sp500_stocks.csv"
 TRAIN_TEST_SPLIT = "2020-06-30"
 
 # %%
-from Code.shared.mc_dropout import predict_with_mc_dropout
+from shared.mc_dropout import predict_with_mc_dropout
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
+from arch import arch_model
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import (
     Input,
@@ -22,10 +23,12 @@ from tensorflow.keras.layers import (
     Concatenate,
     LayerNormalization,
 )
+from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers.legacy import Adam
 import tensorflow as tf
 import warnings
 import os
+from tensorflow.keras.initializers import RandomNormal
 
 warnings.filterwarnings("ignore")
 
@@ -192,72 +195,89 @@ y_train = y_train.astype(np.float32)
 y_test = y_test.astype(np.float32)
 
 # %%
-# Build the LSTM model
-
-inputs = Input(shape=(X_train.shape[1], X_train.shape[2]))
+# Build an LSTM w/ FFNN layers and MC Dropout
+# Define the model
+lstm_w_ffnn_inputs = Input(shape=(X_train.shape[1], X_train.shape[2]))
 
 # LSTM layer
-lstm_out = LSTM(
-    units=200,
-    activation="tanh",
-)(inputs)
+lstm_out = LSTM(units=200, activation="tanh")(lstm_w_ffnn_inputs)
 lstm_out = LayerNormalization()(lstm_out)
 lstm_out = Dropout(0.1)(lstm_out)
 
+# FFNN layers
+ffnn_out = Dense(100, activation="relu")(lstm_out)
+ffnn_out = Dropout(0.1)(ffnn_out)
+ffnn_out = Dense(50, activation="relu")(ffnn_out)
+ffnn_out = Dropout(0.1)(ffnn_out)
+
 # Mean output
-mean_out = Dense(1, activation="linear")(lstm_out)
+lstm_w_ffnn_mean_out = Dense(
+    1,
+    activation="linear",
+    # Initialize to very small values because we assume it is difficult to predict the mean return and we want to avoid large predictions
+    kernel_initializer=RandomNormal(mean=0.0, stddev=0.001),
+    name="mean_out",
+)(ffnn_out)
 
 # Output the log of variance (log(sigma^2)) so that we can use a linear activation
-log_variance_out = Dense(1, activation="linear")(lstm_out)
+lstm_w_ffnn_log_variance_out = Dense(
+    1,
+    activation="linear",
+    # Add a small regularizer to not over-estimate the variance
+    kernel_regularizer=l2(1e-6),
+    name="log_variance_out",
+)(ffnn_out)
 
 # Concatenate outputs
-outputs = Concatenate()([mean_out, log_variance_out])
+lstm_w_ffnn_outputs = Concatenate()(
+    [lstm_w_ffnn_mean_out, lstm_w_ffnn_log_variance_out]
+)
 
 # Define the model
-model = Model(inputs=inputs, outputs=outputs)
+lstm_w_ffnn_model = Model(inputs=lstm_w_ffnn_inputs, outputs=lstm_w_ffnn_outputs)
 
-
-# %%
 # Compile model
-lr = 0.0001
-model.compile(optimizer=Adam(learning_rate=lr), loss=nll_loss)
+lstm_w_ffnn_model.compile(optimizer=Adam(), loss=nll_loss)
+
 
 # %%
 # Load the model (if already trained)
-model_fname = f"models/{MODEL_NAME}.h5"
-if os.path.exists(model_fname):
-    model = tf.keras.models.load_model(model_fname, compile=False)
-    model.compile(optimizer=Adam(learning_rate=lr), loss=nll_loss)
+lstm_w_ffnn_model_fname = f"models/{MODEL_NAME}_w_ffnn.h5"
+if os.path.exists(lstm_w_ffnn_model_fname):
+    lstm_w_ffnn_model = tf.keras.models.load_model(
+        lstm_w_ffnn_model_fname, compile=False
+    )
+    lstm_w_ffnn_model.compile(optimizer=Adam(), loss=nll_loss)
     print("Loaded from disk")
 
 # %%
 # Fit the model (can be repeated several times to train further)
-model.fit(scaled_X_train, y_train, epochs=15, batch_size=32, verbose=1)
+lstm_w_ffnn_model.fit(scaled_X_train, y_train, epochs=50, batch_size=32, verbose=1)
 
 # %%
 # Save the model
-model.save(model_fname)
+lstm_w_ffnn_model.save(lstm_w_ffnn_model_fname)
 
 # %%
-# Predict expected return and volatility using the LSTM
-y_pred = model.predict(scaled_X_test)
-mean_pred = y_pred[:, 0]
-log_variance_pred = y_pred[:, 1]
-variance_pred = np.exp(log_variance_pred)
-variance_pred = np.maximum(variance_pred, 1e-6)
-volatility_pred = np.sqrt(variance_pred)
+# Predict expected return and volatility using the LSTM w/ FFNN
+y_pred_lstm_w_ffnn = lstm_w_ffnn_model.predict(scaled_X_test)
+log_variance_pred_lstm_w_ffnn = y_pred_lstm_w_ffnn[:, 1]
+mean_pred_lstm_w_ffnn = y_pred_lstm_w_ffnn[:, 0]
+variance_pred_lstm_w_ffnn = np.exp(log_variance_pred_lstm_w_ffnn)
+volatility_pred_lstm_w_ffnn = np.sqrt(variance_pred_lstm_w_ffnn)
 
 # %%
 # Save predictions to file
 df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Mean"] = mean_pred
-df_test["Volatility"] = volatility_pred
-df_test.to_csv(f"predictions/lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
-
+df_test["Mean"] = mean_pred_lstm_w_ffnn
+df_test["Volatility"] = volatility_pred_lstm_w_ffnn
+df_test.to_csv(
+    f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+)
 
 # %%
-# Make predictions for regular LSTM with MC Dropout
-mc_results = predict_with_mc_dropout(model, scaled_X_test, T=100)
+# Make predictions for LSTM w/ FFNN with MC Dropout
+mc_results = predict_with_mc_dropout(lstm_w_ffnn_model, scaled_X_test, T=100)
 
 # %%
 # Save predictions to file
@@ -270,54 +290,15 @@ df_test["Epistemic_Uncertainty_Volatility"] = mc_results[
 df_test["Epistemic_Uncertainty_Mean"] = mc_results[
     "epistemic_uncertainty_expected_returns"
 ]
-df_test.to_csv(f"predictions/lstm_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
-
-# %%
-# Plot the distribution of expected returns for the first day
-plt.figure(figsize=(12, 6))
-plt.hist(mc_results["preds"][:, 0, 0], bins=20, alpha=0.5, label="Expected Returns")
-plt.axvline(y_test[0], color="red", label="True Return")
-plt.title("Distribution of Expected Returns for the First Day")
-plt.xlabel("Expected Return")
-plt.ylabel("Frequency")
-plt.legend()
-plt.show()
-
-# %%
-# Plot the distribution of estimated volatilities for the first day
-plt.figure(figsize=(12, 6))
-plt.hist(
-    np.sqrt(np.exp(mc_results["preds"][:, 0, 1])),
-    bins=20,
-    alpha=0.5,
-    label="Estimated Volatilities",
+df_test.to_csv(
+    f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
-plt.axvline(np.abs(y_test[0]), color="red", label="Actual absolute return")
-plt.title("Distribution of Estimated Volatilities for the First Day")
-plt.xlabel("Estimated Volatility")
-plt.ylabel("Frequency")
-plt.legend()
-plt.show()
 
 # %%
-# Plot the distribution of estimated volatilities across all days
-plt.figure(figsize=(12, 6))
-plt.hist(
-    np.sqrt(np.exp(mc_results["preds"][:, :, 1])).flatten(),
-    bins=30,
-    alpha=0.5,
-    label="Estimated Volatilities",
-)
-plt.title("Distribution of Estimated Volatilities Across All Days")
-plt.xlabel("Estimated Volatility")
-plt.ylabel("Frequency")
-plt.legend()
-plt.show()
-
-# %%
-# Load GARCH(1, 1) predictions from file
+# Read GARCH(1, 1) predictions
 garch_vol_pred = pd.read_csv(
-    f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv",
+    index_col="Date",
 )["Volatility"]
 
 # %%
