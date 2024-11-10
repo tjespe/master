@@ -159,7 +159,7 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Stack returns and squared returns together
-    data = np.hstack((log_sq_returns, rvol, vix, vix_change))
+    data = np.hstack((log_sq_returns, rvol, vix_change))
 
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
@@ -234,7 +234,7 @@ if os.path.exists(MODEL_FNAME):
 # Fit the model (can be repeated several times to train further)
 # First fit with high learning rate to quickly get close to the optimal solution
 model.compile(optimizer=Adam(learning_rate=1e-2), loss=nll_loss_variance_only)
-model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+model.fit(X_train, y_train, epochs=15, batch_size=32, verbose=1)
 
 # %%
 # Then fit with lower learning rate to fine-tune the model
