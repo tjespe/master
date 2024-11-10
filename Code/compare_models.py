@@ -212,6 +212,7 @@ try:
             "name": "VIX",
             "mean_pred": np.zeros_like(vix_vol_est),
             "volatility_pred": vix_vol_est,
+            "linestyle": "--",
         }
     )
 except FileNotFoundError:
@@ -581,6 +582,7 @@ def plot_volatility_comparison(
             model["volatility_pred"][from_idx:],
             label=f"{model['name']} Volatility Prediction",
             color=colors[idx % len(colors)],
+            linestyle=model.get("linestyle", "-"),
         )
         if "epistemic_sd" in model:
             plt.fill_between(
