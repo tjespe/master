@@ -231,7 +231,7 @@ inputs = Input(shape=(X_train.shape[1], X_train.shape[2]))
 
 # LSTM layer
 lstm_out = LSTM(
-    units=1,
+    units=2,
     activation="tanh",
 )(inputs)
 

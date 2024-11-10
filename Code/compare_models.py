@@ -618,7 +618,7 @@ def plot_volatility_comparison(
 returns_test = df_test["LogReturn"]
 
 plot_volatility_comparison(
-    preds_per_model, returns_test, abs_returns_test, lookback_days=60
+    preds_per_model, returns_test, abs_returns_test, lookback_days=30
 )
 
 # %%
