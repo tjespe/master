@@ -344,12 +344,12 @@ def delta_sign_accuracy(y_true, vol_pred):
 
 
 def calculate_nll(y_true, mean_pred, volatility_pred):
-    nll = (
-        np.log(volatility_pred)
-        + 0.5 * np.log(2 * np.pi)
-        + 0.5 * ((y_true - mean_pred) / volatility_pred) ** 2
-    )
-    return nll
+    sigma2 = volatility_pred**2
+
+    term_1 = ((y_true - mean_pred) ** 2) / (2 * sigma2)
+    term_2 = 0.5 * np.log(sigma2)
+
+    return np.mean(term_1 + term_2)
 
 
 def christoffersen_test(exceedances, alpha):

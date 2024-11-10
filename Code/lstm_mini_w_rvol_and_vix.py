@@ -145,6 +145,10 @@ for symbol, group in df.groupby(level="Symbol"):
     rvol_daily = rvol_annualized / np.sqrt(252)
     rvol = np.log(rvol_daily**2 + (0.1 / 100) ** 2)
 
+    # Calculate one day change in RVOL
+    rvol_change_1d = np.diff(rvol, axis=0, prepend=rvol[0, 0])
+    rvol_change_2d = rvol - np.vstack([rvol[:2], rvol[:-2]])
+
     # Extract VIX and transform it to a similar scale
     vix_annualized = group["Close_VIX"].values.reshape(-1, 1) / 100
     vix_daily = vix_annualized / np.sqrt(252)
@@ -160,7 +164,16 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Stack returns and squared returns together
-    data = np.hstack((log_sq_returns, rvol, vix_change_1d, vix_change_2d))
+    data = np.hstack(
+        (
+            log_sq_returns,
+            rvol,
+            rvol_change_1d,
+            rvol_change_2d,
+            vix_change_1d,
+            vix_change_2d,
+        )
+    )
 
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
@@ -229,13 +242,14 @@ model = Model(inputs=inputs, outputs=variance_out)
 MODEL_FNAME = f"models/{MODEL_NAME}.h5"
 if os.path.exists(MODEL_FNAME):
     model = tf.keras.models.load_model(MODEL_FNAME, compile=False)
+    model.compile(optimizer=Adam(), loss=nll_loss_variance_only)
     print("Model loaded from disk")
 
 # %%
 # Fit the model (can be repeated several times to train further)
 # First fit with high learning rate to quickly get close to the optimal solution
 model.compile(optimizer=Adam(learning_rate=1e-2), loss=nll_loss_variance_only)
-model.fit(X_train, y_train, epochs=15, batch_size=32, verbose=1)
+model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
 
 # %%
 # Then fit with lower learning rate to fine-tune the model
