@@ -148,6 +148,7 @@ for symbol, group in df.groupby(level="Symbol"):
     # Calculate one day change in RVOL
     rvol_change_1d = np.diff(rvol, axis=0, prepend=rvol[0, 0])
     rvol_change_2d = rvol - np.vstack([rvol[:2], rvol[:-2]])
+    rvol_change_7d = rvol - np.vstack([rvol[:7], rvol[:-7]])
 
     # Extract VIX and transform it to a similar scale
     vix_annualized = group["Close_VIX"].values.reshape(-1, 1) / 100
@@ -157,6 +158,7 @@ for symbol, group in df.groupby(level="Symbol"):
     # Calculate one day change in VIX
     vix_change_1d = np.diff(vix, axis=0, prepend=vix[0, 0])
     vix_change_2d = vix - np.vstack([vix[:2], vix[:-2]])
+    vix_change_7d = vix - np.vstack([vix[:7], vix[:-7]])
 
     # Find date to split on
     train_test_split_index = len(
@@ -170,8 +172,10 @@ for symbol, group in df.groupby(level="Symbol"):
             rvol,
             rvol_change_1d,
             rvol_change_2d,
+            rvol_change_7d,
             vix_change_1d,
             vix_change_2d,
+            vix_change_7d,
         )
     )
 
@@ -249,7 +253,7 @@ if os.path.exists(MODEL_FNAME):
 # Fit the model (can be repeated several times to train further)
 # First fit with high learning rate to quickly get close to the optimal solution
 model.compile(optimizer=Adam(learning_rate=1e-2), loss=nll_loss_variance_only)
-model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
+model.fit(X_train, y_train, epochs=25, batch_size=32, verbose=1)
 
 # %%
 # Then fit with lower learning rate to fine-tune the model

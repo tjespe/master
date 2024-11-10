@@ -557,6 +557,11 @@ results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df
 
+# %%
+# Calculate overall winner
+winner_name = results_df["Winner"].mode()[0]
+winner_name
+
 
 # %%
 # Plot volatility comparison
@@ -577,12 +582,14 @@ def plot_volatility_comparison(
         # Exclude models with very high volatility predictions
         if model["volatility_pred"].mean() / mean_vol_pred.mean() > 1.2:
             continue
+        linewidth = 1.7 if model["name"] == winner_name else 0.7
         plt.plot(
             returns_test.index[from_idx:],
             model["volatility_pred"][from_idx:],
             label=f"{model['name']} Volatility Prediction",
             color=colors[idx % len(colors)],
             linestyle=model.get("linestyle", "-"),
+            linewidth=linewidth,
         )
         if "epistemic_sd" in model:
             plt.fill_between(
