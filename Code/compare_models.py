@@ -170,14 +170,30 @@ except FileNotFoundError:
 
 # Mini LSTM w/ RVOL
 try:
-    mini_lstm_preds = pd.read_csv(
+    mini_lstm_w_rvol_preds = pd.read_csv(
         f"predictions/lstm_mini_w_rvol_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
     )
     preds_per_model.append(
         {
             "name": "Mini LSTM w/ RVOL",
-            "mean_pred": mini_lstm_preds["Mean"].values,
-            "volatility_pred": mini_lstm_preds["Volatility"].values,
+            "mean_pred": mini_lstm_w_rvol_preds["Mean"].values,
+            "volatility_pred": mini_lstm_w_rvol_preds["Volatility"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Mini LSTM predictions not found")
+    print("Mini LSTM predictions not found")
+
+# Mini LSTM w/ RVOL and VIX
+try:
+    mini_lstm_w_rvol_and_vix_preds = pd.read_csv(
+        f"predictions/lstm_mini_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Mini LSTM w/ RVOL & VIX",
+            "mean_pred": mini_lstm_w_rvol_and_vix_preds["Mean"].values,
+            "volatility_pred": mini_lstm_w_rvol_and_vix_preds["Volatility"].values,
         }
     )
 except FileNotFoundError:
