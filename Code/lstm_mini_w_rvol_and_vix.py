@@ -151,7 +151,8 @@ for symbol, group in df.groupby(level="Symbol"):
     vix = np.log(vix_daily**2 + (0.1 / 100) ** 2)
 
     # Calculate one day change in VIX
-    vix_change = np.diff(vix, axis=0, prepend=vix[0, 0])
+    vix_change_1d = np.diff(vix, axis=0, prepend=vix[0, 0])
+    vix_change_2d = vix - np.vstack([vix[:2], vix[:-2]])
 
     # Find date to split on
     train_test_split_index = len(
@@ -159,7 +160,7 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Stack returns and squared returns together
-    data = np.hstack((log_sq_returns, rvol, vix_change))
+    data = np.hstack((log_sq_returns, rvol, vix_change_1d, vix_change_2d))
 
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
