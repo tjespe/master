@@ -150,13 +150,16 @@ for symbol, group in df.groupby(level="Symbol"):
     vix_daily = vix_annualized / np.sqrt(252)
     vix = np.log(vix_daily**2 + (0.1 / 100) ** 2)
 
+    # Calculate one day change in VIX
+    vix_change = np.diff(vix, axis=0, prepend=vix[0, 0])
+
     # Find date to split on
     train_test_split_index = len(
         group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
     )
 
     # Stack returns and squared returns together
-    data = np.hstack((log_sq_returns, rvol))
+    data = np.hstack((log_sq_returns, rvol, vix, vix_change))
 
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
@@ -225,6 +228,7 @@ model = Model(inputs=inputs, outputs=variance_out)
 MODEL_FNAME = f"models/{MODEL_NAME}.h5"
 if os.path.exists(MODEL_FNAME):
     model = tf.keras.models.load_model(MODEL_FNAME, compile=False)
+    print("Model loaded from disk")
 
 # %%
 # Fit the model (can be repeated several times to train further)
@@ -240,7 +244,7 @@ model.fit(X_train, y_train, epochs=15, batch_size=32, verbose=1)
 # %%
 # Then fit with even lower learning rate to fine-tune the model
 model.compile(optimizer=Adam(learning_rate=1e-4), loss=nll_loss_variance_only)
-model.fit(X_train, y_train, epochs=15, batch_size=32, verbose=1)
+model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
 # %%
 # Save the model
@@ -252,6 +256,11 @@ y_pred = model.predict(X_test)
 variance_pred = tf.exp(y_pred[:, 0])
 mean_pred = np.zeros_like(variance_pred)  # Assume mean is 0
 volatility_pred = np.sqrt(variance_pred)
+
+# %%
+# Calculate NLL for the test set
+nll_test = nll_loss_variance_only(y_test, y_pred).numpy()
+print(f"NLL on test set: {nll_test}")
 
 # %%
 # Save predictions to file

@@ -8,6 +8,7 @@ from scipy.stats import chi2, norm
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
+import matplotlib.ticker as ticker
 
 warnings.filterwarnings("ignore")
 
@@ -199,6 +200,23 @@ try:
 except FileNotFoundError:
     print("Mini LSTM predictions not found")
 
+# VIX
+try:
+    vix_preds = pd.read_csv(f"data/VIX.csv")
+    vix_preds["Date"] = pd.to_datetime(vix_preds["Date"])
+    vix_preds = vix_preds.set_index("Date")
+    vix_preds = vix_preds.loc[df_test.index]
+    vix_vol_est = vix_preds["Close"].values / 100 / np.sqrt(252)
+    preds_per_model.append(
+        {
+            "name": "VIX",
+            "mean_pred": np.zeros_like(vix_vol_est),
+            "volatility_pred": vix_vol_est,
+        }
+    )
+except FileNotFoundError:
+    print("VIX predictions not found")
+
 # GARCH + LSTM-MC ensemble
 try:
     preds_per_model.append(
@@ -322,6 +340,15 @@ def delta_sign_accuracy(y_true, vol_pred):
     y_true_diff = np.diff(np.abs(y_true))
     vol_pred_diff = np.diff(vol_pred)
     return np.mean(np.sign(y_true_diff) == np.sign(vol_pred_diff))
+
+
+def calculate_nll(y_true, mean_pred, volatility_pred):
+    nll = (
+        np.log(volatility_pred)
+        + 0.5 * np.log(2 * np.pi)
+        + 0.5 * ((y_true - mean_pred) / volatility_pred) ** 2
+    )
+    return nll
 
 
 def christoffersen_test(exceedances, alpha):
@@ -457,6 +484,10 @@ for entry in preds_per_model:
     )
     entry["interval_score"] = interval_score
 
+    # Calculate NLL
+    nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
+    entry["nll"] = nll
+
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
     correlation = calculate_uncertainty_error_correlation(
@@ -487,6 +518,7 @@ results = {
     "Interval Score": [],
     "Correlation (vol. vs. errors)": [],
     "PICP/MPIW": [],
+    "NLL": [],
     "Direction Accuracy": [],
 }
 
@@ -502,6 +534,7 @@ for entry in preds_per_model:
     )
     results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
     results["Direction Accuracy"].append(entry["delta_sign_accuracy"])
+    results["NLL"].append(np.mean(entry["nll"]))
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -518,6 +551,7 @@ results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
 results_df.loc["Winner", "Direction Accuracy"] = results_df[
     "Direction Accuracy"
 ].idxmax()
+results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df
@@ -540,7 +574,7 @@ def plot_volatility_comparison(
     colors = ["blue", "green", "orange", "red", "purple", "brown", "#337ab7", "pink"]
     for idx, model in enumerate(models):
         # Exclude models with very high volatility predictions
-        if model["volatility_pred"].mean() / mean_vol_pred.mean() > 1:
+        if model["volatility_pred"].mean() / mean_vol_pred.mean() > 1.2:
             continue
         plt.plot(
             returns_test.index[from_idx:],
@@ -567,12 +601,15 @@ def plot_volatility_comparison(
             alpha=0.5,
             linewidth=0.5,
         )
+    plt.gca().yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f"{x:.2%}"))
     plt.legend()
     plt.show()
 
 
 returns_test = df_test["LogReturn"]
 
-plot_volatility_comparison(preds_per_model, returns_test, abs_returns_test)
+plot_volatility_comparison(
+    preds_per_model, returns_test, abs_returns_test, lookback_days=60
+)
 
 # %%
