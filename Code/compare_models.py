@@ -200,23 +200,62 @@ try:
 except FileNotFoundError:
     print("Mini LSTM predictions not found")
 
-# VIX
-try:
-    vix_preds = pd.read_csv(f"data/VIX.csv")
-    vix_preds["Date"] = pd.to_datetime(vix_preds["Date"])
-    vix_preds = vix_preds.set_index("Date")
-    vix_preds = vix_preds.loc[df_test.index]
-    vix_vol_est = vix_preds["Close"].values / 100 / np.sqrt(252)
-    preds_per_model.append(
-        {
-            "name": "VIX",
-            "mean_pred": np.zeros_like(vix_vol_est),
-            "volatility_pred": vix_vol_est,
-            "linestyle": "--",
-        }
-    )
-except FileNotFoundError:
-    print("VIX predictions not found")
+if TEST_ASSET == "S&P":
+    # VIX
+    try:
+        vix_preds = pd.read_csv(f"data/VIX.csv")
+        vix_preds["Date"] = pd.to_datetime(vix_preds["Date"])
+        vix_preds = vix_preds.set_index("Date")
+        vix_preds = vix_preds.loc[df_test.index]
+        vix_vol_est = vix_preds["Close"].values / 100 / np.sqrt(252)
+        preds_per_model.append(
+            {
+                "name": "Yesterday's VIX",
+                "mean_pred": np.zeros_like(vix_vol_est),
+                "volatility_pred": np.hstack(
+                    [
+                        # We cheat here and use the actual value for the first day just
+                        # to get correct dimensions and a non-zero value that does not
+                        # ruin calculations
+                        vix_vol_est[0],
+                        # The rest of the values, shifted by one day
+                        vix_vol_est[:-1],
+                    ]
+                ),
+                "linestyle": "--",
+            }
+        )
+    except FileNotFoundError:
+        print("VIX predictions not found")
+
+    # RVOL
+    try:
+        rvol_preds = pd.read_csv(f"data/RVOL.csv")
+        rvol_preds["Date"] = pd.to_datetime(rvol_preds["Date"]).dt.date
+        rvol_preds = rvol_preds.set_index("Date")
+        # Reindex to same index as df_test and fill missing
+        rvol_preds = rvol_preds.reindex(df_test.index, method="ffill")
+        rvol_vol_est = rvol_preds["Close"].values / 100 / np.sqrt(252)
+        preds_per_model.append(
+            {
+                "name": "Yesterday's RVOL",
+                "mean_pred": np.zeros_like(rvol_vol_est),
+                # Shift by one day to make it a fair comparison
+                "volatility_pred": np.hstack(
+                    [
+                        # We cheat here and use the actual value for the first day just
+                        # to get correct dimensions and a non-zero value that does not
+                        # ruin calculations
+                        rvol_vol_est[0],
+                        # The rest of the values, shifted by one day
+                        rvol_vol_est[:-1],
+                    ]
+                ),
+                "linestyle": "--",
+            }
+        )
+    except FileNotFoundError:
+        print("RVOL predictions not found")
 
 # GARCH + LSTM-MC ensemble
 try:
@@ -569,12 +608,20 @@ def plot_volatility_comparison(
     models, returns_test, abs_returns_test, lookback_days=30
 ):
     from_idx = len(returns_test) - lookback_days
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(14, 8))
     plt.plot(
         returns_test.index[from_idx:],
         abs_returns_test[from_idx:],
         label="Absolute Returns",
         color="black",
+    )
+    plt.plot(
+        returns_test.index[from_idx:],
+        rvol_vol_est[from_idx:],
+        label="True RVOL",
+        linestyle="--",
+        color="black",
+        linewidth=1,
     )
     mean_vol_pred = np.mean([model["volatility_pred"] for model in models], axis=0)
     colors = ["blue", "green", "orange", "red", "purple", "brown", "#337ab7", "pink"]
