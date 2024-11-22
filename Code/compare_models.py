@@ -90,6 +90,21 @@ try:
 except FileNotFoundError:
     print("GARCH predictions not found")
 
+# GARCH-GJR Model
+try:
+    garch_gjr_vol_pred = pd.read_csv(
+        f"predictions/gjr_garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )["Volatility"].values
+    preds_per_model.append(
+        {
+            "name": "GARCH-GJR",
+            "mean_pred": np.zeros_like(garch_gjr_vol_pred),
+            "volatility_pred": garch_gjr_vol_pred,
+        }
+    )
+except FileNotFoundError:
+    print("GARCH-GJR predictions not found")
+
 # LSTM Model
 try:
     lstm_preds = pd.read_csv(
