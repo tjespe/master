@@ -197,8 +197,7 @@ try:
         }
     )
 except FileNotFoundError:
-    print("Mini LSTM predictions not found")
-    print("Mini LSTM predictions not found")
+    print("Mini LSTM w RVOL predictions not found")
 
 # Mini LSTM w RVOL and VIX
 try:
@@ -213,7 +212,25 @@ try:
         }
     )
 except FileNotFoundError:
-    print("Mini LSTM predictions not found")
+    print("Mini LSTM w RVOL and VIX predictions not found")
+
+# Monte Carlo LSTM w RVOL and VIX
+try:
+    mc_lstm_w_rvol_and_vix_preds = pd.read_csv(
+        f"predictions/lstm_mc_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Monte Carlo LSTM w RVOL & VIX",
+            "mean_pred": mc_lstm_w_rvol_and_vix_preds["Mean"].values,
+            "volatility_pred": mc_lstm_w_rvol_and_vix_preds["Volatility"].values,
+            "epistemic_sd": mc_lstm_w_rvol_and_vix_preds[
+                "Epistemic_Uncertainty_Volatility"
+            ].values,
+        }
+    )
+except FileNotFoundError:
+    print("Monte Carlo LSTM w RVOL and VIX predictions not found")
 
 if TEST_ASSET == "S&P":
     # VIX
