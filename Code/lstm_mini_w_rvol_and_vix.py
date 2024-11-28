@@ -140,6 +140,9 @@ for symbol, group in df.groupby(level="Symbol"):
         + (0.1 / 100) ** 2
     )
 
+    # Sign of return to capture the direction of the return
+    sign_return = np.sign(returns)
+
     # Extract realized volatility and transform it to a similar scale
     rvol_annualized = group["Close_RVOL"].values.reshape(-1, 1) / 100
     rvol_daily = rvol_annualized / np.sqrt(252)
@@ -169,6 +172,7 @@ for symbol, group in df.groupby(level="Symbol"):
     data = np.hstack(
         (
             log_sq_returns,
+            sign_return,
             rvol,
             rvol_change_1d,
             rvol_change_2d,

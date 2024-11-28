@@ -143,13 +143,13 @@ try:
     )
     preds_per_model.append(
         {
-            "name": "LSTM w/ FFNN",
+            "name": "LSTM w FFNN",
             "mean_pred": lstm_w_ffnn_preds["Mean"].values,
             "volatility_pred": lstm_w_ffnn_preds["Volatility"].values,
         }
     )
 except FileNotFoundError:
-    print("LSTM w/ FFNN predictions not found")
+    print("LSTM w FFNN predictions not found")
 
 # LSTM with FFNN and MC Dropout Model
 try:
@@ -158,7 +158,7 @@ try:
     )
     preds_per_model.append(
         {
-            "name": "LSTM w/ FFNN and MC Dropout",
+            "name": "LSTM w FFNN and MC Dropout",
             "mean_pred": lstm_w_ffnn_mc_preds["Mean"].values,
             "volatility_pred": lstm_w_ffnn_mc_preds["Volatility"].values,
             "epistemic_sd": lstm_w_ffnn_mc_preds[
@@ -167,7 +167,7 @@ try:
         }
     )
 except FileNotFoundError:
-    print("LSTM w/ FFNN and MC Dropout predictions not found")
+    print("LSTM w FFNN and MC Dropout predictions not found")
 
 # Mini LSTM
 try:
@@ -184,14 +184,14 @@ try:
 except FileNotFoundError:
     print("Mini LSTM predictions not found")
 
-# Mini LSTM w/ RVOL
+# Mini LSTM w RVOL
 try:
     mini_lstm_w_rvol_preds = pd.read_csv(
         f"predictions/lstm_mini_w_rvol_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
     )
     preds_per_model.append(
         {
-            "name": "Mini LSTM w/ RVOL",
+            "name": "Mini LSTM w RVOL",
             "mean_pred": mini_lstm_w_rvol_preds["Mean"].values,
             "volatility_pred": mini_lstm_w_rvol_preds["Volatility"].values,
         }
@@ -200,14 +200,14 @@ except FileNotFoundError:
     print("Mini LSTM predictions not found")
     print("Mini LSTM predictions not found")
 
-# Mini LSTM w/ RVOL and VIX
+# Mini LSTM w RVOL and VIX
 try:
     mini_lstm_w_rvol_and_vix_preds = pd.read_csv(
         f"predictions/lstm_mini_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
     )
     preds_per_model.append(
         {
-            "name": "Mini LSTM w/ RVOL & VIX",
+            "name": "Mini LSTM w RVOL & VIX",
             "mean_pred": mini_lstm_w_rvol_and_vix_preds["Mean"].values,
             "volatility_pred": mini_lstm_w_rvol_and_vix_preds["Volatility"].values,
         }
@@ -341,7 +341,7 @@ def plot_mean_returns_prediction(model, df_test):
             model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd"],
             model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd"],
             alpha=0.3,
-            label="Volatility w/ Epistemic Uncertainty",
+            label="Volatility w Epistemic Uncertainty",
         )
     plt.scatter(
         df_test.index,
@@ -620,19 +620,20 @@ winner_name
 # %%
 # Plot volatility comparison
 def plot_volatility_comparison(
-    models, returns_test, abs_returns_test, lookback_days=30
+    models, returns_test, abs_returns_test, lookback_days=30, steps=30
 ):
     from_idx = len(returns_test) - lookback_days
+    to_idx = min(from_idx + steps, len(returns_test))
     plt.figure(figsize=(14, 8))
     plt.plot(
-        returns_test.index[from_idx:],
-        abs_returns_test[from_idx:],
+        returns_test.index[from_idx:to_idx],
+        abs_returns_test[from_idx:to_idx],
         label="Absolute Returns",
         color="black",
     )
     plt.plot(
-        returns_test.index[from_idx:],
-        rvol_vol_est[from_idx:],
+        returns_test.index[from_idx:to_idx],
+        rvol_vol_est[from_idx:to_idx],
         label="True RVOL",
         linestyle="--",
         color="black",
@@ -646,8 +647,8 @@ def plot_volatility_comparison(
             continue
         linewidth = 1.7 if model["name"] == winner_name else 0.7
         plt.plot(
-            returns_test.index[from_idx:],
-            model["volatility_pred"][from_idx:],
+            returns_test.index[from_idx:to_idx],
+            model["volatility_pred"][from_idx:to_idx],
             label=f"{model['name']} Volatility Prediction",
             color=colors[idx % len(colors)],
             linestyle=model.get("linestyle", "-"),
@@ -655,9 +656,11 @@ def plot_volatility_comparison(
         )
         if "epistemic_sd" in model:
             plt.fill_between(
-                returns_test.index[from_idx:],
-                model["volatility_pred"][from_idx:] - model["epistemic_sd"][from_idx:],
-                model["volatility_pred"][from_idx:] + model["epistemic_sd"][from_idx:],
+                returns_test.index[from_idx:to_idx],
+                model["volatility_pred"][from_idx:to_idx]
+                - model["epistemic_sd"][from_idx:to_idx],
+                model["volatility_pred"][from_idx:to_idx]
+                + model["epistemic_sd"][from_idx:to_idx],
                 alpha=0.3,
                 label=f"{model['name']} 67% epistemic confidence interval",
                 color=colors[idx % len(colors)],
@@ -665,9 +668,9 @@ def plot_volatility_comparison(
     plt.title("Volatility Prediction Comparison")
     plt.xlabel("Date")
     plt.ylabel("Volatility")
-    for i in range(lookback_days):
+    for i in range(from_idx, to_idx):
         plt.axvline(
-            returns_test.index[from_idx + i],
+            returns_test.index[i],
             color="gray",
             alpha=0.5,
             linewidth=0.5,
@@ -680,7 +683,7 @@ def plot_volatility_comparison(
 returns_test = df_test["LogReturn"]
 
 plot_volatility_comparison(
-    preds_per_model, returns_test, abs_returns_test, lookback_days=30
+    preds_per_model, returns_test, abs_returns_test, lookback_days=60, steps=30
 )
 
 # %%
