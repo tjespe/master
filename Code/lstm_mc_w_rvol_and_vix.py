@@ -362,3 +362,5 @@ df_test["Epistemic_Uncertainty_Volatility"] = epistemic_uncertainty
 df_test.to_csv(
     f"predictions/lstm_mc_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
+
+# %%
