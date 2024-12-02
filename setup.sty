@@ -154,16 +154,22 @@
     {0.5\baselineskip}%
     {\normalfont\normalsize\textit}}
 \makeatother
-\usepackage{arydshln}
+% \usepackage{arydshln}
 \setlength{\columnsep}{8mm} % Adjusts column spacing
 
 \renewcommand\labelitemi{\tiny$\bullet$}
 \usepackage{longtable}
-\usepackage{pdflscape}
+\usepackage{lscape}
 \usepackage{rotating}
 \usepackage{booktabs}
 \usepackage{enumitem}
-
-\newcommand{\smallbullet}[1]{\par\noindent\hangindent=1em\raisebox{0.25ex}{\scriptsize$\bullet$}\normalsize\hspace{0.5em}#1}
 \usepackage{tablefootnote}
 \usepackage{csvsimple}
+\usepackage{colortbl}
+
+\newcommand{\smallbullet}[1]{\par\noindent\hangindent=1em\raisebox{0.25ex}{\scriptsize$\bullet$}\normalsize\hspace{0.5em}#1}
+
+% \usepackage{booktabs}
+\usepackage{colortbl} % Required for arrayrulecolor
+\usepackage{arydshln} % Required for dashed lines
+\usepackage{multicol}

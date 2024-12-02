@@ -3,7 +3,7 @@
 
 \begin{table}[H]
     \centering
-    \caption[Database search queries]{Database search queries.}
+    \caption[Database Specific Search Queries Based on the Same Keywords]{Database search queries.}
     \label{table:database_search_queries}
     \small
     \begin{adjustbox}{width=1\textwidth,center}
@@ -29,20 +29,53 @@
     \end{adjustbox}
 \end{table}
 
-\subsection{Screening Process}
+\subsection{Screening Process in Detail}
 \label{appendix:screening_process_with_ai}
 
-...
+[INTRO] + [LINK TO REPO] https://github.com/tjespe/literature-review
+
+\textbf{Screening Phase 1: Initial Screening}
+
+\begin{figure}[H]
+     \centering
+     \begin{subfigure}[b]{0.49\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{Images/screening_a.png}
+         \caption{Example of article excluded in Screening Phase 1}
+         \label{fig:screening_phase_1_rejected}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.49\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{Images/screening_a.png}
+         \caption{Example of article included in Screening Phase 1}
+         \label{fig:screening_phase_1_included}
+     \end{subfigure}
+      \caption{Example of presented papers to the reviewer in Screening Phase 1. Researchers are prompted with a choice to include or exclude the paper based on the title, summary, keywords, and abstract. A link to the PDF of the paper is also included to perform a more thorough scan of the article in cases of doubt together with an AI assessment base on a large language model (“o1-mini” from OpenAI).}
+    \label{fig:scrining_procces_phase_1}
+\end{figure}
+
+
+\textbf{Screening Phase 2: Full-text screening, Data extraction and Analysis}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images/screening_process_tagging.png}
+    \caption{Snapshot of dynamic table for tagging and data extraction of the papers during the full-text screening. The datatable wwas then loden into  }
+    \label{fig:enter-label}
+\end{figure}
+
+
 
 \subsection{Journal Category Mapping}
 \label{appendix:journal_category_mapping}
+
 \begin{table}[H]
     \centering
     \caption[Journal Categories Mapping]{List of Journal Categories and Journals.}
     \label{table:journal_categories}
     \small
     \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{lp{0.85\textwidth}}
+    \begin{tabular}{p{0.20\textwidth} p{0.80\textwidth}}
         \toprule
         \textbf{Category} & \textbf{Journals} \\
         \midrule
@@ -69,259 +102,462 @@
 \end{table}
 
 
-
-\subsection{Descriptive Table of all Articles}
-\label{appendix:descriptive_table_of_all_articles}
-
-...
-
 \subsection{List of Abbreviations}
 \label{appendix:list_of_abbrevations}
-
+    
 
 \begin{table}[H]
     \centering
     \caption[List of Abbreviations]{List of Abbreviations.}
     \label{table:abbreviations}
     \small
-    \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{lp{0.85\textwidth}}
+    \begin{subtable}[t]{0.49\textwidth}
+        \centering
+        \begin{tabular}{lp{0.63\textwidth}}
         \toprule
         \textbf{Abbreviation} & \textbf{Definition} \\
         \midrule
+        ADAM & Adaptive Moment Estimation \\
+        AE & Auto-Encoder \\
+        AIS & Average Internal Score \\
         AI & Artificial Intelligence \\
-        ML & Machine Learning \\
-        GPR & Gaussian Process Regression \\
-        VaR & Value-at-Risk \\
-        TVaR & Tail Value-at-Risk \\
-        CVaR & Conditional Value-at-Risk \\
-        RNN & Recurrent Neural Network \\
-        LSTM & Long Short-Term Memory \\
-        VAE & Variational Autoencoder \\
-        IMF & Intrinsic Mode Functions \\
-        AR & Annualized Return \\
-        SR & Sharpe Ratio \\
-        TW & Total Wealth \\
-        MAE & Mean Absolute Error \\
-        MAPE & Mean Absolute Percentage Error \\
-        SSE & Sum of Squares due to Error \\
-        RMSE & Root Mean Square Error \\
-        MC & Mean Coverage \\
-        MWP & Mean Width Percentage \\
-        PICP & Prediction Interval Coverage Probability \\
-        NSE & Nash-Sutcliffe Efficiency \\
-        MCMC & Markov Chain Monte Carlo \\
         ANN & Artificial Neural Network \\
+        ARIMA & AutoRegressive Integrated Moving Average \\
+        AUROC & Area Under the ROC Curve \\
+        BGLM & Bayesian Generalized Linear Model \\
+        BIC & Bayesian Information Criterion \\
         BNN & Bayesian Neural Network \\
-        PNN & Probabilistic Neural Network \\
-        GAN & Generative Adversarial Network \\
-        HMM & Hidden Markov Model \\
-        AE & Autoencoder \\
-        GP & Gaussian Process \\
+        B-SLR & Bibliometric Systematic Literature Review \\
+        B-SVR & Bayesian Support Vector Regression \\
+        BSTS & Bayesian Structural Time-Series \\
+        B-TABL & Bayesian Temporal Augmented Bilinear Network \\
+        cGAN & Conditional Generative Adversarial Networks \\
+        CDF & Cumulative Distribution Functions \\
+        CNN & Convolutional Neural Networks \\
+        CoV & Coefficient of Variation \\
+        CPS & Conformal Predictive System \\
+        CRPS & Continuous Ranked Probability Score \\
+        CVaR / ES & Conditional Value at Risk / Expected Shortfall \\
+        DCNN & Deep Convolutional Neural Network \\
         DNN & Deep Neural Network \\
+        DQ & Dynamic Quantile \\
+        ECE & Expected Calibration Error \\
+        ECD & Expected Calibration Distance \\
+        EGARCH & Exponential GARCH \\
+        ESVM & Echo State Volatility Model \\
+        EWSVM & Enhanced Weighted Support Vector Machine \\
+        FINAW & Forecasting Interval Normalized Average Width \\
+        FF-ANN & Feed-Forward Artificial Neural Network \\
+        FFNN & Feed-Forward Neural Network \\
+        GAN & Generative Adversarial Network \\
+        GA & Genetic Algorithms \\
+        GBHM & Bayesian General Heteroskedasticity Model \\
+        GP & Gaussian Process \\
+        GPMCH & Gaussian Process Mixture Conditional Heteroscedasticity \\
+        GPR & Gaussian Processes Regression \\
+        GARCH & Generalized Autoregressive Conditional Heteroskedasticity \\
+        GRU & Gated Recurrent Units \\
+        HMM & Hidden Markov Model \\
+        
+        
         \bottomrule
-    \end{tabular}
-    \end{adjustbox}
+        \end{tabular}
+    \end{subtable}
+    \hfill
+    \begin{subtable}[t]{0.49\textwidth}
+        \centering
+        \begin{tabular}{lp{0.63\textwidth}}
+        \toprule
+        \textbf{Abbreviation} & \textbf{Definition} \\
+        \midrule
+        IMF & Intrinsic Mode Functions \\
+        ITM & In-The-Money \\
+        IVOL & Implied Volatility \\
+        LOB & Limit Order Books \\
+        LOO-CCPS & Leave-One-Out Cross-Conformal Predictive System \\
+        LSTM & Long Short-Term Memory \\
+        MAE & Mean Absolute Error \\
+        MC & Mean Coverage \\
+        MCUB & Multi-Class Undersampling-Based Bagging \\
+        MCHMM & Multi-Layer Coupled Hidden Markov Model \\
+        MCMC & Markov Chain Monte Carlo \\
+        MLP & Multilayer Perceptron \\
+        ML & Machine Learning \\
+        MNF & Minimum Norm Filter \\
+        MSEV & Mean Squared Error of Variance \\
+        MWP & Mean Width Percentage \\
+        NLL & Negative Log-Likelihood \\
+        NSE & Nash–Sutcliffe Model Efficiency Coefficient \\
+        OTM & Out-Of-The-Money \\
+        PICP & Prediction Interval Coverage Probability \\
+        PINAW & Prediction Interval Normalized Average Width \\
+        PredACGAN & Predictive Auxiliary Classifier GAN \\
+        PDF & Probability Density Functions \\
+        PNN & Probabilistic Neural Network \\
+        QL & Quantile Loss \\
+        QR & Quantile Regression \\
+        RDL & Recurrent Dictionary Learning \\
+        RELM & Regularized Extreme Learning Machine \\
+        RMSCE & Root Mean Squared Calibration Error \\
+        RT & Reparametrization Trick \\
+        SAVING & Sentiment-Aware Volatility Forecasting \\
+        SHOA & Spotted Hyena Optimization Algorithm \\
+        SLR & Systematic Literature Review \\
+        SSA & Singular Spectrum Analysis \\
+        SSE & Sum of Squared Errors \\
+        SVM & Support Vector Machines \\
+        SVR & Support Vector Regression \\
+        TARCH & Threshold GARCH \\
+        TCN & Temporal Convolutional Network \\
+        TVaR & Tail Value at Risk \\
+        UCRP & Uniform Constant Rebalanced Portfolio \\
+        VaR & Value at Risk \\
+        VAE & Variational Autoencoder \\
+        VDM & Variational Mode Decomposition \\
+        VOGN & Variational Online Gauss-Newton \\
+        XAI & Explainable AI \\
+        \bottomrule
+        \end{tabular}
+    \end{subtable}
 \end{table}
+
+
+
+\subsection{Journals per Category}
+
+
+
 
 
 
 \subsection{Descriptive Table of all Papers in Sample}
 \label{appendix:descriptive_table_of_all_articles}
 
-\begin{sidewaystable} % Rotates only the table
-    \centering
-    \caption[Descriptive table of all papers in sample]{Summary of Paper Information}
-    \label{table:paper_info_summary}
-    \scriptsize % small font size
-    \begin{adjustbox}{width=1\textheight, center} % Fit table to text height
-    \begin{tabular}{p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth}}
+\scriptsize % Adjust font size for the table
+\setlength\LTcapwidth{\textheight} % Ensure the caption matches the rotated height
+
+% Rotate the table while allowing it to span multiple pages
+\begin{landscape}
+\begin{longtable}{p{0.07\textheight} p{0.07\textheight} p{0.16\textheight} p{0.07\textheight} p{0.07\textheight} p{0.07\textheight} p{0.14\textheight} p{0.07\textheight} p{0.07\textheight} p{0.07\textheight} p{0.07\textheight} p{0.1\textheight} p{0.04\textheight}}
+        \caption[Descriptive table of all papers in sample]{Summary of Paper Information}
+        \label{table:paper_info_summary} \\
         \toprule
-        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Frequency} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria of UQ} & \textbf{Code} \\
+        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria UQ} & \textbf{Code} \\
         \midrule
-        Article 1 & Forex & AUD/USD, CAD/USD, CHF/USD, DKK/USD, EUR/USD, GBP/USD, JPY/USD, NOK/USD, NZD/USD, SEK/USD & History & 1 day & N/A & Price & Gaussian Process Regression (GPR) & None & Multivariate Autoregressive (MVAR) & Not used & No & N/A & No \\
+        \endfirsthead
 
-        Article 2 & Options & KOSPI 200 Index options & Technical & Flexible & N/A & Price & Gaussian Process Regression (GPR) & Feed Forward Neural Network (FFNN), Support Vector Regression (SVR) & Black-Scholes, Heston Model, Merton Model & Not used & No & N/A & No \\
+        \toprule
+        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria UQ} & \textbf{Code} \\
+        \midrule
+        \endhead
 
-        Article 3 & Capped Volatility Swaps & Apple Inc. (AAPL), JPMorgan Chase \& Co (JPM), S\&P 500 stock index & Environment, History, Technical & Flexible & N/A & Forward-looking implied volatility (IVOL) & Gaussian Process Regression (GPR) & Gradient Boosting Machine, Random Forest (RF) & Linear Regression & Not used & No & N/A & No \\
-        
-        Article 4 & Stock Indices & DAX, Dow Jones, NASDAQ, Nikkei 225 & History, Technical & 1 month, 1 week, 2 weeks & N/A & Price & Gaussian Process Regression (GPR) & Multilayer Perceptron (MLP), Sequential Minimal Optimization for Support Vector Regression (SMOreg SVR) & Linear Regression & Not used & No & N/A & No \\
-        
-        Article 5 & Forex, Stock Indices & AUD/USD, CAC, CAD/USD, CHF/USD, DAX, GBP/USD, JPY/USD, Nikkei 225, S\&P 500 & History & 1 day, 1 week, 30 days & Daily & Price, Volatility & Nonparametric Bayesian Mixture of Gaussian Process Regression Models (GPMCH) & Variational Heteroscedastic Gaussian Process (VHGP) & GARCH & Yes & Yes & RMSE & No \\
-        
-        Article 6 & Portfolio & MSCI, NYSE (N), NYSE (O), S\&P 500 stock index, Toronto Stock Exchange (TSE) & History, Technical & 1 day & Daily & Price & Graph-Aware Gaussian Process (G4P) & Temporal Graph Convolution (TGC) & Equally Weighted Portfolio (EW), Online Portfolio Selection (OPS), Passive Aggressive Mean Reversion (PAMR) & Financial interpretation (e.g., VaR) & Yes & Portfolio construction and evaluation & Yes \\
-        
-        Article 7 & Derivatives & S\&P 500 American and European Options & Environment, History, Technical & Not mentioned & N/A & Price, Price with uncertainty & Gaussian Process Regression (GPR) & None & Fast Fourier Transform (FFT) algorithm & Not interpreted & No & N/A & No \\
-        
-        Article 8 & Portfolio & N/A & Environment, History & 1 year & N/A & TVaR, VaR & Gaussian Process Regression (GPR) & None & Least Squares Monte Carlo, Liu and Staum’s approach & Distinguishing, Financial interpretation & Yes & Kriging variance, simulation variance/intrinsic noise & No \\
-        
-        Article 9 & Stock Indices & Dow Jones, NASDAQ, S\&P 500 & History, Technical & 1 day & Daily & Price, Price with uncertainty & Gaussian Process Regression (GPR) & Auto-Encoder (AE), Long Short Term Memory Neural Network (LSTM), Recurrent Neural Network (RNN) & Gaussian Process Regression (GPR) & Non-distinguishing (confidence) & Yes & MC (Mean Coverage), MWP (Mean Width Percentage), PICP (Prediction Interval Coverage Probability) & No \\
-        
-        
+        \midrule
+        \multicolumn{13}{r}{\textit{Continued on next page}} \\
+        \midrule
+        \endfoot
 
         \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{sidewaystable}
+        \endlastfoot
 
-\subsection{Journals per category}
-
-
-
-
-
-
-
-\subsection{TESTING AV GRUDE FOR Å LAGE TABELLER}
-\begin{sidewaystable} % Only rotates the table itself
-    \centering
-    \caption[Descriptive table of all papers in sample]{Summary of Paper Information}
-    \label{table:paper_info_summary}
-    \scriptsize % Set smaller font size for readability
-    \begin{adjustbox}{width=1\textheight, center} % Fits table to text height for rotation
-    \begin{tabular}{p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth} p{0.07\textwidth}}
-        \toprule
-        \textbf{Reference} & \textbf{Asset category} & \textbf{Asset} & \textbf{Input} & \textbf{Horizon} & \textbf{Frequency} & \textbf{Predicted} & \textbf{Prob. AI Model} & \textbf{Composed with ML Model} & \textbf{Composed with Trad. model} & \textbf{Use of UQ} & \textbf{UQ Quality Assessment} & \textbf{Assessment Criteria of UQ} & \textbf{Code} \\
-        \midrule
-        \csvreader[
-            late after line=\\\addlinespace,
-            filter test={\ifnumless{\thecsvinputline}{7}}, % Optional: limits to the first 10 rows
-            head to column names,
-             separator=semicolon
-        ]{Tables/all_articles_tagged.csv}{} % Path to your CSV file
-        {
-            \csvcoli & \csvcolii & \csvcoliii & \csvcoliv & \csvcolv & \csvcolvi & \csvcolvii & \csvcolviii & \csvcolix & \csvcolx & \csvcolxi & \csvcolxii & \csvcolxiii & \csvcolxiv
-        }
-        \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{sidewaystable}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-% ADD CONCLUTION TABLE HERE
-\subsection{Old conclusion table of model type (remove when we don't need points anymore)}
-\begin{table}[H]
-    \centering
-    \caption[Summarizing conclusions by model type]{Summarizing conclusions by model type}
-    \label{table:conclusions_by_model}
-    \small
-    \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{p{0.1\textwidth}p{0.9\textwidth}}
-        \toprule
-        \textbf{Model} & \textbf{Conclusion} \\
-        \midrule
-        BNN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Despite BNN's inherent capacity to produce probabilistic outputs, the main focus remains on point prediction accuracy rather than assessing the quality of uncertainty estimates.
-            \item Across different asset classes, BNN models have reported competitive predictive performance compared to traditional models like ARIMA and other neural network models. However, the models' comparative advantage in uncertainty quantification is not thoroughly explored or benchmarked.
-            \item Several studies integrate BNNs with hybrid architectures (e.g., with GANs, TCNs, and other deep learning methods). While Monte Carlo remains the most popular method for Bayesian inference, advanced techniques like MNF demonstrate promising results.
-        \end{itemize} \\
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        GP & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Point 1
-            \item Point 2
-        \end{itemize} \\
+         \textcite{Almeida2024RiskForecasting} & Cryptocurrency & Ethereum portfolio & History, Technical & 1 day & Distributional Forecast, Financial Risk Measure & DeepAR (based on autoregressive RNN) & N/A & N/A & Financial interpretation (e.g. VaR) & Yes & Continuous Ranked Probability Score (CRPS), Elicitability score for VaR & No \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        VAE & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item VAEs are primarily used in combination with other machine learning models or as a pre-processing tool to produce more robust inputs for downstream models
-            \item While authors recognize that the VAE’s probabilistic architecture capturing latent financial data patterns to simulate future outcomes can be used for risk management and uncertainty quantification, few articles leverage this potential fully. Those that do currently fail to create adequate results
-        \end{itemize}\\
+        
+        \textcite{Chandrasekara2019pnn} & Stock indices, Stocks & Australian Stock Market Index (AORD), S\&P 500, Sri Lankan Stock Market Index (ASPI) & Environment, History, Technical & 1 day & Category & Probabilistic Neural Network (PNN) & multi-class undersampling-based bagging (MCUB) & N/A & Not interpreted & No & N/A & No \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        HMM & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most authors do categorical predictions when using HMMs
-            \item Even though the model produces distributional forecasts with probabilities, no authors assess the uncertainty of their predictions using HMMs
-            \item The second-order HMM seems to outperform the first-order HMM and shows some promising results when compared to other models, but they are not compared in a satisfactory way to be able to conclude that (not enough comparison or something like that)
-            \item The proposed models consistently outperform traditional models in terms of point predictions
-        \end{itemize}\\
-
+        
+        \textcite{Daniali2021} & Volatility index & Volatility Index (VIX) & History, Technical & 1 day & Price, Volatility & Deep Convolutional Neural Network (DCNN) & N/A & Conditional Variance model & Not used & No & N/A & No \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        PRNN Extensions & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most articles are very new (2023 or 2024)
-            \item DeepAR manages to pass Christoffersen's test and is shown to beat GARCH at VaR estimation in one article
-            \item The models show promising results for point predictions
-        \end{itemize}\\
+        
+        \textcite{DeSpiegeleer2018gpr} & Derivatives & S\&P 500 American Options, S\&P 500 European Options & Environment, History, Technical & Not mentioned & Distributional Forecast & Gaussian Process Regression (GPR) & N/A & N/A & Not interpreted & No & N/A & No \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        PGAN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Most use a cGAN-based model for forecasting
-            \item 75\% perform a UQ quality assessment (often non-distinguishing)
-            \item Mainly used for price prediction with uncertainty
-            \item Outperforms traditional benchmarks in some cases, but is often not compared to ML models
-        \end{itemize}\\
-
+        
+        \textcite{Dixon2022Industrial} & Stocks & International Business Machines (IBM) & History & 1 day, 5 days & Distributional Forecast & Bayesian exponential smoothed RNNs (Bayes ES-RNN) (BNN) & N/A & N/A & Non-distinguishing (confidence) & Yes & Coverage probabillty & No \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        PNN & 
-        \begin{itemize}[left=0pt]
-        \vspace{-4mm}
-            \item Point 1
-            \item Point 2
-        \end{itemize}\\
+        
+        \textcite{Fatouros2023DeepVaR} & Portfolio & AUD/USD, EUR/USD, GBP/USD, USD/JPY & History, Technical & 1 day & Distributional Forecast, Financial Risk Measure & DeepAR (based on autoregressive RNN) & N/A & N/A & Financial interpretation (e.g. VaR) & Yes & Christoffersen’s Test, Conditional Coverage Test, Dynamic Quantile (DQ), Firm Loss, Quadratic Loss (QL), Smooth Loss, Unconditional Coverage Test & Yes \\
         \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        Other Bayesian Methods & 
-        \vspace{-4mm}
-        \begin{itemize}[left=0pt]
-            \item The Bayesian methods are mainly concerned with stock movement/categorical prediction, and authors report promising reports of accuracy
-            \item While Bayesian methods in this category produce probabilistic outputs, many models do not fully leverage these outputs to quantify uncertainty explicitly
-            \item Lacking benchmarking to other models make it hard to quantify the exact promise of the models
-        \end{itemize}\\
+        
+        \textcite{Golnari2024Cryptocurrency} & Cryptocurrency & Bitcoin (BTC), Cardano (ADA), Ethereum (ETH), Litecoin (LTC), Polkadot (DOT), Stellar (XLM), Tron (TRX) & History, Technical & 5 minutes & Distributional Forecast & Probabilistic Gated Recurrent Units (P-GRU) & N/A & N/A & Non-distinguishing (confidence) & No & N/A & Yes \\
+        \addlinespace
         \hdashline[0.2pt/3pt]
         \addlinespace
-        Other Probabilistic Methods & 
-        \vspace{-4mm}
-        \begin{itemize}[left=0pt]
-            \item Probabilistic models tend to outperform traditional econometric models (both point estimates and uncertainty quantification)
-            \item More flexibility and can handle non-linear relationships better than econometric models
-            \item People use different models to benchmark making it difficult to compare
-        \end{itemize} \\
+        
+        \textcite{Grudniewicz2023Application} & Stock indices & Budapest Stock Exhange Index (BUX), Bulgaria Stock Exchange Index (SOFIX), Deutscher Aktienindex (DAX), OMX Riga Index (OMXR), OMX Tallin Index (OMXT), OMX Vilnius Index (OMXV), Prague Stock Exchange Index (PX), S\&P 500, Warsaw Stock Exchange Index (WIG20) & History, Technical & 20 days & Category & Bayesian Generalized Linear Model (BGLM), Naïve Bayes (NB) & N/A & N/A & Not used & No & N/A & No \\
         \addlinespace
+        \hdashline[0.2pt/3pt]
         \addlinespace
-        \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{table}
+        
+        \textcite{Hassan2024Bitcoin} & Cryptocurrency & Bitcoin (BTC) & History & 1 day & Distributional Forecast & Bayesian LSTM with Monte Carlo Drouput & N/A & N/A & Epistemic (Model) & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Hocht2024gpr} & Capped volatility swaps & Apple Inc. (AAPL), JPMorgan Chase \& Co (JPM), S\&P 500 & Environment, History, Technical & Flexible & Volatility & Gaussian Process Regression (GPR) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Horenko2020} & Stock indices & Dow Jones Industrial Average (DJI), EURO STOXX 50 (STOXX), FTSE 100, Hang Seng Index (HSI), Nikkei Stock Average (NI225), S\&P 500, Swiss Market Index (SMI) & History, Technical & 1 day & Distributional Forecast, Financial Risk Measure & TV-Entropy & N/A & N/A & Aleatoric (Volatility), Financial interpretation (e.g. VaR) & Yes & Bayesian Information Criteria (BIC), Coverage probabillty, Kupiec’s test, negative log-likelihood (NLL) & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Lahmiri2024pnn} & Stock indices, Stocks & Apple Inc. (AAPL), Cisco Systems (CSCO), General Electric (GE), NYSE Composite & History, Sentiment, Technical & 1 day & Category & Probabilistic Neural Network (PNN) & N/A & N/A & Not interpreted & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Law2017Practical} & Bonds, Commodities, Credit Default Swap (CDS) Spreads, Stock indices & CME Gold Front Month Futures, FTSE 100, IBM-CDS 5YR, ICE BRENT Crude Oil Front Month Futures, S\&P 500, UK Gilt 10YR Bond Yield, US Treasury 10YR Bond Yield, WMT-CDS 5YR & History & 1 day & Distributional Forecast & Bayesian Support Vector Regression (B-SVR) & N/A & N/A & Non-distinguishing (confidence) & Yes & Correlation between uncertainty and prediction error & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Li2024DeepAR} & Stocks & Chinese company stocks & History & Flexible & Distributional Forecast & DeepAR with attention (DeepARA) & N/A & N/A & Non-distinguishing (confidence) & Yes & Entropy of probability distribution & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Li2024gpr} & Portfolio & MSCI World Index (MSCI), New York Stock Exchange (NYSE) stock portfolio, S\&P 500, Toronto Stock Exchange (TSE) stock portfolio & History, Technical & 1 day & Distributional Forecast & Graph-Aware Gaussian Process (G4P) & N/A & N/A & Non-distinguishing (confidence) & Yes & Portfolio construction and evaluation & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Malagrino2018Forecasting} & Stock indices & Bombay Stock Exchange (BSE 30 SENSEX), Cotation Assistée en Continu (CAC 40), Deutscher Aktienindex (DAX), Dow Jones Industrial Average (DJI), FTSE 100, Hang Seng Index (HSI), Merval (MERV), NASDAQ Composite, NYSE Composite, Nikkei Stock Average (NI225), Shanghai Composite (SSE), Stockholm General (OMXS 30) & Environment, History, Technical & 1 day, 2 days, 20 days & Category & Bayesian Neural Network (BNN) & N/A & N/A & Not interpreted & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Maniatopoulos2022pnn} & Stocks & US Dow Jones Stocks & Environment, History, Technical & 10 days, 15 days, 20 days, 5 days & Category & probabilistic feed-foward neural network (P FF-ANN) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Min2023BlackLitterman} & Portfolio, Stocks & S\&P 500 stock portfolio & History & 50 months & Distributional Forecast & Gaussian Process Regression (GPR) & N/A & Black-Litterman & Non-distinguishing (confidence) & Yes & Portfolio construction and evaluation & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Papaioannou2022gpr} & Forex & AUD/USD, CAD/USD, CHF/USD, DKK/USD, EUR/USD, GBP/USD, JPY/USD, NOK/USD, NZD/USD, SEK/USD & History & 1 day & Price & Gaussian Process Regression (GPR) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Park2014gpr} & Options & KOSPI 200 Index options & Technical & Flexible & Price & Gaussian Process Regression (GPR) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Park2024UncertaintyAware} & Portfolio, Stocks & KOSPI stocks, NASDAQ stocks, NYSE stocks & History, Technical & Short (milliseconds) & Distributional Forecast & risk-sensitive multiagent network (RSMAN) & N/A & N/A & Distinguishing & Yes & Portfolio construction and evaluation & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Parker2021BayesianHeteroskedastic} & Stock indices & Dow Jones Industrial Average (DJI) & Environment, History, Technical & Not mentioned & Volatility & Echo State Volatility Model (ESVM) & N/A & N/A & Distinguishing & Yes & Coverage probabillty, MSEV & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Platanios2014gpr} & Forex, Stock indices & AUD/USD, CAD/USD, CHF/USD, Canadian TSX Composite (TSX), Cotation Assistée en Continu (CAC 40), DEM/USD, DKK/USD, Deutscher Aktienindex (DAX), FRF/USD, FTSE 100, GBP/USD, JPY/USD, Nikkei Stock Average (NI225), S\&P 500 & History & 1 day, 1 week, 30 days & Distributional Forecast, Volatility & nonparametric Bayesian mixture of Gaussian process regression models (GPMCH) & N/A & N/A & Non-distinguishing (confidence) & Yes & RMSE (against squared returns) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Raúl_PlazaCasado_PradoRomán_2021} & Stock indices & IBerian Index (IBEX) & History, Sentiment & 1 day & Category & Bayesian Network (BN) & N/A & N/A & Non-distinguishing (confidence) & Yes & Success rate & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Risk2018gpr} & Portfolio & N/A & Environment, History & 1 year & Distributional Forecast, Financial Risk Measure & Gaussian Process Regression (GPR) & N/A & N/A & Distinguishing, Financial interpretation (e.g. VaR) & Yes & RMSE (against Harrell-Davis as ground truth) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Sharma2021} & Stocks & Chinese company stocks, India stocks, UK stocks, USA stocks & History & 1 day & Category, Distributional Forecast & Recurrent Dictionary Learing (RDL) & N/A & N/A & Non-distinguishing (confidence) & Yes & Log-loss & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Suphawan2022gpr} & Stock indices & Stock Exchange Thailand Index (SET) & History, Technical & 1 day & Distributional Forecast & Gaussian Process Regression (GPR) & N/A & N/A & Non-distinguishing (confidence) & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Thawornwong2004pnn} & Portfolio & S\&P 500 stock portfolio & Environment, Fundamental, History, Technical & 1 month & Category & Probabilistic Neural Network (PNN) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Tian2023} & Volatility index & 10-Year U.S. treasury note volatility index (TYVIX), Crude Oil ETF Volatility Index (COEVI), Volatility Index (VIX) & Environment, History, Technical & Not mentioned & Distributional Forecast, Volatility & Fitting error analysis & Clockwork Recurrent Neural Network (CWRNN), Cuckoo-Search-enhanced Multi-Objective Grey Wolf Optimizer (MOGWOCS) & N/A & Non-distinguishing (confidence) & Yes & PICP (Prediction interval coverage probability), Prediction Interval Normalized Average Width (PINAW), Winkler Score, coverage widthbased criterion (CWC) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Wang2021gprensemble} & Stock indices & Hang Seng Index (HSI), Nikkei Stock Average (NI225) & History & 1 day & Distributional Forecast & Gaussian Process Regression (GPR) & Enhanced Weighted Support Vector Machine (EWSVM), Recurrent Neural Network (RNN) & Singular Spectrum Analysis (SSA) & Non-distinguishing (confidence) & Yes & Coverage probabillty, MWP (Mean width percentage), Mean width divided by coverage probability & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Wang2021gpr} & Stock indices & Dow Jones Industrial Average (DJI), NASDAQ Composite, S\&P 500 & History, Technical & 1 day & Distributional Forecast & Gaussian Process Regression (GPR) & Auto-Encoder (AE), Long Short Term Memory Neural Network (LSTM), Recurrent Neural Network (RNN), Variational Mode Decomposition (VMD) & N/A & Non-distinguishing (confidence) & Yes & MC (Mean coverage), MWP (Mean width percentage), PICP (Prediction interval coverage probability) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Wang2024GoldForecasting} & Commodities & Gold price & Environment, History, Sentiment & Not mentioned & Confidence Interval & Quantile Regression (QR), Quantile Regression Bi-Directional Long Short-Term Memory (QRBiLSTM) & N/A & N/A & Aleatoric (Volatility) & Yes & PICP (Prediction interval coverage probability), Prediction Interval Normalized Average Width (PINAW), Quantile loss (QL), Semi-interval metric, average interval score (AIS) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Zhang2016} & Stocks & NASDAQ stocks, Second-board Market of Shenzhen Stock Exchange (SZSE) stocks & History, Technical & Flexible & Category & Probabilistic Support Vector Machine (PSVM) & AdaBoost, Genetic Algorithm (GA) & N/A & Not interpreted & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{Zmuk2020gpr} & Stock indices & Deutscher Aktienindex (DAX), Dow Jones Industrial Average (DJI), NASDAQ Composite, Nikkei Stock Average (NI225), S\&P 500 & History, Technical & 1 month, 1 week, 2 weeks & Price & Gaussian Process Regression (GPR) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{arian2022encoded} & Portfolio, Stocks & Frankfurt Stock Exchange (FSE) stock portfolio, London Stock Exchange (LSE) stock portfolio, S\&P 500 & History, Technical & 1 day & Distributional Forecast, Financial Risk Measure & Variational Auto-encoder (VAE) & N/A & N/A & Aleatoric (Volatility), Financial interpretation (e.g. VaR) & Yes & Christoffersen’s Test, Conditional Coverage Test, Independence Test, Kupiec’s test, Lopez' loss function, Unconditional Coverage Test & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{cao2019multi} & Forex, Stock indices & S\&P 500 & History, Technical & 1 week & Category & Multi-Layer Coupled Hidden Markov Model (MCHMM) & N/A & N/A & Not interpreted & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{caprioli2023quantifying} & Portfolio & Total Market Index Emerging Markets, Total Market Index Europe, Total Market Index Italy, Total Market Index US & History, Technical & 1 year & Financial Risk Measure & Variational Auto-encoder (VAE) & N/A & multi-factor Vasicek model & Financial interpretation (e.g. VaR) & Yes & the largest eigenvalue of the correlation matrix & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{chandra2021bayesian} & Stocks & 3M Company(MMM), China Spacesat Company Limited (600118.SS), Commonwealth Bank of Australia (CBA.AX), Daimler AG (DAI. DE) & History & 1 week & Distributional Forecast & Langevin-gradient Bayesian neural networks (BNN) with parallel tempering Markov Chain Monte Carlo (MCMC) & N/A & N/A & Non-distinguishing (confidence) & No & Confidence interval & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{choudhury2020enhancing} & Stocks & Adobe (ADBE), Amazon (AMZN), Apple Inc. (AAPL), Cerner Corporation (CERN), Costco (COST), Facebook (FB), Fastenal Company (FAST), Google (GOOG), Hasbro Inc (HAS), IDEXX Laboratories Inc. (IDXX), Intel (INTC) & History, Technical & 7-minutes & Price & Variational Auto-encoder (VAE) & Long Short Term Memory Neural Network (LSTM) & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{cocco2021predictions} & Cryptocurrency & Bitcoin (BTC), Ethereum (ETH) & Technical & 1 day, 1 month, 2 weeks & Distributional Forecast & BNN-SVR, Bayesian Neural Network (BNN) & N/A & N/A & Non-distinguishing (confidence) & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{govindasamy2014prediction} & Stocks & N/A & History, Technical & Not mentioned & Price & PECEP (Combo of Complex Event Processing [CEP] and Probabilistic Fuzzy Logic [PFL]) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{hortua2024forecasting} & Derivative index & Volatility Index (VIX) & History & Not mentioned & Distributional Forecast & Bayesian Neural Network (BNN), WaveNet & Temporal Convolutional Network (TCN), Transformers & N/A & Distinguishing & Yes & Calibration diagrams, PICP (Prediction interval coverage probability), RMSCE, Scaling factor & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{jang2018empirical} & Cryptocurrency & Bitcoin (BTC) & Environment, History, Technical & Not mentioned & Price & Bayesian neural networks (BNNs) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{jang2018generative} & Options & S\&P 100 American put options & Technical & 1 day, 1 week & Price & Generative Bayesian Neural Network (Gen-BNN) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{kim2023portfolio} & Portfolio & NASDAQ 100 stocks portfolio, S\&P 500 stock portfolio & History, Technical & 1 month & Category & Predictive Auxiliary Classifier Generative Adversarial Networks (PredACGAN) & N/A & N/A & Non-distinguishing (confidence) & Yes & Entropy of probability distribution & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{lee2021estimation} & Stock indices & NASDAQ-100 Future Index & History, Technical & 1 week & Distributional Forecast & Conditional Generative Adversarial Network (CGAN) & N/A & N/A & Non-distinguishing (confidence) & Yes & Correlation between uncertainty and prediction error, Portfolio construction and evaluation & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{li2010stochastic} & Forex, Stock indices & Taiwan Stock Exchange Capitalization Weighted Stock Index (TAIEX) & History, Technical & 2 month & Price & Stochastic Hidden Markov Model (HMM) & N/A & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{li2020multivariate} & Commodities & Soybean Futures & Environment, Fundamental, History, Technical & Not mentioned & Price & Multimodal Variational Autoencoder (VAE) & Long Short Term Memory Neural Network (LSTM), Recurrent Neural Network (RNN) & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{magris2023bayesian} & Stocks & Nasdaq Nordic Helsinki Exchange Stocks & History, Technical & Short (milliseconds) & Category & Bayesian temporal attention augmented bilinear network (B-TABL) & N/A & N/A & Non-distinguishing (confidence) & Yes & Expected Calibration Distance (ECD), Expected Calibration Error (ECE) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{park2011trend} & Forex, Stock indices, Stocks & Boeing (BA), EUR/JPY, EUR/USD, FTSE 100, Intel (INTC), S\&P 500, US-Treasury Bill 5YR, Walmart (WMT) & History, Technical & 1 day, 5 days & N/A & Continuous Hidden Markov Model (CHMM) & N/A & PIPs Detection Algorithm & Not used & Yes & Probabilistic Trend Prediction Precision (PTPP) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{salama2024gan} & Stocks & Axis Bank (AXISBANK), Bharat Heavy Electricals (BHEL), Container Store Group (TSC), Maruti (MARUTI), Tata Steel (TATASTEEL), Wipro (WIPRO) & History, Technical & Short (milliseconds) & Price & Conditional Generative Adversarial Network (CGAN) & Spotted Hyena Optimization Algorithm (SHOA) & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{sher2023exploiting} & Stocks & Apple Inc. (AAPL), Broadcom Inc. (AVGO), Microsoft Corporation (MSFT), Nvidia Corporation (NVDA), Taiwan Semiconductor Manufacturing Company Limited (LSM) & History & Not mentioned & Category & Hidden Markov Model (HMM) & N/A & N/A & Not used & No & N/A & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{soleymani2022longterm} & Stocks & Advanced Micro Devices (AMD), Amazon (AMZN), Apple Inc. (AAPL), Google (GOOG), Microsoft Corporation (MSFT), Nvidia Corporation (NVDA), Pfizer (PFE), Shopify (SHOP), Walmart (WMT) & History, Technical & 10 days, 15 days, 20 days, 30 days, 5 days & Distributional Forecast & deep Bayesian neural networks (BNNs) & temporal generative adversarial neural networks (t-GAN) & N/A & Fed into other model & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{su2022hmm} & Stock indices & Hang Seng Index (HSI) & History, Technical & 1 month, 3 month, 6 month & Category, Price & Hidden Markov Model (HMM) & k-means clustering & N/A & Not used & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{tang2024period} & Forex, Options, Stock indices, Stocks & Chinese Securities Index (CSI 300), ETF-Option, Exchange rates, NASDAQ Composite, S\&P 500 & History, Technical & 1 week, 16 days, 32 days, 64 days & Price & Variational Auto-encoder (VAE) & Latent Period-Aggregated Stock Transformer (LPAST) & N/A & Not used & No & N/A & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{tegner2021probabilistic} & Derivatives, Stock indices & S\&P 500 & Technical & 1 week, 3 weeks & N/A & Bayesian GPR & N/A & N/A & Distinguishing & Yes & N/A & Yes \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{vuletic2024finGAN} & Stock indices, Stocks & Amazon (AMZN), Apache Corp. (APA), BlackRock (BLK), Coca Cola (KO), Colgate-Palmolive (CL), DTE Energy (DTE), Ecolab (ECL), FedEx (FDX), General Dynamics (GD), Goldman Sachs Group (GS), Home Depot (HD), Humana (HUM), International Business Machines (IBM), International Paper (IP), Nike (NKE), Occidental Petroleum Corp (OXY), PepsiCo (PEP), Pfizer (PFE), Teradyne (TER), WEC Energy Group (WEC), Wells Fargo (WFC), XKL (IBM TER), XLB (ECL IP), XLE (APA OXY), XLF (WFC GS BLK), XLI (FDX GD), XLP (CL EL KO PEP), XLU (DTE WEC), XLV (PFE HUM), XLY (AMZN HD NKE) & Environment, History, Technical & Not mentioned & Distributional Forecast & Conditional Generative Adversarial Network (CGAN) & N/A & N/A & Non-distinguishing (confidence) & Yes & Portfolio construction and evaluation & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{wang2020fastconformal} & Stocks & N/A & History, Technical & Not mentioned & Distributional Forecast & Leave-One-Out Cross-Conformal Predictive System (LOO-CCPS) & N/A & N/A & Non-distinguishing (confidence) & Yes & Coverage probabillty, e continuous ranked probability score (CRPS) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{xing2019sentiment} & Stocks & Aegon Ltd (AGN), Alibaba-group (BABA), Amazon (AMZN), Apple Inc. (AAPL), Goldman Sachs Group (GS), Google (GOOG), Pfizer (PFE), Stamper Oil \& Gas Corp (STMP), Starbucks (SBUX), Tesla (TSLA) & History, Sentiment, Technical & 1 day & Volatility & Variational Auto-encoder (VAE) & Recurrent Neural Network (RNN) & N/A & Aleatoric (Volatility) & Yes & negative log-likelihood (NLL) & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+        \textcite{zhang2019high} & Stock indices & Chinese Securities Index (CSI 300), S\&P 500 & History, Technical & 1 day & Category & Hidden Markov Model (HMM) & N/A & N/A & Not interpreted & No & N/A & No \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        
+    \end{longtable}
+\end{landscape}
