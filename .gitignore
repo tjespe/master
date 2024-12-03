@@ -2,3 +2,13 @@
 *.log
 *.fls
 *.fdb_latexmk
+*.aux
+*.synctex.gz
+*.bcf
+*.lof
+*.lot
+*.out
+*.toc
+*.blg
+*.bbl
+*.run.xml
