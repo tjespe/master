@@ -1025,17 +1025,18 @@ There are 6 articles in total creating financial risk measures using probabilist
 
 \textbf{Identify possible areas for further research}\nopagebreak
 
-The novelty and rapid evolution of probabilistic AI for financial modeling this review highlights presents multiple key areas for future research that could be beneficial for deeper exploration in order to enhance uncertainty quantification and risk estimation in finance. 
+The novelty and rapid evolution of probabilistic AI in financial modelling, as highlighted in this review, present several key areas for future research. These areas warrant deeper exploration to enhance uncertainty quantification and risk estimation in finance.
 
-To advance these objectives, we suggest the following summarizing recommendation for future research: 
+The following areas are the most critical for advancing the field:
 
 \begin{enumerate}
     \item Probabilistic AI models capability to produce non-parametric distributions remains underutilized. Exploration of this feature with thorough testing has a lot of potential and could yield more accurate prediction in volatile conditions where parametric assumptions may not hold.
-    \item Further studies should explore and test different probabilistic models to create adequate financial risk estimates such as VaR and ES, across different asset classes and market conditions.
+    \item Estimating tail risk measures, such as Value at Risk (VaR) and Conditional Value at Risk (CVaR), is a promising application where probabilistic models may outperform traditional models. However, research in this area is limited and often lacks comprehensive tests. More research is needed to assess the quality of these estimates and compare them to traditional models.
     \item When modeling financial time series, models should always and more explicitly differentiate between epistemic and aleatoric uncertainty. This will provide clearer insights into the source of uncertainty, distinguishing the inherent asset volatility and limitations in the model.
-    \item For models with the purpose of enhanced uncertainty estimates, it is critical that the aleatoric uncertainty estimates are tested with rigorous evaluation methods, e.g. with Christoffersen's test and different scoring functions, and that performance is compared across models reliably to validate the results.
-    \item Research should aim to and use comprehensive and standardized testing for evaluating full predictive distributions, rather than focusing on selected quantiles (e.g. 95\% VaR) for more comprehensive model validation, similar to suggested framework proposed earlier in this section.
-    \item Current probabilistic AI models are largely "black boxes" where it is difficult or impossible for users to understand the reasoning behind the predictions. Combining probabilistic AI with techniques from explainable AI could enhance the usefulness of probabilistic AI model in practice.
+    \item For models with the purpose of enhanced uncertainty estimates, all three tests mentioned in the previous section should be conducted to ensure the quality of the estimates. This will provide a standardized framework for assessing the quality of uncertainty estimates.
+    \item Few articles have authors from both finance and computer science disciplines, which might have prevented proper application of financial knowledge in advanced models. Future research should aim to combine the expertise of both fields to create more robust models.
+    \item To make it possible to improve on existing research, authors should disclose their code and their trained models, so that it is possible to benchmark new proposed models directly against the existing models.
+    \item Even if models can express both aleatoric and epistemic uncertainty, the reasoning behind the predictions is still unclear. Combining probabilistic AI with techniques from explainable AI could enhance the usefulness of probabilistic AI model in practice.
 \end{enumerate}
 
 
