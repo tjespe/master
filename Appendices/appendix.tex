@@ -1,110 +1,8 @@
-\subsection{Search Queries for Literature Search in the Scientific Databases}
-\label{appendix:search_queries}
-
-\begin{table}[H]
-    \centering
-    \caption[Database Specific Search Queries Based on the Same Keywords]{Database search queries.}
-    \label{table:database_search_queries}
-    \small
-    \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{lp{0.85\textwidth}}
-        \toprule
-        \textbf{Database} & \textbf{Search query} \\
-        \midrule
-        \text{Web of Science} & \texttt{TS=("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TS=("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TS=("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TS=("cryptocurrency" AND "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))} \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        \text{Scopus} & \texttt{(TITLE-ABS-KEY("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TITLE-ABS-KEY("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TITLE-ABS-KEY("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TITLE-ABS-KEY("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND (LIMIT-TO(DOCTYPE, "ar") OR LIMIT-TO(DOCTYPE, "re")) AND (LIMIT-TO(LANGUAGE, "English"))} \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        \text{ProQuest} & \texttt{SUMMARY,IF,TITLE(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND stype.exact("Scholarly Journals" OR "Dissertations \& Theses") AND la.exact("ENG")} \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        \text{IEEE Xplore} & \texttt{(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*")))} \\
-        \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{table}
-
-\subsection{Screening Process in Detail}
-\label{appendix:screening_process_with_ai}
-
-[INTRO] + [LINK TO REPO] https://github.com/tjespe/literature-review
-
-\textbf{Screening Phase 1: Initial Screening}
-
-\begin{figure}[H]
-     \centering
-     \begin{subfigure}[b]{0.49\textwidth}
-         \centering
-         \includegraphics[width=\textwidth]{Images/screening_a.png}
-         \caption{Example of article excluded in Screening Phase 1}
-         \label{fig:screening_phase_1_rejected}
-     \end{subfigure}
-     \hfill
-     \begin{subfigure}[b]{0.49\textwidth}
-         \centering
-         \includegraphics[width=\textwidth]{Images/screening_a.png}
-         \caption{Example of article included in Screening Phase 1}
-         \label{fig:screening_phase_1_included}
-     \end{subfigure}
-      \caption{Example of presented papers to the reviewer in Screening Phase 1. Researchers are prompted with a choice to include or exclude the paper based on the title, summary, keywords, and abstract. A link to the PDF of the paper is also included to perform a more thorough scan of the article in cases of doubt together with an AI assessment base on a large language model (“o1-mini” from OpenAI).}
-    \label{fig:scrining_procces_phase_1}
-\end{figure}
-
-
-\textbf{Screening Phase 2: Full-text screening, Data extraction and Analysis}
-\begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{Images/screening_process_tagging.png}
-    \caption{Snapshot of dynamic table for tagging and data extraction of the papers during the full-text screening. The datatable wwas then loden into  }
-    \label{fig:enter-label}
-\end{figure}
-
-
-
-\subsection{Journal Category Mapping}
-\label{appendix:journal_category_mapping}
-
-\begin{table}[H]
-    \centering
-    \caption[Journal Categories Mapping]{List of Journal Categories and Journals.}
-    \label{table:journal_categories}
-    \small
-    \begin{adjustbox}{width=1\textwidth,center}
-    \begin{tabular}{p{0.20\textwidth} p{0.80\textwidth}}
-        \toprule
-        \textbf{Category} & \textbf{Journals} \\
-        \midrule
-        Engineering and Technical & IEEE Access, IEEE Transactions on Computational Social Systems, Mobile Information Systems, The Institute of Electrical and Electronics Engineers, Inc. (IEEE) Conference Proceedings, IEEE Transactions on Industrial Informatics, Sensors, CMC-Computers Materials \& Continua, Journal of Theoretical and Applied Information Technology, Frontiers in Energy Research \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Computer Science and Artificial Intelligence & Expert Systems with Applications, Applied Soft Computing, IEEE Transactions on Artificial Intelligence, International Journal of Data Science and Analytics, IEEE Transactions on Neural Networks and Learning Systems, Machine Learning with Applications, Engineering Applications of Artificial Intelligence, Neural Networks, Expert Systems, Knowledge-Based Systems, IEEE Transactions on Systems, Man, and Cybernetics, Part B (Cybernetics), Cognitive Computation, Intelligent Data Analysis, IEEE Transactions on Pattern Analysis and Machine Intelligence, AI Communications, PeerJ Computer Science, Neural Computing and Applications, Neurocomputing, International Journal of Artificial Intelligence, Knowledge-Based Systems \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Multidisciplinary and General Science & PLoS ONE, Technological Forecasting and Social Change, Trends in Sciences, Sustainability, Applied Sciences-Basel, Stat, Interdisciplinary Description of Complex Systems, Resources Policy \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Economics, Finance, and Business & Quantitative Finance, SIAM Journal on Financial Mathematics, Journal of Risk Model Validation, Digital Finance, Computational Economics, Research in International Business and Finance, Financial Analysts Journal, International Journal of Economics and Business Research, Revista Perspectiva Empresarial, Journal of Forecasting, Journal of Computational Finance \\
-        \addlinespace
-        \hdashline[0.2pt/3pt]
-        \addlinespace
-        Physics and Mathematics & Physica A-Statistical Mechanics and its Applications, Chaos, Journal of Physics: Conference Series, Communications in Applied Mathematics and Computational Science, Mathematics, Mathematics and Computers in Simulation, IAENG International Journal of Applied Mathematics, Journal of Statistical Computation and Simulation, Technometrics \\
-        \bottomrule
-    \end{tabular}
-    \end{adjustbox}
-\end{table}
-
-
 \subsection{List of Abbreviations}
 \label{appendix:list_of_abbrevations}
-    
+
+\renewcommand{\thetable}{A\arabic{table}} % Prefix "A" for Appendix tables
+\setcounter{table}{0} % Reset table counter
 
 \begin{table}[H]
     \centering
@@ -223,16 +121,121 @@
 
 
 
+\subsection{Search Queries for Literature Search in the Scientific Databases}
+\label{appendix:search_queries}
+\renewcommand{\thetable}{B\arabic{table}} % Prefix "B" for Appendix tables
+    \setcounter{table}{0} % Reset table counter
+\begin{table}[H]
+    \centering
+    \caption[Database Specific Search Queries Based on the Same Keywords]{Database search queries.}
+    \label{table:database_search_queries}
+    \small
+    \begin{adjustbox}{width=1\textwidth,center}
+    \begin{tabular}{lp{0.85\textwidth}}
+        \toprule
+        \textbf{Database} & \textbf{Search query} \\
+        \midrule
+        \text{Web of Science} & \texttt{TS=("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TS=("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TS=("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TS=("cryptocurrency" AND "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))} \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        \text{Scopus} & \texttt{(TITLE-ABS-KEY("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND TITLE-ABS-KEY("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND TITLE-ABS-KEY("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND TITLE-ABS-KEY("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND (LIMIT-TO(DOCTYPE, "ar") OR LIMIT-TO(DOCTYPE, "re")) AND (LIMIT-TO(LANGUAGE, "English"))} \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        \text{ProQuest} & \texttt{SUMMARY,IF,TITLE(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "bayesian" OR "Gaussian process" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*"))) AND stype.exact("Scholarly Journals" OR "Dissertations \& Theses") AND la.exact("ENG")} \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        \text{IEEE Xplore} & \texttt{(("AI" OR "ML" OR "Artificial intelligence" OR "Machine learning" OR "deep learning" OR "reinforcement learning" OR "supervised learning") AND ("probabilistic" OR "uncertainty quantification" OR "prediction intervals" OR "confidence intervals" OR "distributional forecast" OR "bayesian" OR "Gaussian process" OR "Undirected graphical models" OR "Markov Networks" OR "Markov random fields" OR "Probabilistic Graphical Models" OR "Variational inference" OR "Monte Carlo inference" OR "Hidden Markov models" OR "Gaussian mixture models" OR "Variational Autoencoders" OR "Dirichlet Process" OR "Stochastic Variational Inference") AND ("Forecast" OR "forecasting" OR "predict" OR "prediction" OR "estimate" OR "estimation") AND ("cryptocurrency" OR "bitcoin" OR "foreign exchange" OR "equity market*" OR "stock price*" OR "stock market*" OR "commodities" OR "value-at-risk" OR "value at risk" OR "CVaR" OR "expected shortfall" OR "forex" OR "financial time series" OR "stock trend*" OR "implied volatility" OR "realized volatility" OR ("volatility" AND "financ*")))} \\
+        \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+\end{table}
+
+\subsection{Screening Process in Detail}
+\label{appendix:screening_process_with_ai}
+
+ \renewcommand{\thetable}{C\arabic{table}} % Prefix "C" for Appendix tables
+\setcounter{table}{0} % Reset table counter
+This appendix provides a detailed overview of the screening process employed during each phase in the systematic literature review. All associated code and implementation details are available at the publicly available  repository: \url{https://github.com/tjespe/literature-review}
+
+\textbf{Screening Phase 1: Initial Screening} \\
+Figure \ref{fig:screening_process_phase_1} illustrates the first screening phase, where a Python based workstream in Jupiter Notebook was used to streamline the initial screening. The figure shows two examples of presented papers to the reviewers in Screening Phase 1. Researchers are prompted with a choice to include or exclude the paper based on the title, summary, keywords, and abstract. A link to the PDF of the paper is also included to perform a more thorough scan of the paper in cases of doubt together with an AI assessment base on a large language model (“o1-mini” from OpenAI).
+\begin{figure}[H]
+    \centering
+     \begin{subfigure}[b]{0.49\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{Images/screening_a.png}
+         \caption{Example of paper excluded in Screening Phase 1 due to non compliance with screening criteria}
+         \label{fig:screening_phase_1_rejected}
+     \end{subfigure}
+     \hfill
+     \begin{subfigure}[b]{0.49\textwidth}
+         \centering
+         \includegraphics[width=\textwidth]{Images/screening_b2.png}
+         \caption{Example of article included after Screening Phase 1 based on relevance and alignment with screening criteria}
+         \label{fig:screening_phase_1_included}
+     \end{subfigure}
+      \caption{Examples of presented papers to the reviewer in Screening Phase 1 from Python based workstream in Jupiter Notebook.}
+    \label{fig:screening_process_phase_1}
+\end{figure}
+
+\textbf{Screening Phase 2: Full-text screening, Data extraction and Analysis} \\
+Figure \ref{fig:screening_process_phase_2}  showcase the dynamic table utilized for tagging and systematic data extraction during the full-text screening stage. Key variables were extracted, including model type, target variables, uncertainty estimates assessment and evaluation metrics. This structured data was subsequently loaded into and analyzed using a Python-based  Jupyter Notebook workflow to derive descriptive statistic and perform other analysis.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1\linewidth]{Images/screening_process_phase_2.png}
+    \caption{Snapshot of the dynamic table utilized for tagging and systematic data extraction during the full-text screening stage.}
+    \label{fig:screening_process_phase_2}
+\end{figure}
+
+
 \subsection{Journals per Category}
+\label{appendix:journal_category_mapping}
 
+\renewcommand{\thetable}{D\arabic{table}} % Prefix "D" for Appendix tables
+\setcounter{table}{0} % Reset table counter
 
+\begin{table}[H]
+    \centering
+    \caption[Journal Categories Mapping]{List of Journal Categories and Journals.}
+    \label{table:journal_categories}
+    \small
+    \begin{adjustbox}{width=1\textwidth,center}
+    \begin{tabular}{p{0.20\textwidth} p{0.80\textwidth}}
+        \toprule
+        \textbf{Category} & \textbf{Journals} \\
+        \midrule
+        Engineering and Technical & IEEE Access, IEEE Transactions on Computational Social Systems, Mobile Information Systems, The Institute of Electrical and Electronics Engineers, Inc. (IEEE) Conference Proceedings, IEEE Transactions on Industrial Informatics, Sensors, CMC-Computers Materials \& Continua, Journal of Theoretical and Applied Information Technology, Frontiers in Energy Research \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Computer Science and Artificial Intelligence & Expert Systems with Applications, Applied Soft Computing, IEEE Transactions on Artificial Intelligence, International Journal of Data Science and Analytics, IEEE Transactions on Neural Networks and Learning Systems, Machine Learning with Applications, Engineering Applications of Artificial Intelligence, Neural Networks, Expert Systems, Knowledge-Based Systems, IEEE Transactions on Systems, Man, and Cybernetics, Part B (Cybernetics), Cognitive Computation, Intelligent Data Analysis, IEEE Transactions on Pattern Analysis and Machine Intelligence, AI Communications, PeerJ Computer Science, Neural Computing and Applications, Neurocomputing, International Journal of Artificial Intelligence, Knowledge-Based Systems \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Multidisciplinary and General Science & PLoS ONE, Technological Forecasting and Social Change, Trends in Sciences, Sustainability, Applied Sciences-Basel, Stat, Interdisciplinary Description of Complex Systems, Resources Policy \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Economics, Finance, and Business & Quantitative Finance, SIAM Journal on Financial Mathematics, Journal of Risk Model Validation, Digital Finance, Computational Economics, Research in International Business and Finance, Financial Analysts Journal, International Journal of Economics and Business Research, Revista Perspectiva Empresarial, Journal of Forecasting, Journal of Computational Finance \\
+        \addlinespace
+        \hdashline[0.2pt/3pt]
+        \addlinespace
+        Physics and Mathematics & Physica A-Statistical Mechanics and its Applications, Chaos, Journal of Physics: Conference Series, Communications in Applied Mathematics and Computational Science, Mathematics, Mathematics and Computers in Simulation, IAENG International Journal of Applied Mathematics, Journal of Statistical Computation and Simulation, Technometrics \\
+        \bottomrule
+    \end{tabular}
+    \end{adjustbox}
+\end{table}
 
 
 
 
 \subsection{Descriptive Table of all Papers in Sample}
 \label{appendix:descriptive_table_of_all_articles}
-
+\renewcommand{\thetable}{E\arabic{table}} % Prefix "E" for Appendix tables
+\setcounter{table}{0} % Reset table counter
 \scriptsize % Adjust font size for the table
 \setlength\LTcapwidth{\textheight} % Ensure the caption matches the rotated height
 
