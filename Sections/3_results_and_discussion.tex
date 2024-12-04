@@ -6,12 +6,12 @@
 %----------------------------------------------------%
 
 \subsection{Brief Descriptive Statistics}
-The review identified 61 articles published between 2004 and 2024. Scientific output in this area has accelerated in recent years, with the majority of papers published after 2020. Illustrated in Figure \ref{fig:scientific_productivity}, the number of published papers matching the screening criteria has increased significantly in recent years, peaking in 2024 with 13 publications after a rapid growth since 2018. Thus, it is possible that the field has advanced significantly in the later years, underscoring the need for a comprehensive literature review.
+The review identified \samplesize articles published between \samplestart and \sampleend. Scientific output in this area has accelerated in recent years, with the majority of papers published after 2020. Illustrated in Figure \ref{fig:scientific_productivity}, the number of published papers matching the screening criteria has increased significantly in recent years, peaking in 2024 with \articlesthisyear publications after a rapid growth since 2018. Thus, it is possible that the field has advanced significantly over the last years, underscoring the need for a comprehensive literature review.
 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/scientific_productivity.png}
-    \caption{Annual distribution of papers in the field published included in the sample, illustrating the recent increase in publications}
+    \caption{Annual distribution of papers in the field published included in the sample, illustrating the recent increase in publications.}
     \label{fig:scientific_productivity}
 \end{figure}
 
@@ -68,11 +68,11 @@ Only 10 of 61 papers disclose the code for the proposed models. This lack of cod
 
 \subsection{Analysis by Model}
 \label{sec:analysis_by_model}
-To give an overview of the field, we present the most predominantly used probabilistic models in the sample papers, give a description of them, depict their use, and provide an overview of how they are used to create uncertainty estimates in financial time series. Table \ref{table:model_categorization} provides an overview of probabilistic model categories created based on grouping the most commonly used model types, and specifically what model names in the papers they include. Figure \ref{fig:model_breakdown} illustrates the occurrence of each probabilistic model category, and if they are used independently or in combination with other machine learning or econometric models. Summarizing results and conclusions by model type are shown in Table \ref{table:conclusions_by_model}.
+To give an overview of the field, we present the most predominantly used probabilistic models in the sample papers, give a description of them, depict their use, and provide an overview of how they are used to create uncertainty estimates in financial time series. Table \ref{table:model_categorization} provides an overview of probabilistic model categories created based on grouping the most commonly used model types. Figure \ref{fig:model_breakdown} illustrates the occurrence of each probabilistic model category, and if they are used independently or in combination with other machine learning or econometric models. The figure shows that while many researchers combine different ML models, few researchers combine ML models with traditional models, indicating a potential gap in the literature. Summarizing results and conclusions by model type are shown in Table \ref{table:conclusions_by_model}.
 
 \begin{table}[H]
     \centering
-    \caption[Model Categorization]{Probabilistic Model Categorization}
+    \caption[Model Categorization]{Probabilistic Model Categorization.}
     \label{table:model_categorization}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
@@ -121,9 +121,8 @@ To give an overview of the field, we present the most predominantly used probabi
 \end{table}
 
 \begin{figure}[H]
-    \centering
-    \includegraphics[width=1\linewidth]{Images/model_breakdown.png}
-    \caption{Probabilistic Model Usage Breakdown}
+    \centering    \includegraphics[width=1\linewidth]{Images/model_breakdown.png}
+    \caption{Breakdown of probabilistic model usage in research papers across pure, hybrid, and compositional approaches.}
     \label{fig:model_breakdown}
 \end{figure}
 
@@ -363,7 +362,7 @@ Table \ref{table:conclusions_by_model} summarize conclutions by model type.
 
 \begin{table}[H]
     \centering
-    \caption[Summarizing conclusions by model type]{Summarizing conclusions by model type}
+    \caption[Summarizing Conclusions by Model Type]{Summarizing conclusions by model type.}
     \label{table:conclusions_by_model}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
@@ -447,7 +446,7 @@ To enhance the understanding of probabilistic AI applications in financial time 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/model_output.png}
-    \caption{Distribution of model output categories that the models in the papers provide, note that some papers provide multiple outputs }
+    \caption{Distribution of model output categories provided by the models in the papers, with some papers offering multiple outputs.}
     \label{fig:model_output}
 \end{figure}
 
@@ -576,7 +575,7 @@ However, none of the reviewed articles employing categorization models offer a c
 \subsubsection{Conclusion} % deside if we need this
 \begin{table}[H]
     \centering
-    \caption[Summarizing conclusions of analysis by target variable]{Summarizing conclusions by target variable}
+    \caption[Summarizing conclusions of analysis by target variable]{Summarizing conclusions by target variable.}
     \label{table:conclusions_by_target_variable}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
@@ -627,7 +626,7 @@ The motivations for making predictions and quantifying uncertainty, as well as t
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/articles_per_asset_type_predicted.png}
-    \caption{Asset type predicted}
+    \caption{Asset type predicted across papers}
     \label{fig:asset_type_predicted}
 \end{figure}
 \makeatletter
@@ -718,7 +717,7 @@ Table \ref{table:conclusions_by_asset_classes} provides a summary of the primary
 
 \begin{table}[H]
     \centering
-    \caption[Summarizing conclusions by asset classes]{Summarizing conclusions by asset classes}
+    \caption[Summarizing conclusions by asset classes]{Summarizing conclusions by asset classes.}
     \label{table:conclusions_by_asset_classes}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
@@ -778,7 +777,7 @@ Furthermore, only a minority of articles evaluate the quality and usefulness of 
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/uncertainty_quantification_by_type_and_assessment.png}
-    \caption{Authors' interpretation of the uncertainty estimates from the models and whether they have assessed the correctness of the uncertainty estimates}
+    \caption{Authors' interpretation of the uncertainty estimates from the models and whether they have assessed the correctness of the uncertainty estimates.}
     \label{fig:uncertainty_quantification_by_type_and_assessment}
 \end{figure}
 
@@ -806,11 +805,11 @@ As with other uncertainty estimates, it is possible to test the adequacy of epis
 \subsubsection{Aleatoric (volatility)}
 There are only four articles in the sample that interprets the quantified uncertainty as exclusively aleatoric uncertainty, meaning the underlying data uncertainty, which in finance is referred to as the latent volatility. This is of major interest within finance, as it is the primary measure for risk, and often the basis for deriving other risk measures \parencite{Brooks2003VolatilityFF}.
 
-Two of the articles in the sample \parencite{arian2022encoded, xing2019sentiment} do this through the use of Variational Auto-Encoders, that can generate non-parametric output distributions through repeated sampling, thereby capturing a spectrum of potential future scenarios, as described in \ref{sec:distribution}.
+Two of the articles in the sample \parencite{arian2022encoded, xing2019sentiment} do this through the use of Variational Auto-Encoders, that can generate non-parametric output distributions through repeated sampling, thereby capturing a spectrum of potential future scenarios, as described in Section \ref{sec:distribution}.
 
 The two other articles use Quantile Regression Deep Learning \parencite{Wang2024GoldForecasting} that quantifies aleatoric uncertainty through estimating several quantiles of the underlying distribution, and MaxEnt-modeling which is an application of the maximum entropy principle \parencite{Horenko2020}.
 
-Testing the quality of aleatoric uncertainty estimates can be conducted similar to testing the quality of financial risk measures in \ref{sec:financial_risk_measures}. It should be ensured that the model on average produces uncertainty estimates of the correct magnitude (i.e. coverage testing) and that it is able to capture the heteroscedasticity of financial time series (i.e. conditional coverage testing). Additionally, it is useful to assess performance relative to traditional models using scoring metrics such as coverage relative to width, negative log-likelihood (NLL), and interval scores.
+Testing the quality of aleatoric uncertainty estimates can be conducted similar to testing the quality of financial risk measures in Section \ref{sec:financial_risk_measures}. It should be ensured that the model on average produces uncertainty estimates of the correct magnitude (i.e. coverage testing) and that it is able to capture the heteroscedasticity of financial time series (i.e. conditional coverage testing). Additionally, it is useful to assess performance relative to traditional models using scoring metrics such as coverage relative to width, negative log-likelihood (NLL), and interval scores.
 
 All four mentioned articles apply relevant scoring metrics and all except \textcite{Wang2024GoldForecasting} compare their results to GARCH and similar models. However, only \parencite{arian2022encoded} and \parencite{Horenko2020} conduct statistical tests for adequacy.
 
@@ -854,13 +853,13 @@ In \textcite{soleymani2022longterm} use the probabilistic output from a BNN to m
 
 \begin{table}[H]
     \centering
-    \caption[Evaluation Criteria for Uncertainty Quantification]{Assessment Criteria for Uncertainty Estimates}
+    \caption[Evaluation Criteria for Uncertainty Quantification]{Assessment Criteria for Uncertainty Estimates.}
     \label{table:evaluation_criteria}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
     \begin{tabular}{p{0.1\textwidth}p{0.12\textwidth}p{0.22\textwidth}p{0.06\textwidth}}
         \toprule
-        \textbf{Evaluation Criteria} & \textbf{Description} & \textbf{Measures} & \textbf{Articles\tablefootnote{See Appendix \ref{appendix:descriptive_table_of_all_articles} for full overview of all articles }} \\
+        \textbf{Evaluation Criteria} & \textbf{Description} & \textbf{Measures} & \textbf{Paper Count\tablefootnote{See Appendix \ref{appendix:descriptive_table_of_all_articles} for full overview of all articles }} \\
         \midrule
         Coverage Probability & Measures how often values fall within a given predictive interval & Coverage probability, Prediction interval coverage probability (PICP), Mean Coverage (MC) & 11 \\
         \addlinespace
@@ -913,7 +912,7 @@ In \textcite{soleymani2022longterm} use the probabilistic output from a BNN to m
 Table \ref{table:conclusions_by_uncertainty} summarize the the key findings from the analysis by type of uncertainty.
 \begin{table}[H]
     \centering
-    \caption[Summarizing conclusions by type of uncertainty]{Summarizing conclusions by type of uncertainty}
+    \caption[Summarizing conclusions by type of uncertainty]{Summarizing conclusions by type of uncertainty.}
     \label{table:conclusions_by_uncertainty}
     \small
     \begin{adjustbox}{width=0.5\textwidth,center}
@@ -965,9 +964,9 @@ This section will analyze the results in relation to each of the research questi
 
 
 
-\textbf{RQ1: Summarize to what extent and in what way existing research are using uncertainty estimates from probabilistic AI models as measures of volatility or model uncertainty, or as financial risk measures for financial time series}\nopagebreak
+\textbf{RQ1: Summarize to what extent and in what way existing research are using uncertainty estimates from probabilistic AI models as measures of volatility, model uncertainty, or financial risk.}\nopagebreak
 
-Throughout this review we have seen that while the field of probabilistic AI for financial time series remains relatively small and fragmented, it is in rapid development. Commonly employed models discussed in section \ref{sec:analysis_by_model} include Bayesian Neural Networks (BNNs), Gaussian Regression Processes (GPRs) and probabilistic Recurrent Neural Network (RNN) extension. The primary focus of existing research seems to concern improving point prediction accuracy for different assets, and the potential for uncertainty estimation is underutilized. Out of the 61 articles reviewed, only 26 make a meaningful interpretation of uncertainty estimates generated by their models, and 23 of these somehow assess the quality of their estimates, while 35 studies do not use or interpret uncertainty estimates at all. 
+Throughout this review we have seen that while the field of probabilistic AI for financial time series remains relatively small and fragmented, it is in rapid development. Commonly employed models discussed in Section \ref{sec:analysis_by_model} include Bayesian Neural Networks (BNNs), Gaussian Regression Processes (GPRs) and probabilistic Recurrent Neural Network (RNN) extension. The primary focus of existing research seems to concern improving point prediction accuracy for different assets, and the potential for uncertainty estimation is underutilized. Out of the 61 articles reviewed, only 26 make a meaningful interpretation of uncertainty estimates generated by their models, and 23 of these somehow assess the quality of their estimates, while 35 studies do not use or interpret uncertainty estimates at all. 
 
 Section \ref{sec:analysis_by_type_of_uncertainty} reveal that the majority of studies (18) interpret uncertainty estimates created as total uncertainty in predictions, rather than as a measure of volatility (aleatoric) or distinguishing between uncertainty types. Only 8 articles explicitly interpret uncertainty estimates as volatility, four of which distinguish between aleatoric and epistemic uncertainty and four only estimate aleatoric. No specific models or approaches seem to dominate among these. Use of uncertainty estimates from probabilistic AI models as a measure of volatility is thus limited. 
 

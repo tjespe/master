@@ -2,9 +2,9 @@
 \label{sec:methodology}
 
 % Avsnitt om hva slags type review dette er og hvorfor vi har valgt den typen
-To ensure reproducible and unbiased results, this review follows a structured methodology. As noted by \textcite{tranfield_et_al}, traditional literature reviews often lack systematic rigor, making it challenging to determine the validity of their conclusions. To address this issue, each stage of the review was conducted systematically, guided by established literature review frameworks, particularly \textcite{snyder_2019} and \textcite{marzi_et_al_2024}. Given the purpose of mapping current use and impact of probabilistic AI models for uncertainty estimations in financial time series, the review adopts a structured systematic literature review (SLR) approach in line with \textcite{snyder_2019}. This ensures that the review is both exhaustive and focused on capturing the rapid development in the field and addressing the identified research gaps. 
+To ensure reproducible and unbiased results, this review follows a structured methodology. As noted by \textcite{tranfield_et_al}, traditional literature reviews often lack systematic rigor, making it challenging to determine the validity of their conclusions. To address this issue, each stage of the review was conducted systematically, guided by established literature review frameworks, particularly \textcite{snyder_2019} and \textcite{marzi_et_al_2024}. The review adopts a structured systematic literature review (SLR) approach in line with \textcite{snyder_2019}, ensuring that the review is exhaustive and able to identify the most important research gaps. 
 
-The review design and screening process followed the proposed steps by \textcite{marzi_et_al_2024}: (1) research question and boundary definitions, (2) search query definition, (3) database selection, (4) data screening and cross-checks and (5) data cleaning and export. This approach aligns with the design and conduct phases proposed by \textcite{snyder_2019}. Holistic and specific cluster thematic analysis was subsequently conducted as per \textcite{marzi_et_al_2024}, while bibliometric analysis following their (B-SLR) framework was also conducted, but excluded due to uninformative results. The cluster topic identification method for the specific cluster thematic analysis suggested by \cite{marzi_et_al_2024} was considered but not pursued as the field is too small and fragmented for meaningful clusters to appear. Instead, a framework for breaking down the sample by the dimensions deemed important to answer the research questions was adopted. 
+The review design and screening process followed the proposed steps by \textcite{marzi_et_al_2024}: (1) defining research questions and boundaries, (2) defining search queries, (3) selecting databases, (4) screening and cross-checking data and (5) cleaning and exporting data. This approach aligns with the design and conduct phases proposed by \textcite{snyder_2019}. Holistic and specific cluster thematic analysis was subsequently conducted as per \textcite{marzi_et_al_2024}, while bibliometric analysis following their (B-SLR) framework was also conducted, but excluded due to uninformative results. The cluster topic identification method for the specific cluster thematic analysis suggested by \cite{marzi_et_al_2024} was considered but not pursued as the field is too small and fragmented for meaningful clusters to appear. Instead, a framework for breaking down the sample by the dimensions deemed important to answer the research questions was adopted. 
 
 The exact process is outlined below, and reported according to \textcite{marzi_et_al_2024}'s guidelines.
 
@@ -20,7 +20,7 @@ A comprehensive search and filtering strategy was developed to ensure the review
 
 \begin{table}[H]
     \centering
-    \caption[Keywords used in database search queries]{Keywords used in database search queries across four key areas. Papers must match at least one term in each of the four categories to be included in the sample.}
+    \caption[Keywords used in database search queries]{Keywords used in database search queries across four key areas. Papers must match at least one term in each of the four categories to be included in the initial sample.}
     \label{table:keywords_used}
     \begin{adjustbox}{width=0.5\textwidth,center}
     \begin{tabular}{p{0.15\textwidth}p{0.35\textwidth}}
@@ -44,16 +44,16 @@ The search was conducted across all the databases in October 2024, yielding a co
 \begin{figure}[H]
     \centering
     \includegraphics[width=1\linewidth]{Images/search_sample_by_database.png}
-    \caption{Number of paper results per database based on search queries}
+    \caption{Number of paper results per database based on search queries.}
     \label{fig:search_sample_by_database}
 \end{figure}
 
 
 
 % Avsnitt om screening
-\textbf{Exclusion criteria}\nopagebreak
+\textbf{Inclusion criteria}\nopagebreak
 
-Following the definition of the search strategy, inclusion criteria for the screening process was defined. Three main criteria was defined for the first screening phase:
+Following the definition of the search strategy, inclusion criteria for the screening process was defined. Three main criteria were defined for the first screening phase:
 
 \begin{enumerate}
     \item The article must discuss a model that predicts the price of some financial instrument (e.g. a stock, an option, an index, etc.)
@@ -61,7 +61,7 @@ Following the definition of the search strategy, inclusion criteria for the scre
     \item The model must be able to provide more than a point prediction, i.e. it includes either variance, a distribution or some other financial risk measure such as VaR
 \end{enumerate}
 
-Furthermore, some explicit criteria in cases of doubt in the aforementioned three was constructed:
+Furthermore, some explicit rules in cases of doubt in the aforementioned three was constructed:
 \begin{itemize}
     \item Articles focusing on commodities were included only if they predicted futures prices, except for gold and oil, which closely resemble financial time series and correlate with financial variables \parencite{Gokmenoglu2015}
     \item Studies must demonstrate practical implementation of the proposed models, not merely discuss theoretical frameworks
@@ -74,8 +74,9 @@ These became especially relevant during screening phase 2 when full-text screeni
 
 \textbf{Screening Phase 1: Initial Screening}\nopagebreak
 
-After obtaining the initial set of papers, phase 1 screening process started. In this stage, the purpose was to remove articles irrelevant to the research questions to be addressed in the review.
-To make the screening process more efficient, a large language model (``o1-mini'' from OpenAI) was given the title and abstract of each article and tasked with generating a short summary and assessing compliance with each criteria. Subsequently, the results from the language model, along with the title, abstract and a link to the full article was given to one of the researchers to make a decision on whether to include or exclude each article. Through this process, we were able to quickly make decisions on obvious cases, and do a more thorough assessment where we potentially could open and scan the article in cases of doubt, thus enabling us to screen a large number of articles in a short amount of time, and making thorough assessments that were not based solely on the title and the abstract. The exact process is outlined in Appendix \ref{appendix:screening_process_with_ai} and the code used is published at \href{https://github.com/tjespe/literature-review/}{Github}\footnote{\label{footnote:github_link}\href{https://github.com/tjespe/literature-review/}{https://github.com/tjespe/literature-review/}}. Through this process, the number of articles in the sample was reduced from 326 to 133.
+After obtaining the initial set of papers, the Phase 1 screening process started. In this stage, the purpose was to remove articles irrelevant to the research questions to be addressed in the review.
+
+To make the screening process more efficient, a large language model (``o1-mini'' from OpenAI) was given the title and abstract of each article and tasked with generating a short summary and assessing compliance with each criteria. Subsequently, the results from the language model, along with the title, abstract and a link to the full article was given to one of the researchers to make a decision on whether to include or exclude each article. Through this process, we were able to quickly make decisions on obvious cases, and do a more thorough assessment where we potentially could open and skim through the article in cases of doubt, thus enabling us to screen a large number of articles in a short amount of time, and making thorough assessments that were not based solely on the title and the abstract. The exact process is outlined in Appendix \ref{appendix:screening_process_with_ai} and the code used is published at \href{https://github.com/tjespe/literature-review/}{Github}\footnote{\label{footnote:github_link}\href{https://github.com/tjespe/literature-review/}{https://github.com/tjespe/literature-review/}}. Through this process, the number of articles in the sample was reduced from 326 to 133.
 
 % Avsnitt om snowball effect - XX articles were added to sample by snowball effect
 
@@ -84,9 +85,9 @@ To make the screening process more efficient, a large language model (``o1-mini'
 % Avsnitt om den initielle analysen (taggingen)
 \textbf{Screening Phase 2: Full-text screening, Data extraction and Analysis}\nopagebreak
 
-Following the initial screening and dataset extraction, a second, more comprehensive screening was performed, involving full-text review and thorough evaluation of each article. Data was extracted on key information about each article, such as the type of probabilistic model used, any hybrid model integrations, target variable, type of uncertainty addressed, metrics used for assessing uncertainty estimates, how the model compared to benchmarks etc. Each article was tagged and categorized based on these variables which were summarized in a structured format for subsequent analysis and descriptive statistics. 
+Following the initial screening and dataset extraction, a second, more comprehensive screening was conducted, involving full-text review and thorough evaluation of each article. Data was extracted on key information about each article, such as the type of probabilistic model used, any hybrid model integrations, target variable, type of uncertainty addressed, metrics used for assessing uncertainty estimates, how the model compared to benchmarks etc. Each article was tagged and categorized based on these variables which were summarized in a structured format for subsequent analysis and descriptive statistics. 
 
-In this detailed evaluation a deeper understanding of each article and its model implementation was achieved, leading to the exclusion of several articles not passing the aforementioned criteria after all. These exclusions were not identifiable during the initial screening, due to lack of depth in model implantation understanding before reading full-text. Typical exclusions in this phase was: the model could not be considered AI or ML after all, the proposed model was not implemented practically, the model failed to produce probabilistic outputs, or the model predicted categories without well calibrated probabilities. Therefore, the final sample size of included articles presented in this paper is 61 articles. Figure \ref{fig:screening_and_cleaning_funnel} illustrates how the sample size was reduced down through the cleaning and screening. 
+In this detailed evaluation a deeper understanding of each article and its model implementation was achieved, leading to the exclusion of several articles not passing the aforementioned criteria after all. These exclusions were not identifiable during the initial screening, mostly due to the difficulty of fully understanding the model implementation details before reading full-text. Typical exclusions in this phase was: the model could not be considered AI or ML after all, the model architecture was only discussed and not actually implemented, the model did not actually have the ability to produce probabilistic outputs, or the model predicted categories without well calibrated probabilities. Therefore, the final sample size of included articles presented in this paper is \samplesize articles. Figure \ref{fig:screening_and_cleaning_funnel} illustrates how the sample size was reduced down through the cleaning and screening. 
 
   \begin{figure*}[h]
       \centering
@@ -104,5 +105,5 @@ Descriptive statistics and analysis were generated using a Python Jupyter Notebo
 % Avsnitt om den videre analysen (altså breakdown by model, by target variable, etc.): hvorfor og hvordan har vi gjort det?
 \textbf{Approach for Further Analysis}\nopagebreak
 
-The further analysis of the articles follows a structured breakdown along several dimensions to analyze and review the literature on probabilistic AI and uncertainty estimation in financial time series. The analysis is broken down by type of model, output of model, asset class and type of uncertainty. Each section will provide insights that informing the research questions before concrete conclusions are presented for each question. The dimensions used to analyze the sample align with those commonly employed in similar reviews, providing a structured framework to effectively assess the current state of research \parencite{Blasco_et_al_2024}.
+The further analysis of the papers follows a structured breakdown along several dimensions: type of model, output of model, asset class and type of uncertainty. Each section will provide insights that inform the research questions before concrete conclusions are presented for each question in Section \ref{sec:discussion}. The dimensions used to analyze the sample align with those commonly employed in similar reviews, providing a structured framework to effectively assess the current state of research \parencite{Blasco_et_al_2024}.
 
