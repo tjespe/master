@@ -117,6 +117,15 @@ df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
 df[nan_mask]
 
 # %%
+# Add feature: is next day trading day or not
+df["NextDayTradingDay"] = (
+    df.index.get_level_values("Date")
+    .shift(1, freq="D")
+    .isin(df.index.get_level_values("Date"))
+)
+df["NextDayTradingDay"]
+
+# %%
 # Check for NaN values
 df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
 
@@ -142,6 +151,9 @@ for symbol, group in df.groupby(level="Symbol"):
 
     # Sign of return to capture the direction of the return
     sign_return = np.sign(returns)
+
+    # Use whether the next day is a trading day or not as a feature
+    next_day_trading_day = group["NextDayTradingDay"].values.reshape(-1, 1)
 
     # Extract realized volatility and transform it to a similar scale
     rvol_annualized = group["Close_RVOL"].values.reshape(-1, 1) / 100
@@ -180,6 +192,7 @@ for symbol, group in df.groupby(level="Symbol"):
             vix_change_1d,
             vix_change_2d,
             vix_change_7d,
+            next_day_trading_day,
         )
     )
 

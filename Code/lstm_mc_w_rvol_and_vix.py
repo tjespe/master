@@ -117,6 +117,15 @@ df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
 df[nan_mask]
 
 # %%
+# Add feature: is next day trading day or not
+df["NextDayNotTradingDay"] = ~(
+    df.index.get_level_values("Date")
+    .shift(1, freq="D")
+    .isin(df.index.get_level_values("Date"))
+)
+df["NextDayNotTradingDay"]
+
+# %%
 # Check for NaN values
 df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
 
@@ -139,6 +148,9 @@ for symbol, group in df.groupby(level="Symbol"):
         # For numerical stability: add a small constant to avoid log(0) equal to 0.1% squared
         + (0.1 / 100) ** 2
     )
+
+    # Whether the next day is a trading day or not
+    next_day_not_trading_day = group["NextDayNotTradingDay"].values.reshape(-1, 1)
 
     # Sign of return to capture the direction of the return
     sign_return = np.sign(returns)
@@ -180,6 +192,7 @@ for symbol, group in df.groupby(level="Symbol"):
             vix_change_1d,
             vix_change_2d,
             vix_change_7d,
+            next_day_not_trading_day,
         )
     )
 
@@ -352,6 +365,57 @@ plt.ylabel("Volatility")
 plt.legend()
 plt.show()
 
+# %%
+# Plot distribution of volatility predictions for a random day
+random_day = np.random.randint(0, len(vol_preds))
+plt.figure(figsize=(12, 6))
+samples = preds["preds"][:, random_day, 0]
+samples_vol = np.sqrt(np.exp(samples))
+plt.hist(samples_vol, bins=50)
+plt.title("Distribution of Volatility Predictions")
+plt.xlabel("Volatility")
+plt.ylabel("Frequency")
+vals = plt.gca().get_xticks()
+plt.gca().set_xticklabels(["{:.2f}%".format(x * 100) for x in vals])
+plt.axvline(volatility_pred[random_day], color="black", label="Mean Prediction")
+plt.axvline(
+    df_test["LogReturn"].abs().values[random_day], color="red", label="Absolute Return"
+)
+plt.legend()
+plt.show()
+
+# %%
+# Plot distribution of volatility predictions across all days
+plt.figure(figsize=(12, 6))
+samples = preds["preds"][:, :, 0]
+samples_vol = np.sqrt(np.exp(samples))
+plt.hist(samples_vol.flatten(), bins=100)
+plt.title("Distribution of Volatility Predictions")
+plt.xlabel("Volatility")
+plt.ylabel("Frequency")
+vals = plt.gca().get_xticks()
+plt.gca().set_xticklabels(["{:.2f}%".format(x * 100) for x in vals])
+plt.show()
+
+# %%
+# Plot distribution of log variances across all days
+plt.figure(figsize=(12, 6))
+plt.hist(samples.flatten(), bins=100)
+plt.title("Distribution of Volatility Predictions")
+plt.xlabel("Log variance (aleatoric)")
+plt.ylabel("Frequency")
+plt.show()
+
+# %%
+# Plot distribution of epistemic uncertainty for all days
+plt.figure(figsize=(12, 6))
+plt.hist(epistemic_uncertainty, bins=100)
+plt.title("Distribution of Epistemic Uncertainty")
+plt.xlabel("Epistemic Uncertainty")
+plt.ylabel("Frequency")
+vals = plt.gca().get_xticks()
+plt.gca().set_xticklabels(["{:.2f}%".format(x * 100) for x in vals])
+plt.show()
 
 # %%
 # Save predictions to file
