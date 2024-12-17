@@ -130,11 +130,26 @@
 % Table of contents - show sub-sub-sections
 \setcounter{tocdepth}{3}
 \usepackage{tocloft}
+
+\setlength{\cftbeforesubsecskip}{11pt} % more space before subsubsections
+%\setlength{\cftbeforesecskip}{7pt}
+% Smaller spacing for appendix sections and subsections
+% Define reduced spacing for appendix sections and subsections
+\newlength{\appendixsecspacing}
+\setlength{\appendixsecspacing}{5pt} % Spacing between appendix sections (adjust as needed)
+
+\newcommand{\appendixtocspacing}{
+    \addtocontents{toc}{\protect\setlength{\cftbeforesecskip}{\appendixsecspacing}}
+    \addtocontents{toc}{\protect\setlength{\cftbeforesubsecskip}{0pt}} % Appendix subsections spacing
+}
+
+
 \renewcommand{\cftsubsubsecfont}{\small} % Smaller font for subsubsections
 \renewcommand{\cftsubsubsecpagefont}{\normalfont} % Normal font for page numbers
-\cftpagenumbersoff{subsubsec}            % Remove page numbers for subsubsections
-\renewcommand{\cftsubsubsecleader}{\hfill} % No ellipsis
+% \cftpagenumbersoff{subsubsec}            % Remove page numbers for subsubsections
+% \renewcommand{\cftsubsubsecleader}{\hfill} % No ellipsis
 \renewcommand{\cftsecleader}{\cftdotfill{\cftsecdotsep}} % Ellipsis for sections
+    
 
 
 % Enable verbatim in footnotes
@@ -175,3 +190,8 @@
 \usepackage{multicol}
 
 \usepackage{xspace}
+\usepackage{placeins}
+
+\newcommand{\smalllinespace}{\addlinespace[4.6pt]}
+
+\renewcommand*{\bibfont}{\fontsize{10}{11.8}\selectfont} % slightly smaller font on references to make it fit within the pages
