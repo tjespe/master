@@ -11,7 +11,7 @@
 \usepackage{fancyhdr}  % For custom headers and footers ADDED BY GRUDE
 \pagestyle{fancy}
 \fancyhf{}  % Clear default header and footer
-\fancyhead[L]{TIØ4550 - Specialization Project}  % Add custom text to the top left of the header
+\fancyhead[L]{TIØ4550 - Specialization Project}  % Add custom text to the top left of the header 
 \fancyhead[R]{Fall 2024}
 \renewcommand{\headrulewidth}{0.4pt}  % Optional: keep the top line (you can change the thickness)
 
@@ -52,8 +52,9 @@
 \twocolumn
 \import{./Sections/}{1_introduction}
 \import{./Sections/}{2_methodology}
-\import{./Sections/}{3_results_and_discussion}
-\import{./Sections/}{4_conclusion}
+\import{./Sections/}{3_descriptive_statistics}
+\import{./Sections/}{4_results_and_discussion}
+\import{./Sections/}{5_conclusion}
 
 
 % Inserting bibliography
@@ -61,12 +62,12 @@
 \newpage
 %\bibliography{references}
 \printbibliography
-
 % Inserting appendix with separate settings
 
 
 
 \addappendix
+\appendixtocspacing
 \import{./Appendices/}{appendix}
 
 
