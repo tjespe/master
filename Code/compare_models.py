@@ -232,6 +232,37 @@ try:
 except FileNotFoundError:
     print("Monte Carlo LSTM w RVOL and VIX predictions not found")
 
+# Transformer MDN
+try:
+    transformer_mdn_preds = pd.read_csv(
+        f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Transformer MDN",
+            "mean_pred": transformer_mdn_preds["Mean_SP"].values,
+            "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Transformer MDN predictions not found")
+
+# Transformer MDN w MC Dropout
+try:
+    transformer_mdn_mc_preds = pd.read_csv(
+        f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Transformer MDN w MC Dropout",
+            "mean_pred": transformer_mdn_mc_preds["Mean_MC"].values,
+            "volatility_pred": transformer_mdn_mc_preds["Vol_MC"].values,
+            "epistemic_sd": transformer_mdn_mc_preds["Epistemic_Unc_Mean"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Transformer MDN w MC Dropout predictions not found")
+
 if TEST_ASSET == "S&P":
     # VIX
     try:
