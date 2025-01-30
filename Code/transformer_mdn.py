@@ -1,8 +1,11 @@
 # %%
 # Define parameters (imported from your settings)
+from shared.numerical_mixture_moments import numerical_mixture_moments
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
+RVOL_DATA_PATH = "data/RVOL.csv"
+VIX_DATA_PATH = "data/VIX.csv"
 
 # %%
 # Standard imports
@@ -41,90 +44,196 @@ warnings.filterwarnings("ignore")
 
 
 # %%
-def load_data_and_preprocess():
-    """
-    Reads DATA_PATH, computes log-returns, builds
-    overlapping windows of length LOOKBACK_DAYS for the
-    chosen TEST_ASSET. Returns:
-      scaled_X_train, scaled_X_test, y_train, y_test
-      plus the original DataFrame (for indexing)
-    """
-    # 1) Read data
-    df = pd.read_csv(DATA_PATH)
-    if "Symbol" not in df.columns:
-        df["Symbol"] = TEST_ASSET
+df = pd.read_csv(DATA_PATH)
 
-    # Ensure Date is datetime, then sort
-    df["Date"] = pd.to_datetime(df["Date"])
-    df = df.sort_values(["Symbol", "Date"])
+if not "Symbol" in df.columns:
+    df["Symbol"] = TEST_ASSET
 
-    # 2) Compute log-return by Symbol
-    df["LogReturn"] = (
-        df.groupby("Symbol")["Close"]
-        .apply(lambda x: np.log(x / x.shift(1)))
-        .reset_index(drop=True)
+# Ensure the Date column is in datetime format
+df["Date"] = pd.to_datetime(df["Date"])
+
+# Sort the dataframe by both Date and Symbol
+df = df.sort_values(["Symbol", "Date"])
+
+# Calculate log returns for each instrument separately using groupby
+df["LogReturn"] = (
+    df.groupby("Symbol")["Close"]
+    .apply(lambda x: np.log(x / x.shift(1)))
+    .reset_index()["Close"]
+)
+
+# Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
+df = df[~df["LogReturn"].isnull()]
+
+df["SquaredReturn"] = df["LogReturn"] ** 2
+
+# Set date and symbol as index
+df: pd.DataFrame = df.set_index(["Date", "Symbol"])
+df
+
+# %%
+# Read RVOL data
+rvol_df = pd.read_csv(RVOL_DATA_PATH)
+rvol_df["Date"] = pd.to_datetime(rvol_df["Date"])
+rvol_df = rvol_df.set_index("Date")
+rvol_df
+
+# %%
+# Read VIX data
+vix_df = pd.read_csv(VIX_DATA_PATH)
+vix_df["Date"] = pd.to_datetime(vix_df["Date"])
+vix_df = vix_df.set_index("Date")
+vix_df
+
+# %%
+# Check if TEST_ASSET is in the data
+if TEST_ASSET not in df.index.get_level_values("Symbol"):
+    raise ValueError(f"TEST_ASSET '{TEST_ASSET}' not found in the data")
+
+# %%
+# Filter away data we don't have RVOL data for
+df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
+df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
+df
+
+# %%
+# Filter away data we don't have VIX data for
+df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
+df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
+df
+
+# %%
+# Add RVOL data to the dataframe
+df = df.join(rvol_df, how="left", rsuffix="_RVOL")
+df
+
+# %%
+# Add VIX data to the dataframe
+df = df.join(vix_df, how="left", rsuffix="_VIX")
+
+# %%
+# Check for NaN values
+nan_mask = df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)
+df[nan_mask]
+
+# %%
+# Impute missing RVOL values using the last available value
+df["Close_RVOL"] = df["Close_RVOL"].fillna(method="ffill")
+df[nan_mask]
+
+# %%
+# Impute missing VIX values using the last available value
+df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
+df[nan_mask]
+
+# %%
+# Add feature: is next day trading day or not
+df["NextDayTradingDay"] = (
+    df.index.get_level_values("Date")
+    .shift(1, freq="D")
+    .isin(df.index.get_level_values("Date"))
+)
+df["NextDayTradingDay"]
+
+# %%
+# Check for NaN values
+df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
+
+# %%
+# Prepare data for LSTM
+X_train = []
+X_test = []
+y_train = []
+y_test = []
+
+# Group by symbol to handle each instrument separately
+for symbol, group in df.groupby(level="Symbol"):
+    # Extract the log returns and squared returns for the current group
+    returns = group["LogReturn"].values.reshape(-1, 1)
+
+    # Use the log of squared returns as the second input feature, because the
+    # NN should output the log of variance
+    log_sq_returns = np.log(
+        group["SquaredReturn"].values.reshape(-1, 1)
+        # For numerical stability: add a small constant to avoid log(0) equal to 0.1% squared
+        + (0.1 / 100) ** 2
     )
-    df = df[~df["LogReturn"].isnull()]  # drop NaNs
 
-    # For a second feature: log of squared returns, offset by a small constant
-    df["SquaredReturn"] = df["LogReturn"] ** 2
+    # Sign of return to capture the direction of the return
+    sign_return = np.sign(returns)
 
-    # 3) Filter date >= 1990
-    df = df[df["Date"] >= "1990-01-01"]
+    # Use whether the next day is a trading day or not as a feature
+    next_day_trading_day = group["NextDayTradingDay"].values.reshape(-1, 1)
 
-    # 4) Set index
-    df = df.set_index(["Date", "Symbol"])
+    # Extract realized volatility and transform it to a similar scale
+    rvol_annualized = group["Close_RVOL"].values.reshape(-1, 1) / 100
+    rvol_daily = rvol_annualized / np.sqrt(252)
+    rvol = np.log(rvol_daily**2 + (0.1 / 100) ** 2)
 
-    # 5) Create X, y for each symbol, focusing on next-day log-return
-    X_train, X_test, y_train, y_test = [], [], [], []
+    # Calculate one day change in RVOL
+    rvol_change_1d = np.diff(rvol, axis=0, prepend=rvol[0, 0])
+    rvol_change_2d = rvol - np.vstack([rvol[:2], rvol[:-2]])
+    rvol_change_7d = rvol - np.vstack([rvol[:7], rvol[:-7]])
 
-    for symbol, group in df.groupby(level="Symbol"):
-        returns = group["LogReturn"].values.reshape(-1, 1)
-        log_sq_returns = np.log(
-            group["SquaredReturn"].values.reshape(-1, 1)
-            + (0.1 / 100) ** 2  # small offset for numerical stability
+    # Extract VIX and transform it to a similar scale
+    vix_annualized = group["Close_VIX"].values.reshape(-1, 1) / 100
+    vix_daily = vix_annualized / np.sqrt(252)
+    vix = np.log(vix_daily**2 + (0.1 / 100) ** 2)
+
+    # Calculate one day change in VIX
+    vix_change_1d = np.diff(vix, axis=0, prepend=vix[0, 0])
+    vix_change_2d = vix - np.vstack([vix[:2], vix[:-2]])
+    vix_change_7d = vix - np.vstack([vix[:7], vix[:-7]])
+
+    # Find date to split on
+    train_test_split_index = len(
+        group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+    )
+
+    # Stack returns and squared returns together
+    data = np.hstack(
+        (
+            log_sq_returns,
+            sign_return,
+            rvol,
+            rvol_change_1d,
+            rvol_change_2d,
+            rvol_change_7d,
+            vix_change_1d,
+            vix_change_2d,
+            vix_change_7d,
+            next_day_trading_day,
         )
+    )
 
-        # find train/test split
-        # count how many rows before TRAIN_TEST_SPLIT date
-        train_test_split_index = len(
-            group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
-        )
+    # Create training sequences of length 'sequence_length'
+    for i in range(LOOKBACK_DAYS, train_test_split_index):
+        X_train.append(data[i - LOOKBACK_DAYS : i])
+        y_train.append(returns[i, 0])
 
-        # combine features: [LogReturn, log(SquaredReturn + const)]
-        data = np.hstack((returns, log_sq_returns))
+    # Add the test data
+    if symbol == TEST_ASSET:
+        for i in range(train_test_split_index, len(data)):
+            X_test.append(data[i - LOOKBACK_DAYS : i])
+            y_test.append(returns[i, 0])
 
-        # build train sequences
-        for i in range(LOOKBACK_DAYS, train_test_split_index):
-            X_train.append(data[i - LOOKBACK_DAYS : i])
-            y_train.append(returns[i, 0])  # next-day log-return
+# Convert X and y to numpy arrays
+X_train = np.array(X_train)
+X_test = np.array(X_test)
+y_train = np.array(y_train)
+y_test = np.array(y_test)
 
-        # build test sequences only for TEST_ASSET
-        if symbol == TEST_ASSET:
-            for i in range(train_test_split_index, len(data)):
-                if i - LOOKBACK_DAYS >= 0:  # ensure valid slice
-                    X_test.append(data[i - LOOKBACK_DAYS : i])
-                    y_test.append(returns[i, 0])
+# Ensure float32 for X and y
+X_train = X_train.astype(np.float32)
+X_test = X_test.astype(np.float32)
+y_train = y_train.astype(np.float32)
+y_test = y_test.astype(np.float32)
 
-    # Convert to numpy arrays
-    X_train = np.array(X_train, dtype=np.float32)
-    X_test = np.array(X_test, dtype=np.float32)
-    y_train = np.array(y_train, dtype=np.float32)
-    y_test = np.array(y_test, dtype=np.float32)
-
-    # Scale the first column (log-returns) if desired
-    scaler_1 = StandardScaler()
-    # We won't scale the second column (log of squared returns) here,
-    # but you could if you like.
-
-    scaler_1.fit(X_train[:, :, 0])
-    X_train_scaled = X_train.copy()
-    X_test_scaled = X_test.copy()
-
-    X_train_scaled[:, :, 0] = scaler_1.transform(X_train_scaled[:, :, 0])
-    X_test_scaled[:, :, 0] = scaler_1.transform(X_test_scaled[:, :, 0])
-
-    return X_train_scaled, X_test_scaled, y_train, y_test, df
+# Print shapes
+print(f"X_train.shape: {X_train.shape}")
+print(f"X_test.shape: {X_test.shape}")
+print(f"y_train.shape: {y_train.shape}")
+print(f"y_test.shape: {y_test.shape}")
 
 
 # %%
@@ -133,17 +242,17 @@ def mdn_loss(num_mixtures):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).
     Output shape: (batch_size, 3*num_mixtures)
-      => we parse [logits_pi, mu, log_sigma].
+      => we parse [logits_pi, mu, log_var].
     """
 
     def loss_fn(y_true, y_pred):
         # parse
         logits_pi = y_pred[:, :num_mixtures]
         mu = y_pred[:, num_mixtures : 2 * num_mixtures]
-        log_sigma = y_pred[:, 2 * num_mixtures :]
+        log_var = y_pred[:, 2 * num_mixtures :]
 
         pi = tf.nn.softmax(logits_pi, axis=-1)
-        sigma = tf.exp(log_sigma)
+        sigma = tf.exp(0.5 * log_var)  # interpret as log-variance
 
         # expand dims for broadcast (B,) -> (B,1)
         y_true = tf.expand_dims(y_true, axis=-1)
@@ -228,10 +337,11 @@ def parse_mdn_output(mdn_out, n_mixtures):
     """
     logits_pi = mdn_out[:, :n_mixtures]
     mu = mdn_out[:, n_mixtures : 2 * n_mixtures]
-    log_sigma = mdn_out[:, 2 * n_mixtures :]
+    log_var = mdn_out[:, 2 * n_mixtures :]
 
     pi = tf.nn.softmax(logits_pi, axis=-1)
-    sigma = tf.exp(log_sigma)
+    sigma = tf.exp(0.5 * log_var)
+
     return pi, mu, sigma
 
 
@@ -304,8 +414,7 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
 
 
 # %%
-# 1) Load data
-X_train, X_test, y_train, y_test, df = load_data_and_preprocess()
+# 1) Inspect shapes
 print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
 print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
@@ -379,18 +488,65 @@ mixture_mean_sp = mixture_mean_sp.numpy()
 mixture_std_sp = np.sqrt(mixture_var_sp.numpy())
 
 # %%
-# Plot 10 charts with the distributions for the last 10 points
-plt.figure(figsize=(12, 12))
+# Plot 10 charts with the distributions for 10 random days
+plt.figure(figsize=(10, 40))
+np.random.seed(0)
 for i in range(10):
-    plt.subplot(5, 2, i + 1)
-    plt.hist(np.random.normal(mixture_mean_sp[-i], mixture_std_sp[-i], 1000), bins=50)
+    plt.subplot(10, 1, i + 1)
+    i = np.random.randint(0, len(y_test))
+    timestamp = df.index[-i][0]
+    mu_m = mixture_mean_sp[-i]
+    sigma_m = mixture_std_sp[-i]
+    x_min = -0.1
+    x_max = 0.1
+    x_vals = np.linspace(x_min, x_max, 1000)
+    mixture_pdf = (1 / (sigma_m * np.sqrt(2 * np.pi))) * np.exp(
+        -0.5 * ((x_vals - mu_m) / sigma_m) ** 2
+    )
+    plt.fill_between(
+        x_vals,
+        np.zeros_like(x_vals),
+        mixture_pdf,
+        color="blue",
+        label="Mixture",
+        alpha=0.5,
+    )
+    for j in range(N_MIXTURES):
+        weight = pi_pred[-i, j].numpy()
+        mu = mu_pred[-i, j]
+        sigma = sigma_pred[-i, j]
+        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
+            -0.5 * ((x_vals - mu) / sigma) ** 2
+        )
+        plt.plot(x_vals, pdf, label=f"$\pi$ = {weight*100:.2f}%")
     plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
     plt.axvline(
         mixture_mean_sp[-i], color="black", linestyle="--", label="Predicted Mean"
     )
-    plt.title(f"Point {i+1} - Predicted Distribution")
+    moment_estimates = numerical_mixture_moments(
+        np.array(pi_pred[-i]),
+        np.array(mu_pred[-i]),
+        np.array(sigma_pred[-i]),
+        range_factor=3,
+    )
+    plt.text(
+        x_min + 0.01,
+        5,
+        f"Mean: {mu_m*100:.2f}%\n"
+        f"Std: {sigma_m*100:.2f}%\n"
+        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
+        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
+        f"* Numerically estimated",
+        fontsize=10,
+    )
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.title(f"{timestamp.strftime('%Y-%m-%d')} - Predicted Distribution")
+    plt.legend()
+    plt.ylabel("Density")
+plt.xlabel("LogReturn")
 plt.tight_layout()
-plt.legend()
 plt.show()
 
 # %%

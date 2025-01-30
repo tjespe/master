@@ -130,7 +130,9 @@ try:
             "name": "LSTM-MC",
             "mean_pred": lstm_mc_preds["Mean"].values,
             "volatility_pred": lstm_mc_preds["Volatility"].values,
-            "epistemic_sd": lstm_mc_preds["Epistemic_Uncertainty_Volatility"].values,
+            "epistemic_sd_vol": lstm_mc_preds[
+                "Epistemic_Uncertainty_Volatility"
+            ].values,
         }
     )
 except FileNotFoundError:
@@ -161,7 +163,7 @@ try:
             "name": "LSTM w FFNN and MC Dropout",
             "mean_pred": lstm_w_ffnn_mc_preds["Mean"].values,
             "volatility_pred": lstm_w_ffnn_mc_preds["Volatility"].values,
-            "epistemic_sd": lstm_w_ffnn_mc_preds[
+            "epistemic_sd_vol": lstm_w_ffnn_mc_preds[
                 "Epistemic_Uncertainty_Volatility"
             ].values,
         }
@@ -224,7 +226,7 @@ try:
             "name": "Monte Carlo LSTM w RVOL & VIX",
             "mean_pred": mc_lstm_w_rvol_and_vix_preds["Mean"].values,
             "volatility_pred": mc_lstm_w_rvol_and_vix_preds["Volatility"].values,
-            "epistemic_sd": mc_lstm_w_rvol_and_vix_preds[
+            "epistemic_sd_vol": mc_lstm_w_rvol_and_vix_preds[
                 "Epistemic_Uncertainty_Volatility"
             ].values,
         }
@@ -257,7 +259,7 @@ try:
             "name": "Transformer MDN w MC Dropout",
             "mean_pred": transformer_mdn_mc_preds["Mean_MC"].values,
             "volatility_pred": transformer_mdn_mc_preds["Vol_MC"].values,
-            "epistemic_sd": transformer_mdn_mc_preds["Epistemic_Unc_Mean"].values,
+            "epistemic_sd_vol": transformer_mdn_mc_preds["Epistemic_Unc_Vol"].values,
         }
     )
 except FileNotFoundError:
@@ -353,11 +355,11 @@ def plot_volatility_prediction(model, df_test, abs_returns_test):
         model["volatility_pred"],
         label=f"{model['name']} Volatility Prediction",
     )
-    if "epistemic_sd" in model:
+    if "epistemic_sd_vol" in model:
         plt.fill_between(
             df_test.index,
-            model["volatility_pred"] - model["epistemic_sd"],
-            model["volatility_pred"] + model["epistemic_sd"],
+            model["volatility_pred"] - model["epistemic_sd_vol"],
+            model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.5,
             label="67% confidence interval",
         )
@@ -383,11 +385,11 @@ def plot_mean_returns_prediction(model, df_test):
         alpha=0.5,
         label="Volatility",
     )
-    if "epistemic_sd" in model:
+    if "epistemic_sd_vol" in model:
         plt.fill_between(
             df_test.index,
-            model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd"],
-            model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd"],
+            model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd_vol"],
+            model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.3,
             label="Volatility w Epistemic Uncertainty",
         )
@@ -702,13 +704,13 @@ def plot_volatility_comparison(
             linestyle=model.get("linestyle", "-"),
             linewidth=linewidth,
         )
-        if "epistemic_sd" in model:
+        if "epistemic_sd_vol" in model:
             plt.fill_between(
                 returns_test.index[from_idx:to_idx],
                 model["volatility_pred"][from_idx:to_idx]
-                - model["epistemic_sd"][from_idx:to_idx],
+                - model["epistemic_sd_vol"][from_idx:to_idx],
                 model["volatility_pred"][from_idx:to_idx]
-                + model["epistemic_sd"][from_idx:to_idx],
+                + model["epistemic_sd_vol"][from_idx:to_idx],
                 alpha=0.3,
                 label=f"{model['name']} 67% epistemic confidence interval",
                 color=colors[idx % len(colors)],
