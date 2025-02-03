@@ -12,3 +12,4 @@
 *.blg
 *.bbl
 *.run.xml
+*.pyc

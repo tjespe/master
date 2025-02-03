@@ -1,6 +1,22 @@
 # %%
 # Define parameters
+from shared.loss import nll_loss_mean_and_vol
 from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from shared.crps import crps_loss_mean_and_vol
+
+# %%
+# Defined which confidence level to use for prediction intervals
+CONFIDENCE_LEVEL = 0.05
+
+# %%
+# Exclude uninteresting models
+EXCLUDE_MODELS = [
+    "Linear Regression",
+    "Yesterday's VIX",
+    "Yesterday's RVOL",
+    "Transformer MDN w MC Dropout",
+    "Transformer MDN",
+]
 
 # %%
 import numpy as np
@@ -130,7 +146,9 @@ try:
             "name": "LSTM-MC",
             "mean_pred": lstm_mc_preds["Mean"].values,
             "volatility_pred": lstm_mc_preds["Volatility"].values,
-            "epistemic_sd": lstm_mc_preds["Epistemic_Uncertainty_Volatility"].values,
+            "epistemic_sd_vol": lstm_mc_preds[
+                "Epistemic_Uncertainty_Volatility"
+            ].values,
         }
     )
 except FileNotFoundError:
@@ -161,7 +179,7 @@ try:
             "name": "LSTM w FFNN and MC Dropout",
             "mean_pred": lstm_w_ffnn_mc_preds["Mean"].values,
             "volatility_pred": lstm_w_ffnn_mc_preds["Volatility"].values,
-            "epistemic_sd": lstm_w_ffnn_mc_preds[
+            "epistemic_sd_vol": lstm_w_ffnn_mc_preds[
                 "Epistemic_Uncertainty_Volatility"
             ].values,
         }
@@ -224,13 +242,47 @@ try:
             "name": "Monte Carlo LSTM w RVOL & VIX",
             "mean_pred": mc_lstm_w_rvol_and_vix_preds["Mean"].values,
             "volatility_pred": mc_lstm_w_rvol_and_vix_preds["Volatility"].values,
-            "epistemic_sd": mc_lstm_w_rvol_and_vix_preds[
+            "epistemic_sd_vol": mc_lstm_w_rvol_and_vix_preds[
                 "Epistemic_Uncertainty_Volatility"
             ].values,
         }
     )
 except FileNotFoundError:
     print("Monte Carlo LSTM w RVOL and VIX predictions not found")
+
+# Transformer MDN
+try:
+    transformer_mdn_preds = pd.read_csv(
+        f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Transformer MDN",
+            "mean_pred": transformer_mdn_preds["Mean_SP"].values,
+            "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+            "LB_95": transformer_mdn_preds["LB_95"].values,
+            "UB_95": transformer_mdn_preds["UB_95"].values,
+            "nll": transformer_mdn_preds["NLL"].values.mean(),
+        }
+    )
+except FileNotFoundError:
+    print("Transformer MDN predictions not found")
+
+# Transformer MDN w MC Dropout
+try:
+    transformer_mdn_mc_preds = pd.read_csv(
+        f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Transformer MDN w MC Dropout",
+            "mean_pred": transformer_mdn_mc_preds["Mean_MC"].values,
+            "volatility_pred": transformer_mdn_mc_preds["Vol_MC"].values,
+            "epistemic_sd_vol": transformer_mdn_mc_preds["Epistemic_Unc_Vol"].values,
+        }
+    )
+except FileNotFoundError:
+    print("Transformer MDN w MC Dropout predictions not found")
 
 if TEST_ASSET == "S&P":
     # VIX
@@ -312,6 +364,35 @@ except NameError:
     print("Ensemble cannot be created due to either GARCH or LSTM-MC missing")
 
 
+# LSTM MDN
+for version in ["v1", "v2"]:
+    try:
+        lstm_mdn_preds = pd.read_csv(
+            f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        )
+        preds_per_model.append(
+            {
+                "name": f"LSTM MDN {version}",
+                "mean_pred": lstm_mdn_preds["Mean_SP"].values,
+                "volatility_pred": lstm_mdn_preds["Vol_SP"].values,
+                "LB_95": lstm_mdn_preds["LB_95"].values,
+                "UB_95": lstm_mdn_preds["UB_95"].values,
+                "nll": lstm_mdn_preds["NLL"].values.mean(),
+                "LB_99": lstm_mdn_preds["LB_99"].values,
+                "UB_99": lstm_mdn_preds["UB_99"].values,
+                "crps": lstm_mdn_preds["CRPS"].values.mean(),
+            }
+        )
+    except FileNotFoundError:
+        print(f"LSTM MDN {version} predictions not found")
+
+# %%
+# Remove excluded models
+preds_per_model = [
+    model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
+]
+
+
 # %%
 # Functions for plotting and evaluation
 def plot_volatility_prediction(model, df_test, abs_returns_test):
@@ -322,11 +403,11 @@ def plot_volatility_prediction(model, df_test, abs_returns_test):
         model["volatility_pred"],
         label=f"{model['name']} Volatility Prediction",
     )
-    if "epistemic_sd" in model:
+    if "epistemic_sd_vol" in model:
         plt.fill_between(
             df_test.index,
-            model["volatility_pred"] - model["epistemic_sd"],
-            model["volatility_pred"] + model["epistemic_sd"],
+            model["volatility_pred"] - model["epistemic_sd_vol"],
+            model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.5,
             label="67% confidence interval",
         )
@@ -352,11 +433,11 @@ def plot_mean_returns_prediction(model, df_test):
         alpha=0.5,
         label="Volatility",
     )
-    if "epistemic_sd" in model:
+    if "epistemic_sd_vol" in model:
         plt.fill_between(
             df_test.index,
-            model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd"],
-            model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd"],
+            model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd_vol"],
+            model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.3,
             label="Volatility w Epistemic Uncertainty",
         )
@@ -375,6 +456,12 @@ def plot_mean_returns_prediction(model, df_test):
 
 
 def calculate_prediction_intervals(model, alpha):
+    cl = int((1 - alpha) * 100)
+    if f"LB_{cl}" in model and f"UB_{cl}" in model:
+        model["lower_bounds"] = model[f"LB_{cl}"]
+        model["upper_bounds"] = model[f"UB_{cl}"]
+        return
+    print(f"Assuming normal distribution for {model['name']} prediction intervals")
     z_alpha = norm.ppf(1 - alpha / 2)
     model["lower_bounds"] = model["mean_pred"] - z_alpha * model["volatility_pred"]
     model["upper_bounds"] = model["mean_pred"] + z_alpha * model["volatility_pred"]
@@ -392,6 +479,11 @@ def calculate_mpiw(lower_bounds, upper_bounds):
 
 
 def calculate_interval_score(y_true, lower_bounds, upper_bounds, alpha):
+    """
+    Calculates the Winkler Score for prediction intervals.
+    Penalizes for both the width of the interval and the distance of the true value
+    from the interval if the interval does not contain the true value.
+    """
     interval_width = upper_bounds - lower_bounds
     penalties = (2 / alpha) * (
         (lower_bounds - y_true) * (y_true < lower_bounds)
@@ -406,21 +498,6 @@ def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     prediction_errors = np.abs(y_true - mean_pred)
     correlation = np.corrcoef(interval_width, prediction_errors)[0, 1]
     return correlation
-
-
-def delta_sign_accuracy(y_true, vol_pred):
-    y_true_diff = np.diff(np.abs(y_true))
-    vol_pred_diff = np.diff(vol_pred)
-    return np.mean(np.sign(y_true_diff) == np.sign(vol_pred_diff))
-
-
-def calculate_nll(y_true, mean_pred, volatility_pred):
-    sigma2 = volatility_pred**2
-
-    term_1 = ((y_true - mean_pred) ** 2) / (2 * sigma2)
-    term_2 = 0.5 * np.log(sigma2)
-
-    return np.mean(term_1 + term_2)
 
 
 def christoffersen_test(exceedances, alpha):
@@ -527,7 +604,6 @@ def interpret_christoffersen_test(result):
 
 # %%
 # Evaluate models
-alpha = 0.05
 y_test_actual = df_test["LogReturn"].values
 abs_returns_test = np.abs(y_test_actual)
 
@@ -539,7 +615,7 @@ for entry in preds_per_model:
     plot_mean_returns_prediction(entry, df_test)
 
     # Calculate prediction intervals
-    calculate_prediction_intervals(entry, alpha)
+    calculate_prediction_intervals(entry, CONFIDENCE_LEVEL)
 
     # Calculate PICP and MPIW
     picp, within_bounds = calculate_picp(
@@ -552,13 +628,32 @@ for entry in preds_per_model:
 
     # Calculate Interval Scores
     interval_score = calculate_interval_score(
-        y_test_actual, entry["lower_bounds"], entry["upper_bounds"], alpha
+        y_test_actual, entry["lower_bounds"], entry["upper_bounds"], CONFIDENCE_LEVEL
     )
     entry["interval_score"] = interval_score
 
     # Calculate NLL
-    nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
-    entry["nll"] = nll
+    if "nll" not in entry:
+        entry["nll"] = nll_loss_mean_and_vol(
+            y_test_actual, entry["mean_pred"], entry["volatility_pred"]
+        )
+
+    # Calculate quantile loss
+    entry["quantile_loss"] = np.mean(
+        np.maximum(
+            y_test_actual - entry["upper_bounds"],
+            entry["lower_bounds"] - y_test_actual,
+        )
+    )
+
+    # Calculate Lopez loss function
+    entry["lopez_loss"] = np.mean(
+        np.where(
+            y_test_actual < entry["lower_bounds"],
+            1 + (entry["lower_bounds"] - y_test_actual) ** 2,
+            0,
+        )
+    )
 
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
@@ -567,18 +662,21 @@ for entry in preds_per_model:
     )
     entry["uncertainty_error_correlation"] = correlation
 
-    # Delta Sign Accuracy
-    delta_accuracy = delta_sign_accuracy(y_test_actual, entry["volatility_pred"])
-    entry["delta_sign_accuracy"] = delta_accuracy
-
     # Christoffersen's Test
     exceedances = ~entry["within_bounds"]
-    christoffersen_result = christoffersen_test(exceedances, alpha)
+    christoffersen_result = christoffersen_test(exceedances, CONFIDENCE_LEVEL)
     entry["christoffersen_test"] = interpret_christoffersen_test(christoffersen_result)
 
     # Print Christoffersen's Test Results
     print(f"\n{entry['name']} Christoffersen's Test Results:")
     display(entry["christoffersen_test"])
+
+    # Calculate CRPS
+    if "crps" not in entry:
+        print("Calculating CRPS for", entry["name"])
+        entry["crps"] = crps_loss_mean_and_vol(
+            y_test_actual, entry["mean_pred"], entry["volatility_pred"]
+        ).mean()
 
 # %%
 # Compile results into DataFrame
@@ -589,13 +687,15 @@ results = {
     "Mean width (MPIW)": [],
     "Interval Score": [],
     "Correlation (vol. vs. errors)": [],
-    "PICP/MPIW": [],
+    # "PICP/MPIW": [],
     "NLL": [],
-    "Direction Accuracy": [],
+    "QL": [],
+    "CRPS": [],
+    "Lopez Loss": [],
 }
 
 for entry in preds_per_model:
-    picp_miss = 1 - alpha - entry["picp"]
+    picp_miss = 1 - CONFIDENCE_LEVEL - entry["picp"]
     results["Model"].append(entry["name"])
     results["PICP"].append(entry["picp"])
     results["PICP Miss"].append(picp_miss)
@@ -604,9 +704,11 @@ for entry in preds_per_model:
     results["Correlation (vol. vs. errors)"].append(
         entry["uncertainty_error_correlation"]
     )
-    results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
-    results["Direction Accuracy"].append(entry["delta_sign_accuracy"])
+    # results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
     results["NLL"].append(np.mean(entry["nll"]))
+    results["QL"].append(entry["quantile_loss"])
+    results["CRPS"].append(entry["crps"])
+    results["Lopez Loss"].append(entry["lopez_loss"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -619,11 +721,11 @@ results_df.loc["Winner", "Interval Score"] = results_df["Interval Score"].idxmin
 results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
     "Correlation (vol. vs. errors)"
 ].idxmax()
-results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
-results_df.loc["Winner", "Direction Accuracy"] = results_df[
-    "Direction Accuracy"
-].idxmax()
+# results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
+results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
+results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
+results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df
@@ -632,6 +734,55 @@ results_df
 # Calculate overall winner
 winner_name = results_df["Winner"].mode()[0]
 winner_name
+
+
+# %%
+# Calculate each model's rank in each metric, taking into account whether higher or lower is better
+# Initialize a dictionary to hold ranking series for each metric.
+# Each metric’s ranking is computed such that rank 1 is best.
+rankings = {}
+model_cols = results_df.columns.drop("Winner")
+picp_target = (
+    1 - CONFIDENCE_LEVEL
+)  # e.g. if CONFIDENCE_LEVEL = 0.05, then target = 0.95
+
+for metric in results_df.index:
+    # Get the values for this metric for each model.
+    values = results_df.loc[metric, model_cols]
+
+    # Skip PICP Miss because it is redundant with PICP.
+    if metric == "PICP Miss":
+        continue
+
+    # Determine ranking rule for each metric.
+    if metric == "PICP":
+        # Rank by closeness to the target coverage.
+        # Since picp_miss = target - picp, |picp - target| is equivalent.
+        key = (values - picp_target).abs()
+        ascending = True  # lower difference is better
+    elif metric in ["Correlation (vol. vs. errors)", "QL"]:
+        # For these, higher is better.
+        key = values
+        ascending = False
+    else:
+        # For all other metrics, lower is better.
+        key = values
+        ascending = True
+
+    # Compute the ranking; ties get the minimum rank.
+    rankings[metric] = key.rank(method="min", ascending=ascending)
+
+# Create a DataFrame of rankings with models as the index and metrics as columns.
+# Each cell shows the rank of that model for that metric (1 = best).
+rankings_df = pd.DataFrame(rankings, index=model_cols).T
+# Change data type to integer
+rankings_df = rankings_df.astype(int)
+rankings_df.loc["Rank Sum"] = rankings_df.sum()
+rankings_df
+
+# %%
+# Save rankings to CSV
+rankings_df.to_csv(f"results/comp_rankings.csv")
 
 
 # %%
@@ -671,13 +822,13 @@ def plot_volatility_comparison(
             linestyle=model.get("linestyle", "-"),
             linewidth=linewidth,
         )
-        if "epistemic_sd" in model:
+        if "epistemic_sd_vol" in model:
             plt.fill_between(
                 returns_test.index[from_idx:to_idx],
                 model["volatility_pred"][from_idx:to_idx]
-                - model["epistemic_sd"][from_idx:to_idx],
+                - model["epistemic_sd_vol"][from_idx:to_idx],
                 model["volatility_pred"][from_idx:to_idx]
-                + model["epistemic_sd"][from_idx:to_idx],
+                + model["epistemic_sd_vol"][from_idx:to_idx],
                 alpha=0.3,
                 label=f"{model['name']} 67% epistemic confidence interval",
                 color=colors[idx % len(colors)],
