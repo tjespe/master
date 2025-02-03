@@ -1,0 +1,10 @@
+,GARCH,GARCH-GJR,Mini LSTM,Mini LSTM w RVOL,Mini LSTM w RVOL & VIX,Monte Carlo LSTM w RVOL & VIX,LSTM MDN v1,LSTM MDN v2
+PICP,2,6,4,1,5,8,3,7
+Mean width (MPIW),6,3,7,8,4,1,5,2
+Interval Score,5,3,8,7,2,6,1,4
+Correlation (vol. vs. errors),6,5,8,7,1,3,2,4
+NLL,6,4,8,7,3,5,1,2
+QL,6,4,7,8,5,1,3,2
+CRPS,6,5,8,7,3,4,2,1
+Lopez Loss,8,3,4,5,6,7,2,1
+Rank Sum,45,33,54,50,29,35,19,23

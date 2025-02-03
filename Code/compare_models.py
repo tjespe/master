@@ -9,6 +9,16 @@ from shared.crps import crps_loss_mean_and_vol
 CONFIDENCE_LEVEL = 0.05
 
 # %%
+# Exclude uninteresting models
+EXCLUDE_MODELS = [
+    "Linear Regression",
+    "Yesterday's VIX",
+    "Yesterday's RVOL",
+    "Transformer MDN w MC Dropout",
+    "Transformer MDN",
+]
+
+# %%
 import numpy as np
 from scipy.stats import chi2, norm
 import pandas as pd
@@ -240,23 +250,23 @@ try:
 except FileNotFoundError:
     print("Monte Carlo LSTM w RVOL and VIX predictions not found")
 
-# # Transformer MDN
-# try:
-#     transformer_mdn_preds = pd.read_csv(
-#         f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-#     )
-#     preds_per_model.append(
-#         {
-#             "name": "Transformer MDN",
-#             "mean_pred": transformer_mdn_preds["Mean_SP"].values,
-#             "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
-#             "LB_95": transformer_mdn_preds["LB_95"].values,
-#             "UB_95": transformer_mdn_preds["UB_95"].values,
-#             "nll": transformer_mdn_preds["NLL"].values.mean(),
-#         }
-#     )
-# except FileNotFoundError:
-#     print("Transformer MDN predictions not found")
+# Transformer MDN
+try:
+    transformer_mdn_preds = pd.read_csv(
+        f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "Transformer MDN",
+            "mean_pred": transformer_mdn_preds["Mean_SP"].values,
+            "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+            "LB_95": transformer_mdn_preds["LB_95"].values,
+            "UB_95": transformer_mdn_preds["UB_95"].values,
+            "nll": transformer_mdn_preds["NLL"].values.mean(),
+        }
+    )
+except FileNotFoundError:
+    print("Transformer MDN predictions not found")
 
 # Transformer MDN w MC Dropout
 try:
@@ -375,6 +385,12 @@ for version in ["v1", "v2"]:
         )
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
+
+# %%
+# Remove excluded models
+preds_per_model = [
+    model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
+]
 
 
 # %%
@@ -630,6 +646,15 @@ for entry in preds_per_model:
         )
     )
 
+    # Calculate Lopez loss function
+    entry["lopez_loss"] = np.mean(
+        np.where(
+            y_test_actual < entry["lower_bounds"],
+            1 + (entry["lower_bounds"] - y_test_actual) ** 2,
+            0,
+        )
+    )
+
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
     correlation = calculate_uncertainty_error_correlation(
@@ -648,6 +673,7 @@ for entry in preds_per_model:
 
     # Calculate CRPS
     if "crps" not in entry:
+        print("Calculating CRPS for", entry["name"])
         entry["crps"] = crps_loss_mean_and_vol(
             y_test_actual, entry["mean_pred"], entry["volatility_pred"]
         ).mean()
@@ -665,6 +691,7 @@ results = {
     "NLL": [],
     "QL": [],
     "CRPS": [],
+    "Lopez Loss": [],
 }
 
 for entry in preds_per_model:
@@ -681,6 +708,7 @@ for entry in preds_per_model:
     results["NLL"].append(np.mean(entry["nll"]))
     results["QL"].append(entry["quantile_loss"])
     results["CRPS"].append(entry["crps"])
+    results["Lopez Loss"].append(entry["lopez_loss"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -697,6 +725,7 @@ results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
+results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df
@@ -705,6 +734,55 @@ results_df
 # Calculate overall winner
 winner_name = results_df["Winner"].mode()[0]
 winner_name
+
+
+# %%
+# Calculate each model's rank in each metric, taking into account whether higher or lower is better
+# Initialize a dictionary to hold ranking series for each metric.
+# Each metric’s ranking is computed such that rank 1 is best.
+rankings = {}
+model_cols = results_df.columns.drop("Winner")
+picp_target = (
+    1 - CONFIDENCE_LEVEL
+)  # e.g. if CONFIDENCE_LEVEL = 0.05, then target = 0.95
+
+for metric in results_df.index:
+    # Get the values for this metric for each model.
+    values = results_df.loc[metric, model_cols]
+
+    # Skip PICP Miss because it is redundant with PICP.
+    if metric == "PICP Miss":
+        continue
+
+    # Determine ranking rule for each metric.
+    if metric == "PICP":
+        # Rank by closeness to the target coverage.
+        # Since picp_miss = target - picp, |picp - target| is equivalent.
+        key = (values - picp_target).abs()
+        ascending = True  # lower difference is better
+    elif metric in ["Correlation (vol. vs. errors)", "QL"]:
+        # For these, higher is better.
+        key = values
+        ascending = False
+    else:
+        # For all other metrics, lower is better.
+        key = values
+        ascending = True
+
+    # Compute the ranking; ties get the minimum rank.
+    rankings[metric] = key.rank(method="min", ascending=ascending)
+
+# Create a DataFrame of rankings with models as the index and metrics as columns.
+# Each cell shows the rank of that model for that metric (1 = best).
+rankings_df = pd.DataFrame(rankings, index=model_cols).T
+# Change data type to integer
+rankings_df = rankings_df.astype(int)
+rankings_df.loc["Rank Sum"] = rankings_df.sum()
+rankings_df
+
+# %%
+# Save rankings to CSV
+rankings_df.to_csv(f"results/comp_rankings.csv")
 
 
 # %%
