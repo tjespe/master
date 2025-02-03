@@ -2,6 +2,7 @@
 # Define parameters
 from shared.loss import nll_loss_mean_and_vol
 from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from shared.crps import crps_loss_mean_and_vol
 
 # %%
 # Defined which confidence level to use for prediction intervals
@@ -369,6 +370,7 @@ for version in ["v1", "v2"]:
                 "nll": lstm_mdn_preds["NLL"].values.mean(),
                 "LB_99": lstm_mdn_preds["LB_99"].values,
                 "UB_99": lstm_mdn_preds["UB_99"].values,
+                "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
         )
     except FileNotFoundError:
@@ -644,6 +646,12 @@ for entry in preds_per_model:
     print(f"\n{entry['name']} Christoffersen's Test Results:")
     display(entry["christoffersen_test"])
 
+    # Calculate CRPS
+    if "crps" not in entry:
+        entry["crps"] = crps_loss_mean_and_vol(
+            y_test_actual, entry["mean_pred"], entry["volatility_pred"]
+        ).mean()
+
 # %%
 # Compile results into DataFrame
 results = {
@@ -656,6 +664,7 @@ results = {
     # "PICP/MPIW": [],
     "NLL": [],
     "QL": [],
+    "CRPS": [],
 }
 
 for entry in preds_per_model:
@@ -671,6 +680,7 @@ for entry in preds_per_model:
     # results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
     results["NLL"].append(np.mean(entry["nll"]))
     results["QL"].append(entry["quantile_loss"])
+    results["CRPS"].append(entry["crps"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -686,6 +696,7 @@ results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
 # results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
+results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df

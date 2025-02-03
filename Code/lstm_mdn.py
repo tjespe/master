@@ -2,9 +2,11 @@
 # Define parameters (imported from your settings)
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.crps import crps_mdn_numpy
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
-MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v2"
+VERSION = 2
+MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 
@@ -536,8 +538,15 @@ lstm_mdn_model = build_lstm_mdn(
 # 4) Load existing model if it exists
 model_fname = f"models/{MODEL_NAME}.keras"
 if os.path.exists(model_fname):
+    mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
+    mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
     lstm_mdn_model = tf.keras.models.load_model(
-        model_fname, custom_objects={"loss_fn": mdn_loss_tf(N_MIXTURES)}, compile=False
+        model_fname,
+        custom_objects={
+            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "mdn_kernel_initializer": mdn_kernel_initializer,
+            "mdn_bias_initializer": mdn_bias_initializer,
+        },
     )
     # Re-compile
     lstm_mdn_model.compile(
@@ -701,6 +710,8 @@ uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_test["Mean_SP"] = uni_mixture_mean_sp
 df_test["Vol_SP"] = uni_mixture_std_sp
 df_test["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+crps = crps_mdn_numpy(N_MIXTURES)
+df_test["CRPS"] = crps(y_test, y_pred_mdn)
 
 for i, cl in enumerate(confidence_levels):
     df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
@@ -708,7 +719,7 @@ for i, cl in enumerate(confidence_levels):
 
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
 # %%
@@ -723,7 +734,7 @@ df_test["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_esti
 df_test["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
 
 df_test.to_csv(
-    f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
 # %%
