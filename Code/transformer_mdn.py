@@ -36,9 +36,8 @@ from tensorflow.keras.layers import MultiHeadAttention
 
 # External
 from sklearn.preprocessing import StandardScaler
-
-# We'll assume you have a separate GARCH or other predictions to compare with
-# We'll read them later for coverage stats.
+from scipy.optimize import brentq
+from scipy.stats import norm
 
 warnings.filterwarnings("ignore")
 
@@ -433,14 +432,8 @@ transformer_mdn_model = build_transformer_mdn(
 )
 
 # %%
-# 3) Compile model
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-2), loss=mdn_loss(N_MIXTURES)
-)
-
-# %%
 # 4) Load existing model if it exists
-model_fname = f"models/{MODEL_NAME}.h5"
+model_fname = f"models/{MODEL_NAME}.keras"
 if os.path.exists(model_fname):
     transformer_mdn_model = tf.keras.models.load_model(
         model_fname, custom_objects={"loss_fn": mdn_loss(N_MIXTURES)}, compile=False
@@ -475,7 +468,6 @@ transformer_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
-os.makedirs("models", exist_ok=True)
 transformer_mdn_model.save(model_fname)
 
 # %%
@@ -601,11 +593,94 @@ plt.ylabel("LogReturn")
 plt.legend()
 plt.show()
 
+
+# %%
+def calculate_interval(pis, mus, sigmas, confidence_levels):
+    """
+    Calculate the (lower, upper) quantile intervals for a Gaussian mixture for several
+    confidence levels simultaneously.
+
+    For each sample i, the mixture CDF is defined as:
+        F_i(x) = sum_m pis[i, m] * Phi((x - mus[i, m]) / sigmas[i, m])
+    where Phi is the standard normal CDF. For each confidence level cl, the interval is
+    determined by:
+        lower_i  such that F_i(lower_i) = (1 - cl)/2
+        upper_i  such that F_i(upper_i) = 1 - (1 - cl)/2
+
+    Args:
+        pis: Mixture weights, shape (n_samples, n_mixtures)
+        mus: Mixture means, shape (n_samples, n_mixtures)
+        sigmas: Mixture standard deviations, shape (n_samples, n_mixtures)
+        confidence_levels: Iterable of confidence levels (floats), e.g., [0.95, 0.5]
+
+    Returns:
+        intervals: Array of shape (n_samples, n_confidence_levels, 2) where
+            intervals[i, j, 0] is the lower bound and intervals[i, j, 1] is the upper bound
+            for sample i at confidence level confidence_levels[j].
+    """
+    pis = np.asarray(pis)
+    mus = np.asarray(mus)
+    sigmas = np.asarray(sigmas)
+    conf_levels = np.asarray(confidence_levels)
+
+    n_samples, n_mixtures = pis.shape
+    n_conf = conf_levels.size
+    intervals = np.empty((n_samples, n_conf, 2))
+
+    # To bracket all quantile roots for every cl, we use the most extreme targets,
+    # which come from the highest confidence level.
+    max_conf = np.max(conf_levels)
+    global_alpha = (1 - max_conf) / 2  # smallest quantile target (further left)
+    global_beta = 1 - global_alpha  # largest quantile target (further right)
+
+    for i in range(n_samples):
+        weights = pis[i, :]
+        means = mus[i, :]
+        stds = sigmas[i, :]
+
+        # Mixture CDF for sample i.
+        def mixture_cdf(x):
+            return np.sum(weights * norm.cdf((x - means) / stds))
+
+        # Set an initial search interval.
+        s = np.max(stds)
+        low = np.min(means - 10 * stds)
+        high = np.max(means + 10 * stds)
+
+        # Expand search interval if necessary.
+        while mixture_cdf(low) > global_alpha:
+            low -= 10 * s
+        while mixture_cdf(high) < global_beta:
+            high += 10 * s
+
+        # Compute intervals for each confidence level.
+        for j, cl in enumerate(conf_levels):
+            alpha = (1 - cl) / 2
+            beta = 1 - alpha  # equivalently, (1 + cl) / 2
+            lower_bound = brentq(lambda x: mixture_cdf(x) - alpha, low, high)
+            upper_bound = brentq(lambda x: mixture_cdf(x) - beta, low, high)
+            intervals[i, j, 0] = lower_bound
+            intervals[i, j, 1] = upper_bound
+
+    return intervals
+
+
+# %%
+# Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
+confidence_levels = [0.67, 0.95, 0.975, 0.99]
+intervals = calculate_interval(pi_pred, mu_pred, sigma_pred, confidence_levels)
+
+
 # %%
 # 8) Store single-pass predictions
 df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
 df_test["Mean_SP"] = mixture_mean_sp
 df_test["Vol_SP"] = mixture_std_sp
+df_test["NLL"] = mdn_loss(N_MIXTURES)(y_test, y_pred_mdn).numpy()
+
+for i, cl in enumerate(confidence_levels):
+    df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
+    df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(

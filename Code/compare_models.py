@@ -244,6 +244,9 @@ try:
             "name": "Transformer MDN",
             "mean_pred": transformer_mdn_preds["Mean_SP"].values,
             "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+            "LB_95": transformer_mdn_preds["LB_95"].values,
+            "UB_95": transformer_mdn_preds["UB_95"].values,
+            "nll": transformer_mdn_preds["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
@@ -408,6 +411,12 @@ def plot_mean_returns_prediction(model, df_test):
 
 
 def calculate_prediction_intervals(model, alpha):
+    cl = int((1 - alpha) * 100)
+    if f"LB_{cl}" in model and f"UB_{cl}" in model:
+        model["lower_bounds"] = model[f"LB_{cl}"]
+        model["upper_bounds"] = model[f"UB_{cl}"]
+        return
+    print(f"Assuming normal distribution for {model['name']} prediction intervals")
     z_alpha = norm.ppf(1 - alpha / 2)
     model["lower_bounds"] = model["mean_pred"] - z_alpha * model["volatility_pred"]
     model["upper_bounds"] = model["mean_pred"] + z_alpha * model["volatility_pred"]
@@ -590,8 +599,9 @@ for entry in preds_per_model:
     entry["interval_score"] = interval_score
 
     # Calculate NLL
-    nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
-    entry["nll"] = nll
+    if "nll" not in entry:
+        nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
+        entry["nll"] = nll
 
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
