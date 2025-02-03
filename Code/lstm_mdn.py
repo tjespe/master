@@ -238,6 +238,61 @@ print(f"y_test.shape: {y_test.shape}")
 
 
 # %%
+def get_mdn_kernel_initializer(n_mixtures):
+    """
+    Returns a custom initializer for the MDN output layer.
+    The weight matrix is divided into three parts (columns):
+      - First n_mixtures: for logits (initialized with GlorotUniform)
+      - Second n_mixtures: for mu's (initialized with RandomNormal with stddev=0.01)
+      - Third n_mixtures: for log-variances (initialized with GlorotUniform)
+    """
+
+    def mdn_kernel_initializer(shape, dtype=None, partition_info=None):
+        # Expecting shape = (input_dim, 3 * n_mixtures)
+        input_dim, total_units = shape
+        if total_units != 3 * n_mixtures:
+            raise ValueError("The output dimension does not equal 3 * n_mixtures.")
+
+        # Initialize the three parts:
+        init_logits = tf.keras.initializers.RandomNormal(
+            mean=1 / n_mixtures, stddev=1 / (n_mixtures * 3)
+        )(shape=(input_dim, n_mixtures), dtype=dtype)
+        init_mu = tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.05)(
+            shape=(input_dim, n_mixtures), dtype=dtype
+        )
+        init_logvar = tf.keras.initializers.RandomNormal(mean=0.0, stddev=2)(
+            shape=(input_dim, n_mixtures), dtype=dtype
+        )
+
+        # Concatenate them along the last axis (columns)
+        kernel = tf.concat([init_logits, init_mu, init_logvar], axis=-1)
+        return kernel
+
+    return mdn_kernel_initializer
+
+
+def get_mdn_bias_initializer(n_mixtures, logvar_bias=-9):
+    """
+    Custom initializer for the MDN output layer's bias.
+    The bias vector is of shape (3 * n_mixtures,). We set:
+      - The first n_mixtures (logits) to 0,
+      - The next n_mixtures (mu) to 0,
+      - The last n_mixtures (log-variance) to logvar_bias.
+    """
+
+    def mdn_bias_initializer(shape, dtype=None, partition_info=None):
+        if shape[0] != 3 * n_mixtures:
+            raise ValueError("Bias shape must be (3 * n_mixtures,)")
+        bias = np.zeros((3 * n_mixtures,), dtype=np.float32)
+        bias[2 * n_mixtures :] = (
+            logvar_bias  # Set log-variance bias to -8.5 (or another value if desired)
+        )
+        return tf.convert_to_tensor(bias, dtype=dtype)
+
+    return mdn_bias_initializer
+
+
+# %%
 def build_lstm_mdn(
     lookback_days,
     num_features=2,  # e.g. [LogReturn, log(SquaredReturn)]
@@ -258,8 +313,18 @@ def build_lstm_mdn(
     if dropout > 0:
         x = Dropout(dropout)(x)
 
+    # Create the custom kernel initializer for the Dense layer.
+    mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
+    mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
+
     # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
-    mdn_output = Dense(3 * n_mixtures, activation=None, name="mdn_output")(x)
+    mdn_output = Dense(
+        3 * n_mixtures,
+        activation=None,
+        kernel_initializer=mdn_kernel_init,
+        bias_initializer=mdn_bias_init,
+        name="mdn_output",
+    )(x)
 
     model = Model(inputs=inputs, outputs=mdn_output)
     return model
@@ -459,7 +524,7 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 5
+N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example
@@ -525,8 +590,12 @@ for i in range(10):
         label="Mixture",
         alpha=0.5,
     )
+    plotted_mixtures = 0
     for j in range(N_MIXTURES):
         weight = pi_pred[-i, j].numpy()
+        if weight < 0.01:
+            continue
+        plotted_mixtures += 1
         mu = mu_pred[-i, j]
         sigma = sigma_pred[-i, j]
         pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
@@ -557,7 +626,8 @@ for i in range(10):
         ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
     )
     plt.title(f"{timestamp.strftime('%Y-%m-%d')} - Predicted Distribution")
-    plt.legend()
+    if plotted_mixtures < 10:
+        plt.legend()
     plt.ylabel("Density")
 plt.xlabel("LogReturn")
 plt.tight_layout()
