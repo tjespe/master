@@ -36,6 +36,35 @@ def mdn_loss_numpy(num_mixtures):
     return loss_fn
 
 
+def nll_loss_mean_and_log_var(y_true, means, log_vars):
+    """
+    Negative log-likelihood assuming a univariate Gaussian distribution given means
+    and log variances.
+
+    Args:
+        y_true: target values (B, 1), i.e. actual values
+        means: predicted means (B, 1)
+        log_vars: predicted log variances (B, 1)
+    """
+    weights = np.ones_like(y_true)
+    y_pred_combined = np.vstack([weights, means, log_vars]).T
+    return mdn_loss_numpy(1)(y_true, y_pred_combined)
+
+
+def nll_loss_mean_and_vol(y_true, means, vols):
+    """
+    Negative log-likelihood assuming a univariate Gaussian distribution given means
+    and volatilities (standard deviations).
+
+    Args:
+        y_true: target values (B, 1), i.e. actual values
+        means: predicted means (B, 1)
+        vols: predicted volatilities (B, 1)
+    """
+    log_vars = 2 * np.log(vols)
+    return nll_loss_mean_and_log_var(y_true, means, log_vars)
+
+
 def mdn_loss_tf(num_mixtures):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).

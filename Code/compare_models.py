@@ -1,6 +1,6 @@
 # %%
 # Define parameters
-from shared.loss import mdn_loss_numpy
+from shared.loss import nll_loss_mean_and_vol
 from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 # %%
@@ -476,21 +476,6 @@ def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     return correlation
 
 
-def delta_sign_accuracy(y_true, vol_pred):
-    y_true_diff = np.diff(np.abs(y_true))
-    vol_pred_diff = np.diff(vol_pred)
-    return np.mean(np.sign(y_true_diff) == np.sign(vol_pred_diff))
-
-
-def calculate_nll(y_true, mean_pred, volatility_pred):
-    sigma2 = volatility_pred**2
-
-    term_1 = ((y_true - mean_pred) ** 2) / (2 * sigma2)
-    term_2 = 0.5 * np.log(sigma2)
-
-    return np.mean(term_1 + term_2)
-
-
 def christoffersen_test(exceedances, alpha):
     N = len(exceedances)
     x = np.sum(exceedances)
@@ -625,9 +610,8 @@ for entry in preds_per_model:
 
     # Calculate NLL
     if "nll" not in entry:
-        # nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
-        entry["nll"] = mdn_loss_numpy(1)(
-            y_test_actual, np.array([entry["mean_pred"], entry["volatility_pred"]]).T
+        entry["nll"] = nll_loss_mean_and_vol(
+            y_test_actual, entry["mean_pred"], entry["volatility_pred"]
         )
 
     # Uncertainty-Error Correlation
@@ -636,10 +620,6 @@ for entry in preds_per_model:
         y_test_actual, entry["mean_pred"], interval_width
     )
     entry["uncertainty_error_correlation"] = correlation
-
-    # Delta Sign Accuracy
-    delta_accuracy = delta_sign_accuracy(y_test_actual, entry["volatility_pred"])
-    entry["delta_sign_accuracy"] = delta_accuracy
 
     # Christoffersen's Test
     exceedances = ~entry["within_bounds"]
@@ -659,9 +639,8 @@ results = {
     "Mean width (MPIW)": [],
     "Interval Score": [],
     "Correlation (vol. vs. errors)": [],
-    "PICP/MPIW": [],
+    # "PICP/MPIW": [],
     "NLL": [],
-    "Direction Accuracy": [],
 }
 
 for entry in preds_per_model:
@@ -674,8 +653,7 @@ for entry in preds_per_model:
     results["Correlation (vol. vs. errors)"].append(
         entry["uncertainty_error_correlation"]
     )
-    results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
-    results["Direction Accuracy"].append(entry["delta_sign_accuracy"])
+    # results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
     results["NLL"].append(np.mean(entry["nll"]))
 
 results_df = pd.DataFrame(results)
@@ -689,10 +667,7 @@ results_df.loc["Winner", "Interval Score"] = results_df["Interval Score"].idxmin
 results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
     "Correlation (vol. vs. errors)"
 ].idxmax()
-results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
-results_df.loc["Winner", "Direction Accuracy"] = results_df[
-    "Direction Accuracy"
-].idxmax()
+# results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
