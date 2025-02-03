@@ -494,7 +494,7 @@ lstm_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
 # %%
 # Reduce learning rate again
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
+lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
@@ -566,7 +566,7 @@ plt.show()
 
 # %%
 # Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0, 0.67, 0.95, 0.975, 0.99]
+confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
 intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 
 # %%
@@ -602,7 +602,7 @@ for i, cl in enumerate(confidence_levels):
         filtered_intervals[:, i, 0],
         filtered_intervals[:, i, 1],
         color="blue",
-        alpha=0.5 - i * 0.1,
+        alpha=0.7 - i * 0.1,
         label=f"{int(100*cl)}% Interval",
     )
 plt.axhline(
