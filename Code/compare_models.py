@@ -354,24 +354,25 @@ except NameError:
 
 
 # LSTM MDN
-try:
-    lstm_mdn_preds = pd.read_csv(
-        f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-    )
-    preds_per_model.append(
-        {
-            "name": "LSTM MDN",
-            "mean_pred": lstm_mdn_preds["Mean_SP"].values,
-            "volatility_pred": lstm_mdn_preds["Vol_SP"].values,
-            "LB_95": lstm_mdn_preds["LB_95"].values,
-            "UB_95": lstm_mdn_preds["UB_95"].values,
-            "nll": lstm_mdn_preds["NLL"].values.mean(),
-            "LB_99": lstm_mdn_preds["LB_99"].values,
-            "UB_99": lstm_mdn_preds["UB_99"].values,
-        }
-    )
-except FileNotFoundError:
-    print("LSTM MDN predictions not found")
+for version in ["v1", "v2"]:
+    try:
+        lstm_mdn_preds = pd.read_csv(
+            f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        )
+        preds_per_model.append(
+            {
+                "name": f"LSTM MDN {version}",
+                "mean_pred": lstm_mdn_preds["Mean_SP"].values,
+                "volatility_pred": lstm_mdn_preds["Vol_SP"].values,
+                "LB_95": lstm_mdn_preds["LB_95"].values,
+                "UB_95": lstm_mdn_preds["UB_95"].values,
+                "nll": lstm_mdn_preds["NLL"].values.mean(),
+                "LB_99": lstm_mdn_preds["LB_99"].values,
+                "UB_99": lstm_mdn_preds["UB_99"].values,
+            }
+        )
+    except FileNotFoundError:
+        print(f"LSTM MDN {version} predictions not found")
 
 
 # %%
@@ -460,6 +461,11 @@ def calculate_mpiw(lower_bounds, upper_bounds):
 
 
 def calculate_interval_score(y_true, lower_bounds, upper_bounds, alpha):
+    """
+    Calculates the Winkler Score for prediction intervals.
+    Penalizes for both the width of the interval and the distance of the true value
+    from the interval if the interval does not contain the true value.
+    """
     interval_width = upper_bounds - lower_bounds
     penalties = (2 / alpha) * (
         (lower_bounds - y_true) * (y_true < lower_bounds)
@@ -614,6 +620,14 @@ for entry in preds_per_model:
             y_test_actual, entry["mean_pred"], entry["volatility_pred"]
         )
 
+    # Calculate quantile loss
+    entry["quantile_loss"] = np.mean(
+        np.maximum(
+            y_test_actual - entry["upper_bounds"],
+            entry["lower_bounds"] - y_test_actual,
+        )
+    )
+
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
     correlation = calculate_uncertainty_error_correlation(
@@ -641,6 +655,7 @@ results = {
     "Correlation (vol. vs. errors)": [],
     # "PICP/MPIW": [],
     "NLL": [],
+    "QL": [],
 }
 
 for entry in preds_per_model:
@@ -655,6 +670,7 @@ for entry in preds_per_model:
     )
     # results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
     results["NLL"].append(np.mean(entry["nll"]))
+    results["QL"].append(entry["quantile_loss"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -669,6 +685,7 @@ results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
 ].idxmax()
 # results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
+results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df

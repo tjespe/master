@@ -4,7 +4,7 @@ from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
-MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v2"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 
@@ -257,7 +257,7 @@ def get_mdn_kernel_initializer(n_mixtures):
         init_logits = tf.keras.initializers.RandomNormal(
             mean=1 / n_mixtures, stddev=1 / (n_mixtures * 3)
         )(shape=(input_dim, n_mixtures), dtype=dtype)
-        init_mu = tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.05)(
+        init_mu = tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01)(
             shape=(input_dim, n_mixtures), dtype=dtype
         )
         init_logvar = tf.keras.initializers.RandomNormal(mean=0.0, stddev=2)(
@@ -549,12 +549,12 @@ if os.path.exists(model_fname):
 # 5) Train
 # Start with a high learning rate, then reduce
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-2), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
+lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
+lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate again
@@ -593,7 +593,7 @@ for i in range(10):
     plotted_mixtures = 0
     for j in range(N_MIXTURES):
         weight = pi_pred[-i, j].numpy()
-        if weight < 0.01:
+        if weight < 0.001:
             continue
         plotted_mixtures += 1
         mu = mu_pred[-i, j]
@@ -641,7 +641,7 @@ intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 
 # %%
 # Plot time series with mean, volatility and actual returns for last 100 days
-days = 200
+days = 150
 shift = 500
 filtered_df = (
     df.xs(TEST_ASSET, level="Symbol")
