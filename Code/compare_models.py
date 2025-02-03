@@ -1,6 +1,11 @@
 # %%
 # Define parameters
+from shared.loss import mdn_loss_numpy
 from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+
+# %%
+# Defined which confidence level to use for prediction intervals
+CONFIDENCE_LEVEL = 0.05
 
 # %%
 import numpy as np
@@ -234,23 +239,23 @@ try:
 except FileNotFoundError:
     print("Monte Carlo LSTM w RVOL and VIX predictions not found")
 
-# Transformer MDN
-try:
-    transformer_mdn_preds = pd.read_csv(
-        f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-    )
-    preds_per_model.append(
-        {
-            "name": "Transformer MDN",
-            "mean_pred": transformer_mdn_preds["Mean_SP"].values,
-            "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
-            "LB_95": transformer_mdn_preds["LB_95"].values,
-            "UB_95": transformer_mdn_preds["UB_95"].values,
-            "nll": transformer_mdn_preds["NLL"].values.mean(),
-        }
-    )
-except FileNotFoundError:
-    print("Transformer MDN predictions not found")
+# # Transformer MDN
+# try:
+#     transformer_mdn_preds = pd.read_csv(
+#         f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+#     )
+#     preds_per_model.append(
+#         {
+#             "name": "Transformer MDN",
+#             "mean_pred": transformer_mdn_preds["Mean_SP"].values,
+#             "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+#             "LB_95": transformer_mdn_preds["LB_95"].values,
+#             "UB_95": transformer_mdn_preds["UB_95"].values,
+#             "nll": transformer_mdn_preds["NLL"].values.mean(),
+#         }
+#     )
+# except FileNotFoundError:
+#     print("Transformer MDN predictions not found")
 
 # Transformer MDN w MC Dropout
 try:
@@ -346,6 +351,27 @@ try:
     )
 except NameError:
     print("Ensemble cannot be created due to either GARCH or LSTM-MC missing")
+
+
+# LSTM MDN
+try:
+    lstm_mdn_preds = pd.read_csv(
+        f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM MDN",
+            "mean_pred": lstm_mdn_preds["Mean_SP"].values,
+            "volatility_pred": lstm_mdn_preds["Vol_SP"].values,
+            "LB_95": lstm_mdn_preds["LB_95"].values,
+            "UB_95": lstm_mdn_preds["UB_95"].values,
+            "nll": lstm_mdn_preds["NLL"].values.mean(),
+            "LB_99": lstm_mdn_preds["LB_99"].values,
+            "UB_99": lstm_mdn_preds["UB_99"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM MDN predictions not found")
 
 
 # %%
@@ -569,7 +595,6 @@ def interpret_christoffersen_test(result):
 
 # %%
 # Evaluate models
-alpha = 0.05
 y_test_actual = df_test["LogReturn"].values
 abs_returns_test = np.abs(y_test_actual)
 
@@ -581,7 +606,7 @@ for entry in preds_per_model:
     plot_mean_returns_prediction(entry, df_test)
 
     # Calculate prediction intervals
-    calculate_prediction_intervals(entry, alpha)
+    calculate_prediction_intervals(entry, CONFIDENCE_LEVEL)
 
     # Calculate PICP and MPIW
     picp, within_bounds = calculate_picp(
@@ -594,14 +619,16 @@ for entry in preds_per_model:
 
     # Calculate Interval Scores
     interval_score = calculate_interval_score(
-        y_test_actual, entry["lower_bounds"], entry["upper_bounds"], alpha
+        y_test_actual, entry["lower_bounds"], entry["upper_bounds"], CONFIDENCE_LEVEL
     )
     entry["interval_score"] = interval_score
 
     # Calculate NLL
     if "nll" not in entry:
-        nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
-        entry["nll"] = nll
+        # nll = calculate_nll(y_test_actual, entry["mean_pred"], entry["volatility_pred"])
+        entry["nll"] = mdn_loss_numpy(1)(
+            y_test_actual, np.array([entry["mean_pred"], entry["volatility_pred"]]).T
+        )
 
     # Uncertainty-Error Correlation
     interval_width = entry["upper_bounds"] - entry["lower_bounds"]
@@ -616,7 +643,7 @@ for entry in preds_per_model:
 
     # Christoffersen's Test
     exceedances = ~entry["within_bounds"]
-    christoffersen_result = christoffersen_test(exceedances, alpha)
+    christoffersen_result = christoffersen_test(exceedances, CONFIDENCE_LEVEL)
     entry["christoffersen_test"] = interpret_christoffersen_test(christoffersen_result)
 
     # Print Christoffersen's Test Results
@@ -638,7 +665,7 @@ results = {
 }
 
 for entry in preds_per_model:
-    picp_miss = 1 - alpha - entry["picp"]
+    picp_miss = 1 - CONFIDENCE_LEVEL - entry["picp"]
     results["Model"].append(entry["name"])
     results["PICP"].append(entry["picp"])
     results["PICP Miss"].append(picp_miss)
