@@ -25,21 +25,11 @@ from tensorflow.keras.layers import (
     Input,
     Dense,
     Dropout,
-    LayerNormalization,
-    Embedding,
-    GlobalAveragePooling1D,
     LSTM,
 )
 from tensorflow.keras.optimizers import Adam
 
-# We will use MultiHeadAttention from TF >= 2.4
-from tensorflow.keras.layers import MultiHeadAttention
-
-# For old TF versions, you'd need a custom MHA layer or upgrade TF
-# from tensorflow.keras.layers import MultiHeadAttention
-
 # External
-from sklearn.preprocessing import StandardScaler
 from scipy.optimize import brentq
 from scipy.stats import norm
 
