@@ -284,6 +284,21 @@ try:
 except FileNotFoundError:
     print("Transformer MDN w MC Dropout predictions not found")
 
+# MLP with MAF model
+try:
+    mlp_with_maf_preds = pd.read_csv(
+        f"predictions/mlp_maf_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "MLP with MAF",
+            "mean_pred": mlp_with_maf_preds["Mean_SP"].values,
+            "volatility_pred": mlp_with_maf_preds["Vol_SP"].values,
+        }
+    )
+except FileNotFoundError:
+    print("MLP with MAF predictions not found")
+
 if TEST_ASSET == "S&P":
     # VIX
     try:
