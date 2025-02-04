@@ -15,7 +15,7 @@ import warnings
 import os
 
 
-def get_lstm_train_test():
+def get_lstm_train_test(include_log_returns=False):
     """
     Prepare data for LSTM
     """
@@ -199,6 +199,9 @@ def get_lstm_train_test():
             )
         )
 
+        if include_log_returns:
+            data = np.hstack((data, returns))
+
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
             one_hot_sector = np.zeros((len(group), len(df["IDY_CODE"].unique())))
@@ -235,3 +238,30 @@ def get_lstm_train_test():
     print(f"y_test.shape: {y_test.shape}")
 
     return df, X_train, X_test, y_train, y_test
+
+
+def get_cgan_train_test():
+    df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=True)
+    # Normalize log squared returns and RVOL
+    scaling_mean = X_train[:, :, 0].mean()
+    scaling_std = X_train[:, :, 0].std()
+
+    # Normalize X[:, :, 0] (log squared returns) using y_train_mean and y_train_std
+    X_train[:, :, 0] = (X_train[:, :, 0] - scaling_mean) / scaling_std
+    X_test[:, :, 0] = (X_test[:, :, 0] - scaling_mean) / scaling_std
+
+    # Normalize RVOL (X[:, :, 2]) using y_train_mean and y_train_std
+    X_train[:, :, 2] = (X_train[:, :, 2] - scaling_mean) / scaling_std
+    X_test[:, :, 2] = (X_test[:, :, 2] - scaling_mean) / scaling_std
+
+    # Scale y and log returns by 100 to improve scale
+    y_train = y_train * 100
+    y_test = y_test * 100
+    X_train[:, :, 10] = X_train[:, :, 10] * 100
+
+    # Scale other features (except indicators) by 10 to improve scale
+    for i in range(3, 9):
+        X_train[:, :, i] = X_train[:, :, i] * 10
+        X_test[:, :, i] = X_test[:, :, i] * 10
+
+    return df, X_train, X_test, y_train, y_test, scaling_mean, scaling_std
