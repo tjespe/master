@@ -799,14 +799,14 @@ def plot_volatility_comparison(
         label="Absolute Returns",
         color="black",
     )
-    plt.plot(
-        returns_test.index[from_idx:to_idx],
-        rvol_vol_est[from_idx:to_idx],
-        label="True RVOL",
-        linestyle="--",
-        color="black",
-        linewidth=1,
-    )
+    # plt.plot(
+    #     returns_test.index[from_idx:to_idx],
+    #     rvol_vol_est[from_idx:to_idx],
+    #     label="True RVOL",
+    #     linestyle="--",
+    #     color="black",
+    #     linewidth=1,
+    # )
     mean_vol_pred = np.mean([model["volatility_pred"] for model in models], axis=0)
     colors = ["blue", "green", "orange", "red", "purple", "brown", "#337ab7", "pink"]
     for idx, model in enumerate(models):
