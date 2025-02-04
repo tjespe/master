@@ -521,8 +521,8 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
 
         # Set an initial search interval.
         s = np.max(stds)
-        low = np.min(means - 10 * stds)
-        high = np.max(means + 10 * stds)
+        low = -1
+        high = 1
 
         # Expand search interval if necessary.
         while mixture_cdf(low) > global_alpha:
@@ -667,6 +667,26 @@ plt.xlabel("LogReturn")
 plt.tight_layout()
 plt.show()
 
+# %%
+# Plot weights over time to show how they change
+plt.figure(figsize=(18, 8))
+dates = (
+    df.xs(TEST_ASSET, level="Symbol")
+    .loc[TRAIN_TEST_SPLIT:]
+    .index.get_level_values("Date")
+)
+for j in range(N_MIXTURES):
+    sum_over_time = np.sum(pi_pred[:, j], axis=0)
+    if sum_over_time < 0.01:
+        continue
+    plt.plot(dates, pi_pred[:, j], label=f"$\pi_{{{j}}}$")
+plt.gca().set_yticklabels(["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()])
+plt.title(f"Evolution of Mixture Weights for {TEST_ASSET}")
+plt.xlabel("Time")
+plt.ylabel("Weight")
+plt.legend()
+plt.show()
+
 
 # %%
 # Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
@@ -717,7 +737,7 @@ plt.axhline(
     alpha=0.5,
 )
 plt.gca().set_yticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"Lstm w MDN predictions, {days} days")
+plt.title(f"LSTM w MDN predictions for {TEST_ASSET}, {days} days")
 plt.xlabel("Date")
 plt.ylabel("LogReturn")
 plt.legend()
