@@ -115,6 +115,18 @@ df
 df = df.join(vix_df, how="left", rsuffix="_VIX")
 
 # %%
+# If we are looking at stocks, enrich with industry codes
+if DATA_PATH == "data/sp500_stocks.csv":
+    meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+    meta_df = meta_df.set_index("Symbol")
+    df = df.join(meta_df, how="left", rsuffix="_META")
+
+    # Check for nans
+    nan_mask = df[["GICS Sector"]].isnull().sum(axis=1).gt(0)
+    nan_rows = df[nan_mask]
+    nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count()
+
+# %%
 # Check for NaN values
 nan_mask = df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)
 df[nan_mask]
@@ -148,6 +160,11 @@ X_train = []
 X_test = []
 y_train = []
 y_test = []
+
+# If we have GICS sectors, add them as a one-hot encoded feature
+if "GICS Sector" in df.columns:
+    df["GICS Sector"] = df["GICS Sector"].astype("str")
+    df["IDY_CODE"] = df["GICS Sector"].astype("category").cat.codes
 
 # Group by symbol to handle each instrument separately
 for symbol, group in df.groupby(level="Symbol"):
@@ -208,6 +225,12 @@ for symbol, group in df.groupby(level="Symbol"):
             next_day_trading_day,
         )
     )
+
+    # If we have GICS sectors, add them as a feature
+    if "IDY_CODE" in group.columns:
+        one_hot_sector = np.zeros((len(group), len(df["IDY_CODE"].unique())))
+        one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
+        data = np.hstack((data, one_hot_sector))
 
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
@@ -634,7 +657,9 @@ for i in range(10):
     plt.gca().set_xticklabels(
         ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
     )
-    plt.title(f"{timestamp.strftime('%Y-%m-%d')} - Predicted Distribution")
+    plt.title(
+        f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
+    )
     if plotted_mixtures < 10:
         plt.legend()
     plt.ylabel("Density")
