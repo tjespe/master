@@ -305,3 +305,4 @@ os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
     f"predictions/mlp_maf_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
+# %%

@@ -616,6 +616,9 @@ def interpret_christoffersen_test(result):
         }
     )
 
+def calculate_rmse(y_true, y_pred):
+    return np.sqrt(np.mean((y_true - y_pred) ** 2))
+
 
 # %%
 # Evaluate models
@@ -647,6 +650,9 @@ for entry in preds_per_model:
     )
     entry["interval_score"] = interval_score
 
+    # Calculate RMSE
+    rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
+    entry["rmse"] = rmse
     # Calculate NLL
     if "nll" not in entry:
         entry["nll"] = nll_loss_mean_and_vol(
@@ -707,6 +713,7 @@ results = {
     "QL": [],
     "CRPS": [],
     "Lopez Loss": [],
+    "RMSE": [],
 }
 
 for entry in preds_per_model:
@@ -724,6 +731,7 @@ for entry in preds_per_model:
     results["QL"].append(entry["quantile_loss"])
     results["CRPS"].append(entry["crps"])
     results["Lopez Loss"].append(entry["lopez_loss"])
+    results["RMSE"].append(entry["rmse"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -741,6 +749,7 @@ results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
+results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results.csv")
 results_df
