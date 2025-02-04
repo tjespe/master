@@ -596,14 +596,17 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 # Plot 10 charts with the distributions for 10 random days
 plt.figure(figsize=(10, 40))
 np.random.seed(0)
-for i in range(10):
+days = np.random.randint(0, len(y_test), 10)
+days = np.sort(days)[::-1]
+for i, day in enumerate(days):
     plt.subplot(10, 1, i + 1)
-    i = np.random.randint(0, len(y_test))
-    timestamp = df.index[-i][0]
+    timestamp = df.index[-day][0]
     x_min = -0.1
     x_max = 0.1
     x_vals = np.linspace(x_min, x_max, 1000)
-    mixture_pdf = compute_mixture_pdf(x_vals, pi_pred[-i], mu_pred[-i], sigma_pred[-i])
+    mixture_pdf = compute_mixture_pdf(
+        x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+    )
     plt.fill_between(
         x_vals,
         np.zeros_like(x_vals),
@@ -614,21 +617,21 @@ for i in range(10):
     )
     plotted_mixtures = 0
     for j in range(N_MIXTURES):
-        weight = pi_pred[-i, j].numpy()
+        weight = pi_pred[-day, j].numpy()
         if weight < 0.001:
             continue
         plotted_mixtures += 1
-        mu = mu_pred[-i, j]
-        sigma = sigma_pred[-i, j]
+        mu = mu_pred[-day, j]
+        sigma = sigma_pred[-day, j]
         pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
         plt.plot(x_vals, pdf, label=f"$\pi_{{{j}}}$ = {weight*100:.2f}%")
-    plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
+    plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
-        np.array(pi_pred[-i]),
-        np.array(mu_pred[-i]),
-        np.array(sigma_pred[-i]),
+        np.array(pi_pred[-day]),
+        np.array(mu_pred[-day]),
+        np.array(sigma_pred[-day]),
         range_factor=3,
     )
     plt.axvline(
