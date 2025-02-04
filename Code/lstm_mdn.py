@@ -633,7 +633,7 @@ for i in range(10):
         pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
-        plt.plot(x_vals, pdf, label=f"$\pi$ = {weight*100:.2f}%")
+        plt.plot(x_vals, pdf, label=f"$\pi_{{{j}}}$ = {weight*100:.2f}%")
     plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-i]),
