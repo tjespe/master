@@ -1,6 +1,8 @@
 # %%
 # Define parameters (imported from your settings)
 from shared.numerical_mixture_moments import numerical_mixture_moments
+from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.crps import crps_mdn_numpy
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
@@ -111,6 +113,18 @@ df
 df = df.join(vix_df, how="left", rsuffix="_VIX")
 
 # %%
+# If we are looking at stocks, enrich with industry codes
+if DATA_PATH == "data/sp500_stocks.csv":
+    meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+    meta_df = meta_df.set_index("Symbol")
+    df = df.join(meta_df, how="left", rsuffix="_META")
+
+    # Check for nans
+    nan_mask = df[["GICS Sector"]].isnull().sum(axis=1).gt(0)
+    nan_rows = df[nan_mask]
+    nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count()
+
+# %%
 # Check for NaN values
 nan_mask = df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)
 df[nan_mask]
@@ -139,11 +153,16 @@ df["NextDayTradingDay"]
 df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
 
 # %%
-# Prepare data for LSTM
+# Prepare data for Transformer
 X_train = []
 X_test = []
 y_train = []
 y_test = []
+
+# If we have GICS sectors, add them as a one-hot encoded feature
+if "GICS Sector" in df.columns:
+    df["GICS Sector"] = df["GICS Sector"].astype("str")
+    df["IDY_CODE"] = df["GICS Sector"].astype("category").cat.codes
 
 # Group by symbol to handle each instrument separately
 for symbol, group in df.groupby(level="Symbol"):
@@ -205,6 +224,12 @@ for symbol, group in df.groupby(level="Symbol"):
         )
     )
 
+    # If we have GICS sectors, add them as a feature
+    if "IDY_CODE" in group.columns:
+        one_hot_sector = np.zeros((len(group), len(df["IDY_CODE"].unique())))
+        one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
+        data = np.hstack((data, one_hot_sector))
+
     # Create training sequences of length 'sequence_length'
     for i in range(LOOKBACK_DAYS, train_test_split_index):
         X_train.append(data[i - LOOKBACK_DAYS : i])
@@ -236,37 +261,58 @@ print(f"y_test.shape: {y_test.shape}")
 
 
 # %%
-# Mixture Density Network loss for univariate mixtures
-def mdn_loss(num_mixtures):
+def get_mdn_kernel_initializer(n_mixtures):
     """
-    Negative log-likelihood for a mixture of Gaussians (univariate).
-    Output shape: (batch_size, 3*num_mixtures)
-      => we parse [logits_pi, mu, log_var].
+    Returns a custom initializer for the MDN output layer.
+    The weight matrix is divided into three parts (columns):
+      - First n_mixtures: for logits
+      - Second n_mixtures: for mu's
+      - Third n_mixtures: for log-variances
     """
 
-    def loss_fn(y_true, y_pred):
-        # parse
-        logits_pi = y_pred[:, :num_mixtures]
-        mu = y_pred[:, num_mixtures : 2 * num_mixtures]
-        log_var = y_pred[:, 2 * num_mixtures :]
+    def mdn_kernel_initializer(shape, dtype=None, partition_info=None):
+        # Expecting shape = (input_dim, 3 * n_mixtures)
+        input_dim, total_units = shape
+        if total_units != 3 * n_mixtures:
+            raise ValueError("The output dimension does not equal 3 * n_mixtures.")
 
-        pi = tf.nn.softmax(logits_pi, axis=-1)
-        sigma = tf.exp(0.5 * log_var)  # interpret as log-variance
-
-        # expand dims for broadcast (B,) -> (B,1)
-        y_true = tf.expand_dims(y_true, axis=-1)
-
-        # gaussian pdf for each mixture component
-        normal_dist = (1.0 / (sigma * tf.sqrt(2.0 * np.pi))) * tf.exp(
-            -0.5 * ((y_true - mu) / sigma) ** 2
+        # Initialize the three parts:
+        init_logits = tf.keras.initializers.RandomNormal(
+            mean=1 / n_mixtures, stddev=1 / (n_mixtures * 3)
+        )(shape=(input_dim, n_mixtures), dtype=dtype)
+        init_mu = tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01)(
+            shape=(input_dim, n_mixtures), dtype=dtype
         )
-        weighted_pdf = pi * normal_dist
-        pdf_sum = tf.reduce_sum(weighted_pdf, axis=1) + 1e-12  # avoid log(0)
+        init_logvar = tf.keras.initializers.RandomNormal(mean=0.0, stddev=2)(
+            shape=(input_dim, n_mixtures), dtype=dtype
+        )
 
-        nll = -tf.math.log(pdf_sum)
-        return tf.reduce_mean(nll)
+        # Concatenate them along the last axis (columns)
+        kernel = tf.concat([init_logits, init_mu, init_logvar], axis=-1)
+        return kernel
 
-    return loss_fn
+    return mdn_kernel_initializer
+
+
+def get_mdn_bias_initializer(n_mixtures, logvar_bias=-9):
+    """
+    Custom initializer for the MDN output layer's bias.
+    The bias vector is of shape (3 * n_mixtures,). We set:
+      - The first n_mixtures (logits) to 0,
+      - The next n_mixtures (mu) to 0,
+      - The last n_mixtures (log-variance) to logvar_bias.
+    """
+
+    def mdn_bias_initializer(shape, dtype=None, partition_info=None):
+        if shape[0] != 3 * n_mixtures:
+            raise ValueError("Bias shape must be (3 * n_mixtures,)")
+        bias = np.zeros((3 * n_mixtures,), dtype=np.float32)
+        bias[2 * n_mixtures :] = (
+            logvar_bias  # Set log-variance bias to -8.5 (or another value if desired)
+        )
+        return tf.convert_to_tensor(bias, dtype=dtype)
+
+    return mdn_bias_initializer
 
 
 # %%
@@ -321,8 +367,18 @@ def build_transformer_mdn(
     # Global average pooling (or take last time step)
     x = GlobalAveragePooling1D()(x)
 
+    # Create initializers for MDN output layer
+    mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
+    mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
+
     # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
-    mdn_output = Dense(3 * n_mixtures, activation=None, name="mdn_output")(x)
+    mdn_output = Dense(
+        3 * n_mixtures,
+        activation=None,
+        name="mdn_output",
+        kernel_initializer=mdn_kernel_init,
+        bias_initializer=mdn_bias_init,
+    )(x)
 
     model = Model(inputs=inputs, outputs=mdn_output)
     return model
@@ -344,8 +400,10 @@ def parse_mdn_output(mdn_out, n_mixtures):
     return pi, mu, sigma
 
 
-def mixture_mean_and_var(pi, mu, sigma):
+def univariate_mixture_mean_and_var(pi, mu, sigma):
     """
+    Creates a univariate approximation of the mixture distribution.
+
     For univariate mixture:
       mixture_mean = sum(pi_k * mu_k)
       mixture_var  = sum(pi_k * (sigma_k^2 + mu_k^2)) - mixture_mean^2
@@ -383,7 +441,7 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
         pi, mu, sigma = parse_mdn_output(mdn_out, n_mixtures)
 
         # compute mixture mean & var for each sample
-        mean_s, var_s = mixture_mean_and_var(pi, mu, sigma)
+        mean_s, var_s = univariate_mixture_mean_and_var(pi, mu, sigma)
         mc_means.append(mean_s.numpy())
         mc_vars.append(var_s.numpy())
 
@@ -413,189 +471,37 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
 
 
 # %%
-# 1) Inspect shapes
-print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
+def compute_mixture_pdf(x_vals, pi, mu, sigma):
+    """
+    Compute the PDF of a mixture of normals at given x values.
 
-# %%
-# 2) Build model
-N_MIXTURES = 5
-transformer_mdn_model = build_transformer_mdn(
-    lookback_days=LOOKBACK_DAYS,
-    num_features=X_train.shape[2],  # 2 features in our example
-    d_model=64,
-    num_heads=4,
-    num_layers=2,
-    ff_dim=128,
-    dropout=0.1,
-    n_mixtures=N_MIXTURES,
-)
+    Parameters:
+      x_vals : np.ndarray
+          1D array of x values at which to evaluate the PDF.
+      pi : np.ndarray
+          1D array of mixture weights (should sum to 1).
+      mu : np.ndarray
+          1D array of means for each mixture component.
+      sigma : np.ndarray
+          1D array of standard deviations for each mixture component.
 
-# %%
-# 4) Load existing model if it exists
-model_fname = f"models/{MODEL_NAME}.keras"
-if os.path.exists(model_fname):
-    transformer_mdn_model = tf.keras.models.load_model(
-        model_fname, custom_objects={"loss_fn": mdn_loss(N_MIXTURES)}, compile=False
+    Returns:
+      np.ndarray: PDF values evaluated at x_vals.
+    """
+    # Ensure arrays are numpy arrays in case they're not already.
+    pi, mu, sigma = np.asarray(pi), np.asarray(mu), np.asarray(sigma)
+
+    # Evaluate each component's pdf; shape will be (n_components, len(x_vals))
+    component_pdfs = (1 / (sigma[:, None] * np.sqrt(2 * np.pi))) * np.exp(
+        -0.5 * ((x_vals - mu[:, None]) / sigma[:, None]) ** 2
     )
-    # Re-compile
-    transformer_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss(N_MIXTURES)
-    )
-    print("Loaded pre-trained model from disk.")
 
-# %%
-# 5) Train
-# Start with a high learning rate, then reduce
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-2), loss=mdn_loss(N_MIXTURES)
-)
-transformer_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
-
-# %%
-# Reduce learning rate
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-3), loss=mdn_loss(N_MIXTURES)
-)
-transformer_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
-
-# %%
-# Reduce learning rate again
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4), loss=mdn_loss(N_MIXTURES)
-)
-transformer_mdn_model.fit(X_train, y_train, epochs=20, batch_size=32, verbose=1)
-
-# %%
-# 6) Save
-transformer_mdn_model.save(model_fname)
-
-# %%
-# 7) Single-pass predictions
-y_pred_mdn = transformer_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
-pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
-# For reference, compute mixture means & variances
-mixture_mean_sp, mixture_var_sp = mixture_mean_and_var(pi_pred, mu_pred, sigma_pred)
-mixture_mean_sp = mixture_mean_sp.numpy()
-mixture_std_sp = np.sqrt(mixture_var_sp.numpy())
-
-# %%
-# Plot 10 charts with the distributions for 10 random days
-plt.figure(figsize=(10, 40))
-np.random.seed(0)
-for i in range(10):
-    plt.subplot(10, 1, i + 1)
-    i = np.random.randint(0, len(y_test))
-    timestamp = df.index[-i][0]
-    mu_m = mixture_mean_sp[-i]
-    sigma_m = mixture_std_sp[-i]
-    x_min = -0.1
-    x_max = 0.1
-    x_vals = np.linspace(x_min, x_max, 1000)
-    mixture_pdf = (1 / (sigma_m * np.sqrt(2 * np.pi))) * np.exp(
-        -0.5 * ((x_vals - mu_m) / sigma_m) ** 2
-    )
-    plt.fill_between(
-        x_vals,
-        np.zeros_like(x_vals),
-        mixture_pdf,
-        color="blue",
-        label="Mixture",
-        alpha=0.5,
-    )
-    for j in range(N_MIXTURES):
-        weight = pi_pred[-i, j].numpy()
-        mu = mu_pred[-i, j]
-        sigma = sigma_pred[-i, j]
-        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
-            -0.5 * ((x_vals - mu) / sigma) ** 2
-        )
-        plt.plot(x_vals, pdf, label=f"$\pi$ = {weight*100:.2f}%")
-    plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
-    plt.axvline(
-        mixture_mean_sp[-i], color="black", linestyle="--", label="Predicted Mean"
-    )
-    moment_estimates = numerical_mixture_moments(
-        np.array(pi_pred[-i]),
-        np.array(mu_pred[-i]),
-        np.array(sigma_pred[-i]),
-        range_factor=3,
-    )
-    plt.text(
-        x_min + 0.01,
-        5,
-        f"Mean: {mu_m*100:.2f}%\n"
-        f"Std: {sigma_m*100:.2f}%\n"
-        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
-        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
-        f"* Numerically estimated",
-        fontsize=10,
-    )
-    plt.gca().set_xticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-    )
-    plt.title(f"{timestamp.strftime('%Y-%m-%d')} - Predicted Distribution")
-    plt.legend()
-    plt.ylabel("Density")
-plt.xlabel("LogReturn")
-plt.tight_layout()
-plt.show()
-
-# %%
-# Plot time series with mean, volatility and actual returns for last 100 days
-days = 200
-shift = 500
-filtered_df = (
-    df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_TEST_SPLIT:]
-    .tail(days + shift)
-    .head(days)
-)
-filtered_mix_mean = mixture_mean_sp[-days - shift : -shift]
-filtered_mix_std = mixture_std_sp[-days - shift : -shift]
-
-plt.figure(figsize=(12, 6))
-plt.plot(
-    filtered_df.index,
-    filtered_df["LogReturn"],
-    label="Actual Returns",
-    color="black",
-    alpha=0.5,
-)
-plt.plot(filtered_df.index, filtered_mix_mean, label="Predicted Mean", color="blue")
-plt.fill_between(
-    filtered_df.index,
-    filtered_mix_mean - filtered_mix_std,
-    filtered_mix_mean + filtered_mix_std,
-    color="blue",
-    alpha=0.5,
-    label="±1 aleatoric SD Interval",
-)
-plt.fill_between(
-    filtered_df.index,
-    filtered_mix_mean - 2 * filtered_mix_std,
-    filtered_mix_mean + 2 * filtered_mix_std,
-    color="blue",
-    alpha=0.2,
-    label="±2 aleatoric SD Interval",
-)
-plt.axhline(
-    filtered_df["LogReturn"].mean(),
-    color="red",
-    linestyle="--",
-    label="True mean return across time",
-    alpha=0.5,
-)
-plt.gca().set_yticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"Transformer + MDN predictions, {days} days")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
+    # Weight each component and sum over components.
+    return np.sum(pi[:, None] * component_pdfs, axis=0)
 
 
 # %%
-def calculate_interval(pis, mus, sigmas, confidence_levels):
+def calculate_intervals(pis, mus, sigmas, confidence_levels):
     """
     Calculate the (lower, upper) quantile intervals for a Gaussian mixture for several
     confidence levels simultaneously.
@@ -666,17 +572,206 @@ def calculate_interval(pis, mus, sigmas, confidence_levels):
 
 
 # %%
-# Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.67, 0.95, 0.975, 0.99]
-intervals = calculate_interval(pi_pred, mu_pred, sigma_pred, confidence_levels)
+# 1) Inspect shapes
+print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
+print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
+# %%
+# 2) Build model
+N_MIXTURES = 5
+transformer_mdn_model = build_transformer_mdn(
+    lookback_days=LOOKBACK_DAYS,
+    num_features=X_train.shape[2],  # 2 features in our example
+    dropout=0.1,
+    n_mixtures=N_MIXTURES,
+)
+
+# %%
+# 4) Load existing model if it exists
+model_fname = f"models/{MODEL_NAME}.keras"
+if os.path.exists(model_fname):
+    mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
+    mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
+    transformer_mdn_model = tf.keras.models.load_model(
+        model_fname,
+        custom_objects={
+            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "mdn_kernel_initializer": mdn_kernel_initializer,
+            "mdn_bias_initializer": mdn_bias_initializer,
+        },
+    )
+    # Re-compile
+    transformer_mdn_model.compile(
+        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+    )
+    print("Loaded pre-trained model from disk.")
+
+# %%
+# 5) Train
+# Start with a high learning rate, then reduce
+transformer_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-2), loss=mdn_loss_tf(N_MIXTURES)
+)
+transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+
+# %%
+# Reduce learning rate
+transformer_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+)
+transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+
+# %%
+# Reduce learning rate again
+transformer_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
+)
+transformer_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+
+# %%
+# 6) Save
+transformer_mdn_model.save(model_fname)
+
+# %%
+# 7) Single-pass predictions
+y_pred_mdn = transformer_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
+pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
+
+# %%
+# Plot 10 charts with the distributions for 10 random days
+plt.figure(figsize=(10, 40))
+np.random.seed(0)
+for i in range(10):
+    plt.subplot(10, 1, i + 1)
+    i = np.random.randint(0, len(y_test))
+    timestamp = df.index[-i][0]
+    x_min = -0.1
+    x_max = 0.1
+    x_vals = np.linspace(x_min, x_max, 1000)
+    mixture_pdf = compute_mixture_pdf(x_vals, pi_pred[-i], mu_pred[-i], sigma_pred[-i])
+    plt.fill_between(
+        x_vals,
+        np.zeros_like(x_vals),
+        mixture_pdf,
+        color="blue",
+        label="Mixture",
+        alpha=0.5,
+    )
+    plotted_mixtures = 0
+    for j in range(N_MIXTURES):
+        weight = pi_pred[-i, j].numpy()
+        if weight < 0.001:
+            continue
+        plotted_mixtures += 1
+        mu = mu_pred[-i, j]
+        sigma = sigma_pred[-i, j]
+        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
+            -0.5 * ((x_vals - mu) / sigma) ** 2
+        )
+        plt.plot(x_vals, pdf, label=f"$\pi_{{{j}}}$ = {weight*100:.2f}%")
+    plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
+    moment_estimates = numerical_mixture_moments(
+        np.array(pi_pred[-i]),
+        np.array(mu_pred[-i]),
+        np.array(sigma_pred[-i]),
+        range_factor=3,
+    )
+    plt.axvline(
+        moment_estimates["mean"], color="black", linestyle="--", label="Predicted Mean"
+    )
+    plt.text(
+        x_min + 0.01,
+        5,
+        f"Mean: {moment_estimates['mean']*100:.2f}%\n"
+        f"Std: {moment_estimates['std']*100:.2f}%\n"
+        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
+        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
+        f"* Numerically estimated",
+        fontsize=10,
+    )
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.title(
+        f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
+    )
+    if plotted_mixtures < 10:
+        plt.legend()
+    plt.ylabel("Density")
+plt.xlabel("LogReturn")
+plt.tight_layout()
+plt.show()
+
+
+# %%
+# Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
+confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
+
+# %%
+# Plot time series with mean, volatility and actual returns for last 100 days
+days = 150
+shift = 500
+filtered_df = (
+    df.xs(TEST_ASSET, level="Symbol")
+    .loc[TRAIN_TEST_SPLIT:]
+    .tail(days + shift)
+    .head(days)
+)
+filtered_intervals = intervals[-days - shift : -shift]
+mean = (pi_pred * mu_pred).numpy().sum(axis=1)
+filtered_mean = mean[-days - shift : -shift]
+
+plt.figure(figsize=(12, 6))
+plt.plot(
+    filtered_df.index,
+    filtered_df["LogReturn"],
+    label="Actual Returns",
+    color="black",
+    alpha=0.5,
+)
+plt.plot(filtered_df.index, filtered_mean, label="Predicted Mean", color="red")
+median = filtered_intervals[:, 0, 0]
+plt.plot(filtered_df.index, median, label="Median", color="blue")
+for i, cl in enumerate(confidence_levels):
+    if cl == 0:
+        continue
+    plt.fill_between(
+        filtered_df.index,
+        filtered_intervals[:, i, 0],
+        filtered_intervals[:, i, 1],
+        color="blue",
+        alpha=0.7 - i * 0.1,
+        label=f"{int(100*cl)}% Interval",
+    )
+plt.axhline(
+    filtered_df["LogReturn"].mean(),
+    color="red",
+    linestyle="--",
+    label="True mean return across time",
+    alpha=0.5,
+)
+plt.gca().set_yticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()])
+plt.title(f"Lstm w MDN predictions, {days} days")
+plt.xlabel("Date")
+plt.ylabel("LogReturn")
+plt.legend()
+plt.show()
 
 # %%
 # 8) Store single-pass predictions
 df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Mean_SP"] = mixture_mean_sp
-df_test["Vol_SP"] = mixture_std_sp
-df_test["NLL"] = mdn_loss(N_MIXTURES)(y_test, y_pred_mdn).numpy()
+# For reference, compute mixture means & variances
+uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(
+    pi_pred, mu_pred, sigma_pred
+)
+uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
+uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
+df_test["Mean_SP"] = uni_mixture_mean_sp
+df_test["Vol_SP"] = uni_mixture_std_sp
+df_test["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+crps = crps_mdn_numpy(N_MIXTURES)
+df_test["CRPS"] = crps(y_test, y_pred_mdn)
 
 for i, cl in enumerate(confidence_levels):
     df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
@@ -684,7 +779,7 @@ for i, cl in enumerate(confidence_levels):
 
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
 # %%
@@ -699,7 +794,7 @@ df_test["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_esti
 df_test["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
 
 df_test.to_csv(
-    f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
 # %%
@@ -749,7 +844,7 @@ plt.bar(
     color="red",
     label="Epistemic Uncertainty (MC)",
 )
-plt.title(f"Transformer + MDN (MC Dropout) intervals, last {lookback_days_plot} points")
+plt.title(f"transformer + MDN (MC Dropout) intervals, last {lookback_days_plot} points")
 plt.xlabel("Date")
 plt.ylabel("LogReturn")
 plt.legend()
