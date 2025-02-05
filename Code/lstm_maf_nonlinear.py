@@ -2,7 +2,7 @@
 # Define parameters
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
-MODEL_NAME = f"mlp_normalizing_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"lstm_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 
@@ -109,63 +109,67 @@ X_test.shape, y_test.shape
 
 # X_train, X_test = X_tensor[:split], X_tensor[split:]
 # y_train, y_test = y_tensor[:split], y_tensor[split:]
-# %%
-# Define the masked autoregressive flow network (MAF)
-class MaskedAutoregressiveFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_flows):
-        super(MaskedAutoregressiveFlow, self).__init__()
-        self.n_flows = n_flows
-        self.flows = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(input_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, 2 * input_dim)  # Outputting both mu and log_sigma
-            ) for _ in range(n_flows)
-        ])
-        self.base_dist = Normal(0, 1)
 
+# %%
+# Define the LSTM-Based Masked Autoregressive Flow
+class LSTMConditioningNetwork(nn.Module):
+    def __init__(self, input_dim, hidden_dim, lstm_layers=2):
+        super(LSTMConditioningNetwork, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, lstm_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, 2)  # Output mu and log_sigma
+    
     def forward(self, x):
-        log_det_jacobian = 0
-        for flow in self.flows:
-            params = flow(x)
-            mu, log_sigma = params.chunk(2, dim=-1)
-            sigma = torch.exp(log_sigma)
-            x = (x - mu) / sigma  # Inverse transformation
-            log_det_jacobian -= log_sigma.sum(dim=-1)
-        return x, log_det_jacobian
+        _, (h_n, _) = self.lstm(x)  # Get last hidden state
+        params = self.fc(h_n[-1])   # Pass through linear layer
+        return params.chunk(2, dim=-1)  # Split into mu and log_sigma
+    
+# %% 
+# Define LSTM flow
+class LSTMFlow(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super(LSTMFlow, self).__init__()
+        self.conditioner = LSTMConditioningNetwork(input_dim, hidden_dim)
+
+    def forward(self, y, x):
+        mu, log_sigma = self.conditioner(x)
+        log_sigma = torch.clamp(log_sigma, min=-3, max=3)  # Tighter range
+        sigma = torch.exp(log_sigma)            
+
+        z = (y - mu) / sigma
+        log_det_jacobian = -log_sigma.sum(dim=-1)  # Corrected dimension
+        return z, log_det_jacobian
 
     def inverse(self, z, x):
-        for flow in reversed(self.flows):
-            params = flow(x)
-            mu, log_sigma = params.chunk(2, dim=-1)
-            sigma = torch.exp(log_sigma)
-            z = z * sigma + mu  # Forward transformation
-        return z
+        mu, log_sigma = self.conditioner(x)
+        sigma = torch.exp(log_sigma)
+        z = torch.tanh(z)
+        z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
+        y = z * sigma + mu
+        return y
 
+# %%
+# Define the masked autoregressive flow network (MAF)
+class LSTMMaskedAutoregressiveFlow(nn.Module):
+    def __init__(self, input_dim, hidden_dim, n_flows):
+        super(LSTMMaskedAutoregressiveFlow, self).__init__()
+        self.flows = nn.ModuleList([LSTMFlow(input_dim, hidden_dim) for _ in range(n_flows)])
+        self.base_dist = Normal(0, 1)
+    
     def log_prob(self, y, x):
         log_det_jacobian = 0
-        z = y.unsqueeze(1)  # Ensure z has the correct shape (batch_size, 1)
-
-        # Apply each flow conditioned on x
+        z = y.unsqueeze(1)
         for flow in self.flows:
-            params = flow(x)  # Conditioning on features x
-            mu, log_sigma = params.chunk(2, dim=-1)
-            sigma = torch.exp(log_sigma)
-
-            # Transform y into z using mu and sigma
-            z = (z - mu) / sigma
-            log_det_jacobian -= log_sigma.sum(dim=-1)
-
-        # Compute log-probability of z under the base distribution
+            z, log_det = flow(z, x)
+            log_det_jacobian += log_det
         log_prob = self.base_dist.log_prob(z).sum(dim=-1) + log_det_jacobian
         return log_prob
 
     def sample(self, x, num_samples=1000):
-        z = self.base_dist.sample((num_samples, x.shape[1]))
-        return self.inverse(z, x)
-    
+        z = self.base_dist.sample((num_samples, 1))
+        for flow in reversed(self.flows):
+            z = flow.inverse(z, x)
+        return z
+
 
 # %%
 # Define the model
@@ -175,14 +179,16 @@ input_dim = X_train.shape[-1]
 print("Input dimension:", input_dim)
 # %%
 # Initialize the model
-model = MaskedAutoregressiveFlow(input_dim, hidden_dim, n_flows)
+model = LSTMMaskedAutoregressiveFlow(input_dim, hidden_dim, n_flows)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
 
 # %%
 # Train the model
 # Learning rate schedule
-learning_rates = [0.01, 0.005, 0.001]  # Starting high, then reducing
-epochs = [100, 500, 1000]  # Number of epochs for each learning rate
+learning_rates = [1e-3, 1e-4, 1e-5]
+epochs = [15, 50, 50]
+ # Number of epochs for each learning rate
 
 # Training Loop with Learning Rate Decay
 for i in range(len(learning_rates)):
@@ -193,6 +199,9 @@ for i in range(len(learning_rates)):
         log_prob = model.log_prob(y_train, X_train)
         loss = -log_prob.mean()  # Negative log-likelihood
         loss.backward()
+        # Gradient clipping to prevent exploding gradients
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         optimizer.step()
         print(f'Learning Rate: {learning_rates[i]}, Epoch: {epoch + 1}, Loss: {loss.item()}')
 
@@ -213,9 +222,10 @@ for idx in random_indices:
     actual_return = y_test[idx].item()          # Actual next-day return
 
     # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=1000)
+    samples = model.sample(x=specific_sample, num_samples=10000)
     predicted_return = samples.mean().item()    # Mean of predicted distribution
 
+    print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
     # Analyzing Results
     plt.figure(figsize=(8, 4))
     plt.hist(samples.detach().numpy().flatten(), bins=50, density=True, alpha=0.6, label='Predicted Distribution')
@@ -231,7 +241,7 @@ specific_sample = X_test[-1].unsqueeze(0)  # Select the last test sample
 actual_return = y_test[-1].item()          # Actual next-day return
 
 # Generate predicted return distribution
-samples = model.sample(x=specific_sample, num_samples=1000)
+samples = model.sample(x=specific_sample, num_samples=5000)
 predicted_return = samples.mean().item()    # Mean of predicted distribution
 
 # Analyzing Results
@@ -249,7 +259,7 @@ actual_returns = y_test.numpy().flatten()
 
 for i in range(len(X_test)):
     specific_sample = X_test[i].unsqueeze(0)
-    samples = model.sample(x=specific_sample, num_samples=1000)
+    samples = model.sample(x=specific_sample, num_samples=5000)
     predicted_return = samples.mean().item()
     predicted_std = samples.std().item()
     predicted_stds.append(predicted_std)
@@ -294,6 +304,6 @@ df_test
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/mlp_maf_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/lstm_maf_non_linear_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 # %%

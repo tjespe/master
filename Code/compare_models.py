@@ -16,6 +16,7 @@ EXCLUDE_MODELS = [
     "Yesterday's RVOL",
     "Transformer MDN w MC Dropout",
     "Transformer MDN",
+    "MLP with MAF",
 ]
 
 # %%
@@ -298,6 +299,23 @@ try:
     )
 except FileNotFoundError:
     print("MLP with MAF predictions not found")
+
+    
+
+    # MLP with MAF non-linear flows
+try:
+    mlp_with_maf_non_linear_preds = pd.read_csv(
+        f"predictions/mlp_maf_non_linear_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    )
+    preds_per_model.append(
+        {
+            "name": "MLP with MAF non-linear flows",
+            "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
+            "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
+        }
+    )
+except FileNotFoundError:
+    print("MLP with MAF non-linear flows predictions not found")
 
 if TEST_ASSET == "S&P":
     # VIX
