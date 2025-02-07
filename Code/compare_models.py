@@ -300,8 +300,6 @@ try:
 except FileNotFoundError:
     print("MLP with MAF predictions not found")
 
-    
-
     # MLP with MAF non-linear flows
 try:
     mlp_with_maf_non_linear_preds = pd.read_csv(
@@ -449,7 +447,7 @@ def plot_volatility_prediction(model, df_test, abs_returns_test):
     plt.ylabel("Volatility")
     plt.legend()
     plt.savefig(
-        f"results/{model['name'].replace(' ', '_').replace('/', ':').lower()}.svg"
+        f"results/{model['name'].replace(' ', '_').replace('/', ':').lower()}_{TEST_ASSET}.svg"
     )
     plt.show()
 
@@ -634,6 +632,7 @@ def interpret_christoffersen_test(result):
         }
     )
 
+
 def calculate_rmse(y_true, y_pred):
     return np.sqrt(np.mean((y_true - y_pred) ** 2))
 
@@ -769,7 +768,7 @@ results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
 results_df = results_df.T
-results_df.to_csv(f"results/comp_results.csv")
+results_df.to_csv(f"results/comp_results_{TEST_ASSET}.csv")
 results_df
 
 # %%
@@ -824,7 +823,7 @@ rankings_df
 
 # %%
 # Save rankings to CSV
-rankings_df.to_csv(f"results/comp_rankings.csv")
+rankings_df.to_csv(f"results/comp_rankings_{TEST_ASSET}.csv")
 
 
 # %%
