@@ -14,6 +14,22 @@ import matplotlib.pyplot as plt
 import warnings
 import os
 
+# %%
+# Define consistent sector mapping for GICS
+GICS_SECTOR_MAPPING = {
+    "Communication Services": 0,
+    "Consumer Discretionary": 1,
+    "Consumer Staples": 2,
+    "Energy": 3,
+    "Financials": 4,
+    "Health Care": 5,
+    "Industrials": 6,
+    "Information Technology": 7,
+    "Materials": 8,
+    "Real Estate": 9,
+    "Utilities": 10,
+}
+
 
 def get_lstm_train_test(include_log_returns=False):
     """
@@ -134,10 +150,10 @@ def get_lstm_train_test(include_log_returns=False):
     y_train = []
     y_test = []
 
-    # If we have GICS sectors, add them as a one-hot encoded feature
+    # If we have GICS sectors, add consistently encoded industry codes (integers) that
+    # can be converted to one-hot vectors
     if "GICS Sector" in df.columns:
-        df["GICS Sector"] = df["GICS Sector"].astype("str")
-        df["IDY_CODE"] = df["GICS Sector"].astype("category").cat.codes
+        df["IDY_CODE"] = df["GICS Sector"].map(GICS_SECTOR_MAPPING)
 
     # Group by symbol to handle each instrument separately
     for symbol, group in df.groupby(level="Symbol"):
@@ -204,7 +220,8 @@ def get_lstm_train_test(include_log_returns=False):
 
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
-            one_hot_sector = np.zeros((len(group), len(df["IDY_CODE"].unique())))
+            num_sectors = 11  # There are 11 GICS sectors
+            one_hot_sector = np.zeros((len(group), num_sectors))
             one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
             data = np.hstack((data, one_hot_sector))
 
@@ -219,6 +236,7 @@ def get_lstm_train_test(include_log_returns=False):
                 X_test.append(data[i - LOOKBACK_DAYS : i])
                 y_test.append(returns[i, 0])
 
+    # %%
     # Convert X and y to numpy arrays
     X_train = np.array(X_train)
     X_test = np.array(X_test)
@@ -240,7 +258,12 @@ def get_lstm_train_test(include_log_returns=False):
     return df, X_train, X_test, y_train, y_test
 
 
+# %%
 def get_cgan_train_test():
+    """
+    Prepare data for CGAN
+    """
+    # %%
     df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=True)
     # Normalize log squared returns and RVOL
     scaling_mean = X_train[:, :, 0].mean()
