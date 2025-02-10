@@ -1,10 +1,14 @@
 # %%
 # Define parameters
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from scipy.stats import ks_2samp
 
-MODEL_NAME = f"lstm_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
+
+MODEL_NAME = f"mlp_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
+SPX_DATA_PATH = "data/SPX.csv"
+CURRENT_TEST_ASSET = "S&P"
 
 # %%
 # Import libraries
@@ -12,155 +16,125 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from arch import arch_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 
+from shared.processing import get_lstm_train_test
+
 import os
 import warnings
 
-# %%
-# Load data
-df = pd.read_csv(DATA_PATH)
-
-if not "Symbol" in df.columns:
-    df["Symbol"] = TEST_ASSET
-
-# Ensure the Date column is in datetime format
-df["Date"] = pd.to_datetime(df["Date"])
-df
 
 # %%
-
-# Sort the dataframe by both Date and Symbol
-df = df.sort_values(["Symbol", "Date"])
-
+# Load preprocessed data
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
 df
-
-# %%
-# Calculate log returns for each instrument separately using groupby
-df["LogReturn"] = (
-    df.groupby("Symbol")["Close"]
-    .apply(lambda x: np.log(x / x.shift(1)))
-    .reset_index()["Close"]
-)
-# Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
-df = df[~df["LogReturn"].isnull()]
-
-# Making a squared return column
-df["SquaredReturn"] = df["LogReturn"] ** 2
-# Set date and symbol as index
-df: pd.DataFrame = df.set_index(["Date", "Symbol"])
-
-df
-
-# %% 
-# Remove data before 1990
-df = df.loc[df.index.get_level_values("Date") >= "1990-01-01"]
-df
-# %%
-# Check if TEST_ASSET is in the data
-if TEST_ASSET not in df.index.get_level_values("Symbol"):
-    raise ValueError(f"{TEST_ASSET} not in data") 
 
 # %%
 # Define window size
 window_size = LOOKBACK_DAYS
 
 # %%
-# Prepare features  
-def create_sequence(data, window_size):
-    X, y = [], []
-    for i in range(len(data) - window_size):
-        X.append(data[i : i + window_size])
-        y.append(data[i + window_size])
-    return np.array(X), np.array(y)
-
-# create the sequences
-X, y = create_sequence(df["LogReturn"].values, window_size)
-X.shape, y.shape
-
-# %% 
-print("X:")
-X
-
-# %%
-print("y:")
-y
-# %%
 # Convert to tensors for model training
-X_tensor = torch.tensor(X, dtype=torch.float32)
-y_tensor = torch.tensor(y, dtype=torch.float32)
-                        
-# split the data into training and test sets based on TRAIN_TEST_SPLIT which is a date
-split = df.index.get_level_values("Date") < TRAIN_TEST_SPLIT
-split_index = split.sum() - 30        #FIX THIS -30 STUFF HERE # Number of training samples
-# print the number of test points we will have
-print("Number of test points:", len(y) - split_index)
-print("Split index:", split_index)
+X_train = torch.from_numpy(X_train).float()
+y_train = torch.from_numpy(y_train).float()
 
-# Split the data into training and test sets
-X_train, X_test = X_tensor[:split_index], X_tensor[split_index:]
-y_train, y_test = y_tensor[:split_index], y_tensor[split_index:]
+# print tensor shapes
+X_train.shape, y_train.shape
 
-X_test.shape, y_test.shape
-
-# X_train, X_test = X_tensor[:split], X_tensor[split:]
-# y_train, y_test = y_tensor[:split], y_tensor[split:]
+y_dim = 1  # Dimension of the target variable
 
 # %%
-# Define the LSTM-Based Masked Autoregressive Flow
-class LSTMConditioningNetwork(nn.Module):
-    def __init__(self, input_dim, hidden_dim, lstm_layers=2):
-        super(LSTMConditioningNetwork, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, lstm_layers, batch_first=True)
-        self.fc = nn.Linear(hidden_dim, 2)  # Output mu and log_sigma
-    
+# Define a LSTMFeature extractor model
+class LSTMFeatureExtractor(nn.Module):
+    def __init__(self, input_dim, hidden_dim, num_layers=1):
+        super(LSTMFeatureExtractor, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
+
     def forward(self, x):
-        _, (h_n, _) = self.lstm(x)  # Get last hidden state
-        params = self.fc(h_n[-1])   # Pass through linear layer
-        return params.chunk(2, dim=-1)  # Split into mu and log_sigma
-    
-# %% 
-# Define LSTM flow
-class LSTMFlow(nn.Module):
+        _, (hn, _) = self.lstm(x)  # Use the final hidden state as the feature vector
+        return hn[-1]  # Shape: (batch_size, hidden_dim)
+
+
+# %%
+# Define the Masked Autoregressive Network with Non-Linear Flows
+class NonLinearFlow(nn.Module):
     def __init__(self, input_dim, hidden_dim):
-        super(LSTMFlow, self).__init__()
-        self.conditioner = LSTMConditioningNetwork(input_dim, hidden_dim)
+        super(NonLinearFlow, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, y_dim * 2)  # Outputting both mu and log_sigma
+        )
 
     def forward(self, y, x):
-        mu, log_sigma = self.conditioner(x)
-        log_sigma = torch.clamp(log_sigma, min=-3, max=3)  # Tighter range
-        sigma = torch.exp(log_sigma)            
+        x = x.view(x.size(0), -1)
+        params = self.net(x)
+        mu, log_sigma = params.chunk(2, dim=-1)
 
+        sigma = torch.exp(log_sigma)
+
+        # Non-linear transformation
+        y = y.reshape(-1, 1) # Reshape y to match mu and sigma
+
+        # Non-linear transformation
         z = (y - mu) / sigma
-        log_det_jacobian = -log_sigma.sum(dim=-1)  # Corrected dimension
+        z = torch.tanh(z)  # Adding non-linearity
+
+        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z ** 2 + 1e-6).sum(dim=-1)
         return z, log_det_jacobian
 
+
     def inverse(self, z, x):
-        mu, log_sigma = self.conditioner(x)
+        x = x.view(x.size(0), -1)  # Flatten (30, 10) -> (1, 300)
+        params = self.net(x)
+        mu, log_sigma = params.chunk(2, dim=-1)
+
         sigma = torch.exp(log_sigma)
         z = torch.tanh(z)
         z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
+
         y = z * sigma + mu
         return y
 
+
+# %% 
+# Define a new type of model
+class LSTMMAFModel(nn.Module):
+    def __init__(self, feature_dim, input_dim, lstm_hidden_dim, maf_hidden_dim, n_flows, num_layers=1):
+        super(LSTMMAFModel, self).__init__()
+        self.lstm_feature_extractor = LSTMFeatureExtractor(feature_dim, lstm_hidden_dim, num_layers)
+        self.maf = MaskedAutoregressiveFlow(lstm_hidden_dim, maf_hidden_dim, n_flows)
+
+    def log_prob(self, y, x):
+        feature_vector = self.lstm_feature_extractor(x)
+        return self.maf.log_prob(y, feature_vector)
+
+    def sample(self, x, num_samples=1000):
+        feature_vector = self.lstm_feature_extractor(x)
+        return self.maf.sample(feature_vector, num_samples)
+
 # %%
 # Define the masked autoregressive flow network (MAF)
-class LSTMMaskedAutoregressiveFlow(nn.Module):
+class MaskedAutoregressiveFlow(nn.Module):
     def __init__(self, input_dim, hidden_dim, n_flows):
-        super(LSTMMaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList([LSTMFlow(input_dim, hidden_dim) for _ in range(n_flows)])
+        super(MaskedAutoregressiveFlow, self).__init__()
+        self.flows = nn.ModuleList([NonLinearFlow(input_dim, hidden_dim) for _ in range(n_flows)])
         self.base_dist = Normal(0, 1)
-    
+
     def log_prob(self, y, x):
         log_det_jacobian = 0
-        z = y.unsqueeze(1)
+        #z = y.unsqueeze(1)
+        z = y.clone().unsqueeze(1)
+
         for flow in self.flows:
             z, log_det = flow(z, x)
             log_det_jacobian += log_det
+
         log_prob = self.base_dist.log_prob(z).sum(dim=-1) + log_det_jacobian
         return log_prob
 
@@ -169,53 +143,55 @@ class LSTMMaskedAutoregressiveFlow(nn.Module):
         for flow in reversed(self.flows):
             z = flow.inverse(z, x)
         return z
+    
 
 
 # %%
 # Define the model
 hidden_dim = 64
-n_flows = 5
-input_dim = X_train.shape[-1]
+lstm_hidden_dim = 128  # Adjust based on sequence length and features
+maf_hidden_dim = 64
+n_flows = 20
+input_dim = 300  # 10 features * 30 lookback days
+feature_dim = 10 # Number of features
+num_layers = 10
 print("Input dimension:", input_dim)
+
+
 # %%
 # Initialize the model
-model = LSTMMaskedAutoregressiveFlow(input_dim, hidden_dim, n_flows)
+model = LSTMMAFModel(input_dim=input_dim, feature_dim = feature_dim, lstm_hidden_dim=lstm_hidden_dim, maf_hidden_dim=maf_hidden_dim, n_flows=n_flows)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
+
 
 
 # %%
 # Train the model
-# Learning rate schedule
-learning_rates = [1e-3, 1e-4, 1e-5]
-epochs = [15, 50, 50]
- # Number of epochs for each learning rate
+epochs = 300
+for epoch in range(epochs):
+    model.train()
+    optimizer.zero_grad()
+    log_prob = model.log_prob(y_train, X_train)
+    loss = -log_prob.mean()  # Negative log-likelihood
+    loss.backward()
+    optimizer.step()
 
-# Training Loop with Learning Rate Decay
-for i in range(len(learning_rates)):
-    optimizer = optim.Adam(model.parameters(), lr=learning_rates[i])
-    for epoch in range(epochs[i]):  
-        model.train()
-        optimizer.zero_grad()
-        log_prob = model.log_prob(y_train, X_train)
-        loss = -log_prob.mean()  # Negative log-likelihood
-        loss.backward()
-        # Gradient clipping to prevent exploding gradients
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+    # Adjust learning rate
+    scheduler.step(loss.item())
+    
+    print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
 
-        optimizer.step()
-        print(f'Learning Rate: {learning_rates[i]}, Epoch: {epoch + 1}, Loss: {loss.item()}')
-
-# evaluate the model on the test set
 model.eval()
-# with torch.no_grad():
-#     test_log_prob = model.log_prob(y_test, X_test)
-#     test_loss = -test_log_prob.mean()
-#     print(f'Test Loss: {test_loss.item()}')
 
 # %%
 # Predicting the Distribution for 10 Random Test Samples
 np.random.seed(42)
 random_indices = np.random.choice(len(X_test), 10, replace=False)
+
+# make test set tensors
+X_test = torch.from_numpy(X_test).float()
+y_test = torch.from_numpy(y_test).float()
 
 for idx in random_indices:
     specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
@@ -267,7 +243,7 @@ for i in range(len(X_test)):
 
 # Plotting Predicted Returns vs Actual Returns
 plt.figure(figsize=(14, 6))
-# plt.plot(predicted_returns, label='Predicted Returns', color='blue')
+plt.plot(predicted_returns, label='Predicted Returns', color='blue')
 plt.plot(actual_returns, label='Actual Returns', color='red', alpha=0.7)
 # add the standard deviation with label
 plt.fill_between(range(len(predicted_returns)), np.array(predicted_returns) - np.array(predicted_stds), np.array(predicted_returns) + np.array(predicted_stds), color='blue', alpha=0.2, label='Predicted Return Std')
@@ -289,12 +265,24 @@ plt.ylabel('Return')
 plt.legend()
 plt.show()
 
+# %% 
+# Calculate the KS statistic between the predicted returns and actual returns, add check for p-value
+ks_statistic, p_value = ks_2samp(predicted_returns, actual_returns)
+# print the KS statistic and p-value + add checkmark if passed and X if failed
+print("KS Statistic:", ks_statistic, "P-Value:", p_value)
+if p_value > 0.05:
+    print("Passed")
+else:
+    print("Failed")
+
 # %%
 # Store predicted returns and standard deviations in a csv
 print("predicted returns lenght:", len(predicted_returns))
+print("predicted stds lenght:", len(predicted_stds))
+
 # %%
 # 8) Store single-pass predictions
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
+df_test = df.xs(CURRENT_TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:] #TEST_ASSET
 df_test["Mean_SP"] = predicted_returns
 df_test["Vol_SP"] = predicted_stds
 
@@ -304,6 +292,6 @@ df_test
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/lstm_maf_non_linear_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/lstm_MAF_v2_{CURRENT_TEST_ASSET}_{LOOKBACK_DAYS}_days.csv" #TEST_ASSET
 )
 # %%

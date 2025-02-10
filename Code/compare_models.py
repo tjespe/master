@@ -300,10 +300,10 @@ try:
 except FileNotFoundError:
     print("MLP with MAF predictions not found")
 
-    # MLP with MAF non-linear flows
+    # LSTM with MAF and LSTM feature extractor model
 try:
     mlp_with_maf_non_linear_preds = pd.read_csv(
-        f"predictions/mlp_maf_non_linear_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
     )
     preds_per_model.append(
         {
