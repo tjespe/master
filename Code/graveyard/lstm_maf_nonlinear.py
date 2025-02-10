@@ -2,7 +2,7 @@
 # Define parameters
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
-MODEL_NAME = f"mlp_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"lstm_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 
@@ -12,170 +12,87 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
-from arch import arch_model
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
+
+from shared.processing import get_lstm_train_test
+
 
 import os
 import warnings
 
 # %%
 # Load data
-df = pd.read_csv(DATA_PATH)
-
-if not "Symbol" in df.columns:
-    df["Symbol"] = TEST_ASSET
-
-# Ensure the Date column is in datetime format
-df["Date"] = pd.to_datetime(df["Date"])
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
 df
 
 # %%
+# Convert to tensors for model training
+X_train = torch.from_numpy(X_train).float()
+y_train = torch.from_numpy(y_train).float()
 
-# Sort the dataframe by both Date and Symbol
-df = df.sort_values(["Symbol", "Date"])
-
-df
-
-# %%
-# Calculate log returns for each instrument separately using groupby
-df["LogReturn"] = (
-    df.groupby("Symbol")["Close"]
-    .apply(lambda x: np.log(x / x.shift(1)))
-    .reset_index()["Close"]
-)
-# Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
-df = df[~df["LogReturn"].isnull()]
-
-# Making a squared return column
-df["SquaredReturn"] = df["LogReturn"] ** 2
-# Set date and symbol as index
-df: pd.DataFrame = df.set_index(["Date", "Symbol"])
-
-df
-
-# %% 
-# Remove data before 1990
-df = df.loc[df.index.get_level_values("Date") >= "1990-01-01"]
-df
-# %%
-# Check if TEST_ASSET is in the data
-if TEST_ASSET not in df.index.get_level_values("Symbol"):
-    raise ValueError(f"{TEST_ASSET} not in data") 
+# print tensor shapes
+X_train.shape, y_train.shape
 
 # %%
 # Define window size
 window_size = LOOKBACK_DAYS
 
 # %%
-# Prepare features  
-def create_sequence(data, window_size):
-    X, y = [], []
-    for i in range(len(data) - window_size):
-        X.append(data[i : i + window_size])
-        y.append(data[i + window_size])
-    return np.array(X), np.array(y)
-
-# create the sequences
-X, y = create_sequence(df["LogReturn"].values, window_size)
-X.shape, y.shape
-
+# Define the LSTM-Based Masked Autoregressive Flow
+class LSTMConditioningNetwork(nn.Module):
+    def __init__(self, input_dim, hidden_dim, lstm_layers=10):
+        super(LSTMConditioningNetwork, self).__init__()
+        self.lstm = nn.LSTM(input_dim, hidden_dim, lstm_layers, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, 2)  # Output mu and log_sigma
+    
+    def forward(self, x):
+        _, (h_n, _) = self.lstm(x)  # Get last hidden state
+        params = self.fc(h_n[-1])   # Pass through linear layer
+        return params.chunk(2, dim=-1)  # Split into mu and log_sigma
+    
 # %% 
-print("X:")
-X
-
-# %%
-print("y:")
-y
-# %%
-# Convert to tensors for model training
-X_tensor = torch.tensor(X, dtype=torch.float32)
-y_tensor = torch.tensor(y, dtype=torch.float32)
-                        
-# split the data into training and test sets based on TRAIN_TEST_SPLIT which is a date
-split = df.index.get_level_values("Date") < TRAIN_TEST_SPLIT
-split_index = split.sum() - 30        #FIX THIS -30 STUFF HERE # Number of training samples
-# print the number of test points we will have
-print("Number of test points:", len(y) - split_index)
-print("Split index:", split_index)
-
-# Split the data into training and test sets
-X_train, X_test = X_tensor[:split_index], X_tensor[split_index:]
-y_train, y_test = y_tensor[:split_index], y_tensor[split_index:]
-
-X_test.shape, y_test.shape
-
-# X_train, X_test = X_tensor[:split], X_tensor[split:]
-# y_train, y_test = y_tensor[:split], y_tensor[split:]
-
-# %%
-# Define the Masked Autoregressive Network with Non-Linear Flows
-class NonLinearFlow(nn.Module):
+# Define LSTM flow
+class LSTMFlow(nn.Module):
     def __init__(self, input_dim, hidden_dim):
-        super(NonLinearFlow, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, 2)  # Outputting both mu and log_sigma
-        )
+        super(LSTMFlow, self).__init__()
+        self.conditioner = LSTMConditioningNetwork(input_dim, hidden_dim)
 
     def forward(self, y, x):
-        params = self.net(x)
-        mu, log_sigma = params.chunk(2, dim=-1)
+        x = x.view(x.size(0), -1)
+        mu, log_sigma = self.conditioner(x)
+        log_sigma = torch.clamp(log_sigma, min=-3, max=3)  # Tighter range
+        sigma = torch.exp(log_sigma)            
 
-        # Clamp log_sigma to avoid extreme values
-        # log_sigma = torch.clamp(log_sigma, min=-10, max=10)
-        #sigma = torch.exp(torch.clamp(log_sigma, min=-5, max=5)) + 1e-3
-        sigma = torch.exp(log_sigma)
-
-        # Non-linear transformation
-        
         z = (y - mu) / sigma
-        z = torch.tanh(z)  # Adding non-linearity
-
-        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z ** 2 + 1e-6).sum(dim=-1)
+        log_det_jacobian = -log_sigma.sum(dim=-1)  # Corrected dimension
         return z, log_det_jacobian
 
-
     def inverse(self, z, x):
-        params = self.net(x)
-        mu, log_sigma = params.chunk(2, dim=-1)
-
-        # Clamp log_sigma to avoid extreme values
-        # log_sigma = torch.clamp(log_sigma, min=-10, max=10)
-        #sigma = torch.exp(torch.clamp(log_sigma, min=-5, max=5)) + 1e-3
+        x = x.view(x.size(0), -1)
+        mu, log_sigma = self.conditioner(x)
         sigma = torch.exp(log_sigma)
-
-        # Prevent numerical instability in inverse tanh
-        # z = torch.clamp(z, min=-0.999, max=0.999)
         z = torch.tanh(z)
         z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
-
         y = z * sigma + mu
         return y
 
-
-
 # %%
 # Define the masked autoregressive flow network (MAF)
-class MaskedAutoregressiveFlow(nn.Module):
+class LSTMMaskedAutoregressiveFlow(nn.Module):
     def __init__(self, input_dim, hidden_dim, n_flows):
-        super(MaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList([NonLinearFlow(input_dim, hidden_dim) for _ in range(n_flows)])
+        super(LSTMMaskedAutoregressiveFlow, self).__init__()
+        self.flows = nn.ModuleList([LSTMFlow(input_dim, hidden_dim) for _ in range(n_flows)])
         self.base_dist = Normal(0, 1)
-
+    
     def log_prob(self, y, x):
         log_det_jacobian = 0
         z = y.unsqueeze(1)
-
         for flow in self.flows:
             z, log_det = flow(z, x)
             log_det_jacobian += log_det
-
         log_prob = self.base_dist.log_prob(z).sum(dim=-1) + log_det_jacobian
         return log_prob
 
@@ -184,50 +101,49 @@ class MaskedAutoregressiveFlow(nn.Module):
         for flow in reversed(self.flows):
             z = flow.inverse(z, x)
         return z
-    
 
 
 # %%
 # Define the model
 hidden_dim = 64
-n_flows = 5
-input_dim = X_train.shape[-1]
+n_flows = 20
+input_dim = 300 # 10 LSTM layers with 30 days lookback
 print("Input dimension:", input_dim)
 # %%
 # Initialize the model
-model = MaskedAutoregressiveFlow(input_dim, hidden_dim, n_flows)
+model = LSTMMaskedAutoregressiveFlow(input_dim, hidden_dim, n_flows)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
+scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
 
 
 # %%
 # Train the model
 # Learning rate schedule
-learning_rates = [0.01, 0.005, 0.001]  # Starting high, then reducing
-epochs = [100, 500, 1000]  # Number of epochs for each learning rate
-
+epochs = 45
 # Training Loop with Learning Rate Decay
-for i in range(len(learning_rates)):
-    optimizer = optim.Adam(model.parameters(), lr=learning_rates[i])
-    for epoch in range(epochs[i]):  
-        model.train()
-        optimizer.zero_grad()
-        log_prob = model.log_prob(y_train, X_train)
-        loss = -log_prob.mean()  # Negative log-likelihood
-        loss.backward()
-        optimizer.step()
-        print(f'Learning Rate: {learning_rates[i]}, Epoch: {epoch + 1}, Loss: {loss.item()}')
+for epoch in range(epochs):
+    model.train()
+    optimizer.zero_grad()
+    log_prob = model.log_prob(y_train, X_train)
+    loss = -log_prob.mean()  # Negative log-likelihood
+    loss.backward()
+    optimizer.step()
+
+    # Adjust learning rate
+    scheduler.step(loss.item())
+    
+    print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
 
 # evaluate the model on the test set
 model.eval()
-# with torch.no_grad():
-#     test_log_prob = model.log_prob(y_test, X_test)
-#     test_loss = -test_log_prob.mean()
-#     print(f'Test Loss: {test_loss.item()}')
-
 # %%
 # Predicting the Distribution for 10 Random Test Samples
 np.random.seed(42)
 random_indices = np.random.choice(len(X_test), 10, replace=False)
+
+# make test set tensors
+X_test = torch.from_numpy(X_test).float()
+y_test = torch.from_numpy(y_test).float()
 
 for idx in random_indices:
     specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
@@ -316,6 +232,6 @@ df_test
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/mlp_maf_non_linear_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    f"predictions/lstm_maf_v1_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 # %%
