@@ -3,9 +3,9 @@ PICP,1,2
 Mean width (MPIW),2,1
 Interval Score,1,2
 Correlation (vol. vs. errors),1,2
-NLL,1,2
+NLL,2,1
 QL,2,1
 CRPS,1,2
 Lopez Loss,1,2
 RMSE,1,2
-Rank Sum,11,16
+Rank Sum,12,15
