@@ -381,7 +381,9 @@ lstm_mdn_model.save(model_fname)
 
 # %%
 # 6b) Commit and push
-os.system(f"git pull && git commit '{model_fname}' -m 'Train {MODEL_NAME}' && git push")
+!git pull
+!git commit Code/{model_fname} -m 'Train {MODEL_NAME}'
+# os.system(f"git pull && git commit '{model_fname}' -m 'Train {MODEL_NAME}' && git push")
 
 # %%
 # 7) Single-pass predictions
