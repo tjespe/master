@@ -76,7 +76,7 @@ def get_lstm_train_test(include_log_returns=False):
         )
 
         # Remove extra level in the multi-index
-        ewm_stats = ewm_stats.droplevel(2)
+        ewm_stats = ewm_stats.droplevel(0)
 
         # `ewm_stats` now has a multi-index: (Symbol, Date).
         # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
@@ -86,7 +86,7 @@ def get_lstm_train_test(include_log_returns=False):
         df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
 
         # Remove extra level in the multi-index
-        df = df.droplevel(2)
+        df = df.droplevel(0)
         df
 
     # %%

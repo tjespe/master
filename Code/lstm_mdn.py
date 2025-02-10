@@ -101,9 +101,10 @@ def get_mdn_bias_initializer(n_mixtures, logvar_bias=-9):
 # %%
 def build_lstm_mdn(
     lookback_days,
-    num_features=2,  # e.g. [LogReturn, log(SquaredReturn)]
+    num_features: int,
     dropout=0.1,
     n_mixtures=5,
+    hidden_units=4,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
@@ -113,7 +114,7 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=2, activation="tanh")(inputs)
+    x = LSTM(units=hidden_units, activation="tanh")(inputs)
 
     # Add dropout
     if dropout > 0:
