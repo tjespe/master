@@ -172,10 +172,10 @@ def get_lstm_train_test(include_log_returns=False):
         df.groupby(level="Symbol")["Close_RVOL"].rolling(10).std().droplevel(0)
     )
 
-    # Downside Volatility
-    df["DownsideVol"] = df.groupby(level="Symbol")["LogReturn"].apply(
-        lambda x: x.where(x < 0).rolling(10).std()
-    )
+    # # Downside Volatility
+    # df["DownsideVol"] = df.groupby(level="Symbol")["LogReturn"].apply(
+    #     lambda x: x.where(x < 0).rolling(10).std()
+    # )
 
     # %%
     # Check for NaN values
@@ -243,7 +243,7 @@ def get_lstm_train_test(include_log_returns=False):
 
         # New Features
         rvol_std = group["RVOL_Std"].values.reshape(-1, 1)
-        downside_vol = group["DownsideVol"].values.reshape(-1, 1)
+        # downside_vol = group["DownsideVol"].values.reshape(-1, 1)
         vix_rvol_diff = vix - rvol
 
         # Find date to split on
@@ -264,9 +264,9 @@ def get_lstm_train_test(include_log_returns=False):
                 vix_change_2d,
                 vix_change_7d,
                 next_day_trading_day,
-                rvol_std,
-                downside_vol,
-                vix_rvol_diff,
+                # rvol_std,
+                # downside_vol,
+                # vix_rvol_diff,
             )
         )
 
