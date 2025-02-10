@@ -166,6 +166,18 @@ def get_lstm_train_test(include_log_returns=False):
     df["NextDayTradingDay"]
 
     # %%
+    # Add more features:
+    # Volatility-of-volatility
+    df["RVOL_Std"] = (
+        df.groupby(level="Symbol")["Close_RVOL"].rolling(10).std().droplevel(0)
+    )
+
+    # Downside Volatility
+    df["DownsideVol"] = df.groupby(level="Symbol")["LogReturn"].apply(
+        lambda x: x.where(x < 0).rolling(10).std()
+    )
+
+    # %%
     # Check for NaN values
     df[
         df[["LogReturn", "Close_RVOL", "Close_VIX", "GARCH_Vol"]]
