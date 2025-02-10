@@ -707,7 +707,11 @@ for entry in preds_per_model:
 
     # Print Christoffersen's Test Results
     print(f"\n{entry['name']} Christoffersen's Test Results:")
-    display(entry["christoffersen_test"])
+    # Check if we are in a Jupyter notebook and can use display
+    try:
+        display(entry["christoffersen_test"])
+    except NameError:
+        print(entry["christoffersen_test"])
 
     # Calculate CRPS
     if "crps" not in entry:
@@ -892,7 +896,7 @@ def plot_volatility_comparison(
 returns_test = df_test["LogReturn"]
 
 plot_volatility_comparison(
-    preds_per_model, returns_test, abs_returns_test, lookback_days=60, steps=30
+    preds_per_model, returns_test, abs_returns_test, lookback_days=150, steps=30
 )
 
 # %%

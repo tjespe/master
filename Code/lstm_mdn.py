@@ -379,6 +379,10 @@ lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 lstm_mdn_model.save(model_fname)
 
 # %%
+# 6b) Commit and push
+os.system(f"git pull && git commit '{model_fname}' -m 'Train {MODEL_NAME}' && git push")
+
+# %%
 # 7) Single-pass predictions
 y_pred_mdn = lstm_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
@@ -478,7 +482,7 @@ confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
 intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 
 # %%
-# Plot time series with mean, volatility and actual returns for last 100 days
+# Plot time series with mean, volatility and actual returns for last X days
 days = 150
 shift = 500
 filtered_df = (
