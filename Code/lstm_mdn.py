@@ -382,7 +382,8 @@ lstm_mdn_model.save(model_fname)
 # %%
 # 6b) Commit and push
 !git pull
-!git commit . -m "Train LSTM w MDN model"
+!git add .
+!git commit -m "Train LSTM w MDN model"
 !git push
 
 # %%
