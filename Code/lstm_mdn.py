@@ -448,6 +448,7 @@ for i, day in enumerate(days):
     plt.title(
         f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
     )
+    plt.ylim(0, 40)
     if plotted_mixtures < 10:
         plt.legend()
     plt.ylabel("Density")
