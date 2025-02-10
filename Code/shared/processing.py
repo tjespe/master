@@ -229,6 +229,11 @@ def get_lstm_train_test(include_log_returns=False):
         vix_change_2d = vix - np.vstack([vix[:2], vix[:-2]])
         vix_change_7d = vix - np.vstack([vix[:7], vix[:-7]])
 
+        # New Features
+        rvol_std = group["RVOL_Std"].values.reshape(-1, 1)
+        downside_vol = group["DownsideVol"].values.reshape(-1, 1)
+        vix_rvol_diff = vix - rvol
+
         # Find date to split on
         train_test_split_index = len(
             group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
@@ -247,6 +252,9 @@ def get_lstm_train_test(include_log_returns=False):
                 vix_change_2d,
                 vix_change_7d,
                 next_day_trading_day,
+                rvol_std,
+                downside_vol,
+                vix_rvol_diff,
             )
         )
 
