@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = 2
+VERSION = 3
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -40,7 +40,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=True)
 
 
 # %%
@@ -330,7 +330,7 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 100
+N_MIXTURES = 40
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example

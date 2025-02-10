@@ -46,7 +46,9 @@ def get_lstm_train_test(include_log_returns=False):
 
     # Sort the dataframe by both Date and Symbol
     df = df.sort_values(["Symbol", "Date"])
+    df
 
+    # %%
     # Calculate log returns for each instrument separately using groupby
     df["LogReturn"] = (
         df.groupby("Symbol")["Close"]
@@ -62,6 +64,30 @@ def get_lstm_train_test(include_log_returns=False):
     # Set date and symbol as index
     df: pd.DataFrame = df.set_index(["Date", "Symbol"])
     df
+
+    # %%
+    # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
+    if "GARCH_Vol" in df.columns:
+        df["GARCH_Resid"] = df["LogReturn"] / df["GARCH_Vol"]
+
+        # Apply to each Symbol group
+        ewm_stats = df.groupby(level="Symbol")["GARCH_Resid"].apply(
+            compute_ewm_skew_kurt
+        )
+
+        # Remove extra level in the multi-index
+        ewm_stats = ewm_stats.droplevel(2)
+
+        # `ewm_stats` now has a multi-index: (Symbol, Date).
+        # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
+        df = df.join(ewm_stats)
+
+        # Drop first 20 rows for each instrument
+        df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
+
+        # Remove extra level in the multi-index
+        df = df.droplevel(2)
+        df
 
     # %%
     # Read RVOL data
@@ -140,18 +166,17 @@ def get_lstm_train_test(include_log_returns=False):
     df["NextDayTradingDay"]
 
     # %%
-    # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
-    if "GARCH_Vol" in df.columns:
-        df["GARCH_standard_residual"] = df["LogReturn"] / df["GARCH_Vol"]
-        df["rolling_excess_kurtosis"] = (
-            df["GARCH_standard_residual"]
-            .rolling(window=window_size)
-            .apply(lambda x: kurtosis(x, fisher=True), raw=True)
-        )
+    # Check for NaN values
+    df[
+        df[["LogReturn", "Close_RVOL", "Close_VIX", "GARCH_Vol"]]
+        .isnull()
+        .sum(axis=1)
+        .gt(0)
+    ]
 
     # %%
-    # Check for NaN values
-    df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
+    # Check for infinite values
+    df[np.isinf(df).any(axis=1)]
 
     # %%
     # Prepare data for LSTM
@@ -239,10 +264,9 @@ def get_lstm_train_test(include_log_returns=False):
         if "GARCH_Vol" in group.columns:
             garch = group["GARCH_Vol"].values.reshape(-1, 1)
             log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
-            data = np.hstack((data, log_sq_garch))
-
-            # Also add estimated skewness and kurtosis based on GARCH
-            # residuals
+            garch_skewness = group["Skew_EWM"].values.reshape(-1, 1)
+            garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
+            data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
 
         # Create training sequences of length 'sequence_length'
         for i in range(LOOKBACK_DAYS, train_test_split_index):
@@ -274,6 +298,7 @@ def get_lstm_train_test(include_log_returns=False):
     print(f"y_train.shape: {y_train.shape}")
     print(f"y_test.shape: {y_test.shape}")
 
+    # %%
     return df, X_train, X_test, y_train, y_test
 
 
@@ -307,3 +332,34 @@ def get_cgan_train_test():
         X_test[:, :, i] = X_test[:, :, i] * 10
 
     return df, X_train, X_test, y_train, y_test, scaling_mean, scaling_std
+
+
+# %%
+# Define a helper that returns a DataFrame of skew and kurt for a given residual series
+def compute_ewm_skew_kurt(series: pd.Series, alpha=0.06):
+    """
+    alpha is the smoothing factor for the exponentially weighted moments.
+    Adjust it to put more (or less) weight on recent data.
+    """
+    ewm_mean = series.ewm(alpha=alpha).mean()
+    ewm_mean2 = (series**2).ewm(alpha=alpha).mean()
+    ewm_mean3 = (series**3).ewm(alpha=alpha).mean()
+    ewm_mean4 = (series**4).ewm(alpha=alpha).mean()
+
+    ewm_var = ewm_mean2 - ewm_mean**2
+    ewm_std = np.sqrt(ewm_var)
+
+    # Pearson's moment coefficient of skewness and excess kurtosis
+    ewm_skew = (ewm_mean3 - 3 * ewm_mean * ewm_mean2 + 2 * ewm_mean**3) / (ewm_std**3)
+    ewm_kurt = (
+        ewm_mean4
+        - 4 * ewm_mean * ewm_mean3
+        + 6 * (ewm_mean**2) * ewm_mean2
+        - 3 * ewm_mean**4
+    ) / (ewm_std**4)
+
+    # Return as a DataFrame so it's easy to join back
+    return pd.DataFrame({"Skew_EWM": ewm_skew, "Kurt_EWM": ewm_kurt})
+
+
+# %%

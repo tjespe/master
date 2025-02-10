@@ -1,6 +1,6 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, DATA_PATH, TEST_ASSET
+from settings import DATA_PATH, TEST_ASSET
 
 # %%
 import numpy as np
@@ -49,7 +49,7 @@ symbols = df.index.get_level_values("Symbol").unique()
 
 # Define output file
 base_path = DATA_PATH.replace(".csv", "")
-output_path = f"{base_path}_garch_{LOOKBACK_DAYS}_days.csv"
+output_path = f"{base_path}_garch.csv"
 
 # Check if a previous run exists
 if os.path.exists(output_path):
@@ -106,8 +106,8 @@ def process_symbol(symbol):
 
     # Create a DataFrame for results
     df_result = df_filtered.iloc[1:].copy()  # Align with predictions
-    df_result["Volatility"] = garch_vol_pred
-    df_result["Mean"] = 0  # Assume mean is 0
+    df_result["GARCH_Vol"] = garch_vol_pred
+    df_result["GARCH_Mean"] = 0  # Assume mean is 0
     df_result["Symbol"] = symbol
 
     # Save progress after each symbol
