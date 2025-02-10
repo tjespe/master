@@ -307,13 +307,13 @@ try:
     )
     preds_per_model.append(
         {
-            "name": "MLP with MAF non-linear flows",
+            "name": "LSTM with MAF non-linear flows",
             "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
             "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
         }
     )
 except FileNotFoundError:
-    print("MLP with MAF non-linear flows predictions not found")
+    print("LSTM with MAF non-linear flows predictions not found")
 
 if TEST_ASSET == "S&P":
     # VIX
