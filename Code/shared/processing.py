@@ -140,6 +140,16 @@ def get_lstm_train_test(include_log_returns=False):
     df["NextDayTradingDay"]
 
     # %%
+    # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
+    if "GARCH_Vol" in df.columns:
+        df["GARCH_standard_residual"] = df["LogReturn"] / df["GARCH_Vol"]
+        df["rolling_excess_kurtosis"] = (
+            df["GARCH_standard_residual"]
+            .rolling(window=window_size)
+            .apply(lambda x: kurtosis(x, fisher=True), raw=True)
+        )
+
+    # %%
     # Check for NaN values
     df[df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)]
 
@@ -224,6 +234,15 @@ def get_lstm_train_test(include_log_returns=False):
             one_hot_sector = np.zeros((len(group), num_sectors))
             one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
             data = np.hstack((data, one_hot_sector))
+
+        # If we have GARCH predictions, add them as a feature
+        if "GARCH_Vol" in group.columns:
+            garch = group["GARCH_Vol"].values.reshape(-1, 1)
+            log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
+            data = np.hstack((data, log_sq_garch))
+
+            # Also add estimated skewness and kurtosis based on GARCH
+            # residuals
 
         # Create training sequences of length 'sequence_length'
         for i in range(LOOKBACK_DAYS, train_test_split_index):
