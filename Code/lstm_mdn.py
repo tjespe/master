@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = 3
+VERSION = "big"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -104,7 +104,7 @@ def build_lstm_mdn(
     num_features: int,
     dropout=0.1,
     n_mixtures=5,
-    hidden_units=4,
+    hidden_units=10,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:

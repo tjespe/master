@@ -396,7 +396,7 @@ except NameError:
 
 
 # LSTM MDN
-for version in ["v1", "v2", "v3"]:
+for version in ["v1", "v2", "v3", "vbig"]:
     try:
         lstm_mdn_preds = pd.read_csv(
             f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
@@ -700,6 +700,10 @@ for entry in preds_per_model:
     )
     entry["uncertainty_error_correlation"] = correlation
 
+    # Calculate sign of return accuracy
+    sign_accuracy = np.mean(np.sign(y_test_actual) == np.sign(entry["mean_pred"]))
+    entry["sign_accuracy"] = sign_accuracy
+
     # Christoffersen's Test
     exceedances = ~entry["within_bounds"]
     christoffersen_result = christoffersen_test(exceedances, CONFIDENCE_LEVEL)
@@ -735,6 +739,7 @@ results = {
     "CRPS": [],
     "Lopez Loss": [],
     "RMSE": [],
+    "Sign accuracy": [],
 }
 
 for entry in preds_per_model:
@@ -753,6 +758,7 @@ for entry in preds_per_model:
     results["CRPS"].append(entry["crps"])
     results["Lopez Loss"].append(entry["lopez_loss"])
     results["RMSE"].append(entry["rmse"])
+    results["Sign accuracy"].append(entry["sign_accuracy"])
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
@@ -771,6 +777,7 @@ results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
+results_df.loc["Winner", "Sign accuracy"] = results_df["Sign accuracy"].idxmax()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results_{TEST_ASSET}.csv")
 results_df
