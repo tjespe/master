@@ -404,18 +404,25 @@ if os.path.exists(model_fname):
 transformer_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
 )
-transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate again
 transformer_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
 )
-transformer_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+history = transformer_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
 transformer_mdn_model.save(model_fname)
+
+# %%
+# 6b) Commit and push
+!git pull
+!git add models/transformer_mdn_*
+!git commit -m "Add transformer MDN model." -m "Training history: {history.history}"
+!git push
 
 # %%
 # 7) Single-pass predictions
