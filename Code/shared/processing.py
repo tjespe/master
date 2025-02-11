@@ -25,7 +25,7 @@ GICS_SECTOR_MAPPING = {
 }
 
 
-def get_lstm_train_test(include_log_returns=False):
+def get_lstm_train_test(include_log_returns=False, include_fng=True):
     """
     Prepare data for LSTM
     """
@@ -306,14 +306,14 @@ def get_lstm_train_test(include_log_returns=False):
                 rvol_std,
                 downside_log_var,
                 vix_rvol_diff,
-                fear_greed,
-                fear_greed_1d * 10,  # Scale by 10 to improve scale
-                fear_greed_7d * 10,  # Scale by 10 to improve scale
             )
         )
 
         if include_log_returns:
             data = np.hstack((data, returns))
+
+        if include_fng:
+            data = np.hstack((data, fear_greed, fear_greed_1d * 10, fear_greed_7d * 10))
 
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
