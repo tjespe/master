@@ -35,6 +35,32 @@ def mdn_loss_numpy(num_mixtures):
 
     return loss_fn
 
+def nll_loss_maf(model, X_test, y_test):
+    """
+    Calculate the Negative Log-Likelihood (NLL) for a non-parametric distribution produced by a Normalizing Flow model.
+    
+    Args:
+        model: Trained LSTM-MAF model with `log_prob` method.
+        X_test: Test input data (torch.Tensor).
+        y_test: Actual observed returns (torch.Tensor).
+    
+    Returns:
+        nll: Average Negative Log-Likelihood for the test set.
+    """
+    model.eval()
+    total_log_prob = 0
+    with torch.no_grad():  # Disable gradient calculations for efficiency
+        for i in range(len(X_test)):
+            specific_sample = X_test[i].unsqueeze(0)  # (1, lookback_days, num_features)
+            actual_return = y_test[i].unsqueeze(0)  # (1,)
+            
+            # Compute log-probability of the actual return given the predicted distribution
+            log_prob = model.log_prob(actual_return, specific_sample)
+            total_log_prob += log_prob.item()
+    
+    # Return the average NLL
+    nll = -total_log_prob / len(X_test)
+    return nll
 
 def nll_loss_mean_and_log_var(y_true, means, log_vars):
     """
