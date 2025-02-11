@@ -20,8 +20,10 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
+import torch.nn.functional as F
 
 from shared.processing import get_lstm_train_test
+from shared.loss import nll_loss_maf
 
 import os
 import warnings
@@ -49,9 +51,9 @@ y_dim = 1  # Dimension of the target variable
 # %%
 # Define a LSTMFeature extractor model
 class LSTMFeatureExtractor(nn.Module):
-    def __init__(self, input_dim, hidden_dim, num_layers=1):
+    def __init__(self, input_dim, hidden_dim, num_layers=1, dropout_rate=0.2):
         super(LSTMFeatureExtractor, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout_rate)
 
     def forward(self, x):
         _, (hn, _) = self.lstm(x)  # Use the final hidden state as the feature vector
@@ -61,13 +63,15 @@ class LSTMFeatureExtractor(nn.Module):
 # %%
 # Define the Masked Autoregressive Network with Non-Linear Flows
 class NonLinearFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
+    def __init__(self, input_dim, hidden_dim, dropout_rate=0.2):
         super(NonLinearFlow, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout_rate),  # Dropout Layer
             nn.Linear(hidden_dim, hidden_dim),
             nn.ReLU(),
+            nn.Dropout(dropout_rate),  # Dropout Layer
             nn.Linear(hidden_dim, y_dim * 2)  # Outputting both mu and log_sigma
         )
 
@@ -105,10 +109,10 @@ class NonLinearFlow(nn.Module):
 # %% 
 # Define a new type of model
 class LSTMMAFModel(nn.Module):
-    def __init__(self, feature_dim, input_dim, lstm_hidden_dim, maf_hidden_dim, n_flows, num_layers=1):
+    def __init__(self, feature_dim, input_dim, lstm_hidden_dim, maf_hidden_dim, n_flows, num_layers, extractor_dropout, flow_dropout):
         super(LSTMMAFModel, self).__init__()
-        self.lstm_feature_extractor = LSTMFeatureExtractor(feature_dim, lstm_hidden_dim, num_layers)
-        self.maf = MaskedAutoregressiveFlow(lstm_hidden_dim, maf_hidden_dim, n_flows)
+        self.lstm_feature_extractor = LSTMFeatureExtractor(feature_dim, lstm_hidden_dim, num_layers, extractor_dropout)
+        self.maf = MaskedAutoregressiveFlow(lstm_hidden_dim, maf_hidden_dim, n_flows, flow_dropout)
 
     def log_prob(self, y, x):
         feature_vector = self.lstm_feature_extractor(x)
@@ -121,9 +125,9 @@ class LSTMMAFModel(nn.Module):
 # %%
 # Define the masked autoregressive flow network (MAF)
 class MaskedAutoregressiveFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_flows):
+    def __init__(self, input_dim, hidden_dim, n_flows, flow_dropout):
         super(MaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList([NonLinearFlow(input_dim, hidden_dim) for _ in range(n_flows)])
+        self.flows = nn.ModuleList([NonLinearFlow(input_dim, hidden_dim, flow_dropout) for _ in range(n_flows)])
         self.base_dist = Normal(0, 1)
 
     def log_prob(self, y, x):
@@ -154,13 +158,23 @@ maf_hidden_dim = 64
 n_flows = 20
 input_dim = 300  # 10 features * 30 lookback days
 feature_dim = 10 # Number of features
-num_layers = 10
+extractor_num_layers = 1 
+extractor_dropout = 0
+flow_dropout = 0
 print("Input dimension:", input_dim)
 
 
 # %%
 # Initialize the model
-model = LSTMMAFModel(input_dim=input_dim, feature_dim = feature_dim, lstm_hidden_dim=lstm_hidden_dim, maf_hidden_dim=maf_hidden_dim, n_flows=n_flows)
+model = LSTMMAFModel(input_dim=input_dim,
+                      feature_dim = feature_dim, 
+                      lstm_hidden_dim=lstm_hidden_dim, 
+                      maf_hidden_dim=maf_hidden_dim, 
+                      n_flows=n_flows,
+                      num_layers=extractor_num_layers,
+                      extractor_dropout=extractor_dropout,
+                      flow_dropout=flow_dropout
+                      )
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
 
@@ -180,12 +194,15 @@ for epoch in range(epochs):
     # Adjust learning rate
     scheduler.step(loss.item())
     
-    print(f'Epoch: {epoch + 1}, Loss: {loss.item()}')
+    # Print the loss every 10 epochs
+    epoch+=1
+    if (epoch) % 10 == 0:
+        print(f'Epoch: {epoch}, Loss: {loss.item()}')
 
-model.eval()
 
 # %%
 # Predicting the Distribution for 10 Random Test Samples
+model.eval()
 np.random.seed(42)
 random_indices = np.random.choice(len(X_test), 10, replace=False)
 
@@ -275,6 +292,9 @@ if p_value > 0.05:
 else:
     print("Failed")
 
+
+print("NLL Loss:", nll_loss_maf(model, X_test, y_test))
+
 # %%
 # Store predicted returns and standard deviations in a csv
 print("predicted returns lenght:", len(predicted_returns))
@@ -285,6 +305,7 @@ print("predicted stds lenght:", len(predicted_stds))
 df_test = df.xs(CURRENT_TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:] #TEST_ASSET
 df_test["Mean_SP"] = predicted_returns
 df_test["Vol_SP"] = predicted_stds
+df_test["NLL"] = nll_loss_maf(model, X_test, y_test)
 
 df_test
 
@@ -295,3 +316,18 @@ df_test.to_csv(
     f"predictions/lstm_MAF_v2_{CURRENT_TEST_ASSET}_{LOOKBACK_DAYS}_days.csv" #TEST_ASSET
 )
 # %%
+# Define MC-dropout for uncertainty estimation
+def mc_dropout_sample(model, X, num_samples=1000):
+    """Perform MC-Dropout for uncertainty estimation."""
+    model.train()  # Keep dropout active during test-time sampling
+    predictions = []
+
+    for _ in range(num_samples):
+        pred = model.sample(X)  # Sample prediction from the model
+        predictions.append(pred.detach().cpu().numpy())
+
+    predictions = np.array(predictions)
+    mean_prediction = predictions.mean(axis=0)
+    std_prediction = predictions.std(axis=0)  # Uncertainty estimate (standard deviation)
+
+    return mean_prediction, std_prediction
