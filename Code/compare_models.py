@@ -396,7 +396,7 @@ except NameError:
 
 
 # LSTM MDN
-for version in ["v1", "v2"]:
+for version in ["v1", "v2", "v3"]:
     try:
         lstm_mdn_preds = pd.read_csv(
             f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"

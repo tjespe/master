@@ -1,11 +1,11 @@
-,GARCH,LSTM MDN v2
-PICP,1,2
-Mean width (MPIW),2,1
-Interval Score,1,2
-Correlation (vol. vs. errors),1,2
-NLL,2,1
-QL,2,1
-CRPS,1,2
-Lopez Loss,1,2
-RMSE,1,2
-Rank Sum,12,15
+,GARCH,GARCH-GJR,LSTM MDN v2,LSTM MDN v3
+PICP,4,2,3,1
+Mean width (MPIW),4,1,3,2
+Interval Score,4,2,3,1
+Correlation (vol. vs. errors),4,2,3,1
+NLL,3,2,4,1
+QL,4,1,3,2
+CRPS,3,2,4,1
+Lopez Loss,1,4,2,3
+RMSE,2,2,4,1
+Rank Sum,29,18,29,13
