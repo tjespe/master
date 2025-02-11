@@ -9,6 +9,7 @@ from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
+VERSION = 1
 
 # %%
 # Standard imports
@@ -47,7 +48,9 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(
+    include_log_returns=False, include_fng=False
+)
 
 
 # %%
@@ -559,7 +562,7 @@ for i, cl in enumerate(confidence_levels):
     df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
     df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
-os.makedirs("predictions", exist_ok=True)
+# %%
 df_test.to_csv(
     f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
