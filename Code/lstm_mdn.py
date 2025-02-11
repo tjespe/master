@@ -465,8 +465,8 @@ dates = (
     .index.get_level_values("Date")
 )
 for j in range(N_MIXTURES):
-    sum_over_time = np.sum(pi_pred[:, j], axis=0)
-    if sum_over_time < 0.01:
+    mean_over_time = np.mean(pi_pred[:, j], axis=0)
+    if mean_over_time < 0.01:
         continue
     plt.plot(dates, pi_pred[:, j], label=f"$\pi_{{{j}}}$")
 plt.gca().set_yticklabels(["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()])
