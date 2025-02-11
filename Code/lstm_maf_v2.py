@@ -4,11 +4,10 @@ from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SP
 from scipy.stats import ks_2samp
 
 
-MODEL_NAME = f"mlp_normalizing_non_linear_flows_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"LSTM_MAF_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 SPX_DATA_PATH = "data/SPX.csv"
-CURRENT_TEST_ASSET = "S&P"
 
 # %%
 # Import libraries
@@ -154,10 +153,11 @@ class MaskedAutoregressiveFlow(nn.Module):
 # Define the model
 hidden_dim = 64
 lstm_hidden_dim = 128  # Adjust based on sequence length and features
-maf_hidden_dim = 64
-n_flows = 20
+maf_hidden_dim = 128 # 64
+n_flows = 20 # 20
 input_dim = 300  # 10 features * 30 lookback days
-feature_dim = 10 # Number of features
+# number of features
+feature_dim = X_train.shape[-1]
 extractor_num_layers = 1 
 extractor_dropout = 0
 flow_dropout = 0
@@ -196,6 +196,8 @@ for epoch in range(epochs):
     
     # Print the loss every 10 epochs
     epoch+=1
+
+    
     if (epoch) % 10 == 0:
         print(f'Epoch: {epoch}, Loss: {loss.item()}')
 
@@ -302,7 +304,7 @@ print("predicted stds lenght:", len(predicted_stds))
 
 # %%
 # 8) Store single-pass predictions
-df_test = df.xs(CURRENT_TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:] #TEST_ASSET
+df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:] #TEST_ASSET
 df_test["Mean_SP"] = predicted_returns
 df_test["Vol_SP"] = predicted_stds
 df_test["NLL"] = nll_loss_maf(model, X_test, y_test)
@@ -313,7 +315,7 @@ df_test
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_test.to_csv(
-    f"predictions/lstm_MAF_v2_{CURRENT_TEST_ASSET}_{LOOKBACK_DAYS}_days.csv" #TEST_ASSET
+    f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv" #TEST_ASSET
 )
 # %%
 # Define MC-dropout for uncertainty estimation
