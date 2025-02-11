@@ -361,8 +361,10 @@ def get_lstm_train_test(include_log_returns=False):
     print(f"y_test.shape: {y_test.shape}")
 
     if False:
+        """
+        Describe the data
+        """
         # %%
-        # Describe the data
         np.set_printoptions(suppress=True)
         print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=1)))
         print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=1)))

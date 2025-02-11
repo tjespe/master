@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = "big3"
+VERSION = "big-fng"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -362,7 +362,7 @@ if os.path.exists(model_fname):
 
 # %%
 # 5) Train
-# Start with a high learning rate, then reduce
+# Start with one learning rate, then reduce
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
 history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
@@ -379,7 +379,7 @@ lstm_mdn_model.save(model_fname)
 # 7) Commit and push
 !git pull
 !git add models/lstm_mdn_*.keras
-!git commit -m "Train LSTM w MDN model 3" -m "$history.history"
+!git commit -m "Train LSTM w MDN model with FNG" -m "$history.history"
 !git push
 
 # %%
@@ -411,6 +411,7 @@ for i, day in enumerate(days):
         alpha=0.5,
     )
     plotted_mixtures = 0
+    top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
     for j in range(N_MIXTURES):
         weight = pi_pred[-day, j].numpy()
         if weight < 0.001:
@@ -421,7 +422,8 @@ for i, day in enumerate(days):
         pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
-        plt.plot(x_vals, pdf, label=f"$\pi_{{{j}}}$ = {weight*100:.2f}%")
+        legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
+        plt.plot(x_vals, pdf, label=legend, alpha=min(10*weight, 1))
     plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-day]),
@@ -448,9 +450,8 @@ for i, day in enumerate(days):
     plt.title(
         f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
     )
-    plt.ylim(0, 40)
-    if plotted_mixtures < 10:
-        plt.legend()
+    plt.ylim(0, 50)
+    plt.legend()
     plt.ylabel("Density")
 plt.xlabel("LogReturn")
 plt.tight_layout()
