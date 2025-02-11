@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = "big"
+VERSION = "big2"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -331,12 +331,13 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 40
+N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example
     dropout=0.1,
     n_mixtures=N_MIXTURES,
+    hidden_units=20,
 )
 
 # %%
@@ -380,19 +381,19 @@ lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 lstm_mdn_model.save(model_fname)
 
 # %%
-# 6b) Commit and push
+# 7) Commit and push
 !git pull
-!git add .
+!git add models/lstm_mdn_*.keras
 !git commit -m "Train LSTM w MDN model"
 !git push
 
 # %%
-# 7) Single-pass predictions
+# 8) Single-pass predictions
 y_pred_mdn = lstm_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
-# Plot 10 charts with the distributions for 10 random days
+# 9) Plot 10 charts with the distributions for 10 random days
 plt.figure(figsize=(10, 40))
 np.random.seed(0)
 days = np.random.randint(0, len(y_test), 10)
@@ -461,7 +462,7 @@ plt.tight_layout()
 plt.show()
 
 # %%
-# Plot weights over time to show how they change
+# 10) Plot weights over time to show how they change
 plt.figure(figsize=(18, 8))
 dates = (
     df.xs(TEST_ASSET, level="Symbol")
@@ -482,12 +483,12 @@ plt.show()
 
 
 # %%
-# Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
+# 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
 confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
 intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 
 # %%
-# Plot time series with mean, volatility and actual returns for last X days
+# 12) Plot time series with mean, volatility and actual returns for last X days
 days = 150
 shift = 500
 filtered_df = (
@@ -537,7 +538,7 @@ plt.legend()
 plt.show()
 
 # %%
-# 8) Store single-pass predictions
+# 13) Store single-pass predictions
 df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
 # For reference, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(

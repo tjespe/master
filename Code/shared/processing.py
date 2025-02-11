@@ -1,18 +1,12 @@
 # %%
 # Define parameters (imported from your settings)
-from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
-from shared.crps import crps_mdn_numpy
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
 
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 # %%
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import warnings
-import os
 
 # %%
 # Define consistent sector mapping for GICS
@@ -66,6 +60,16 @@ def get_lstm_train_test(include_log_returns=False):
     df
 
     # %%
+    # Add more features:
+    # Downside Volatility
+    df["DownsideVol"] = (
+        df.groupby(level="Symbol")["LogReturn"]
+        .apply(lambda x: x.where(x < 0).rolling(20, min_periods=1).std())
+        .droplevel(0)
+    )
+    df[["Close", "LogReturn", "DownsideVol"]]
+
+    # %%
     # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
     if "GARCH_Vol" in df.columns:
         df["GARCH_Resid"] = df["LogReturn"] / df["GARCH_Vol"]
@@ -94,6 +98,8 @@ def get_lstm_train_test(include_log_returns=False):
     rvol_df = pd.read_csv(RVOL_DATA_PATH)
     rvol_df["Date"] = pd.to_datetime(rvol_df["Date"])
     rvol_df = rvol_df.set_index("Date")
+    rvol_df["RVOL_Std"] = rvol_df["Close"].rolling(10).std()
+    rvol_df = rvol_df.dropna()
     rvol_df
 
     # %%
@@ -131,7 +137,7 @@ def get_lstm_train_test(include_log_returns=False):
 
     # %%
     # If we are looking at stocks, enrich with industry codes
-    if DATA_PATH == "data/sp500_stocks.csv":
+    if DATA_PATH.startswith("data/sp500_stocks"):
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         df = df.join(meta_df, how="left", rsuffix="_META")
@@ -143,18 +149,32 @@ def get_lstm_train_test(include_log_returns=False):
 
     # %%
     # Check for NaN values
-    nan_mask = df[["LogReturn", "Close_RVOL", "Close_VIX"]].isnull().sum(axis=1).gt(0)
-    df[nan_mask]
+    important_cols = [
+        "LogReturn",
+        "Close_RVOL",
+        "Close_VIX",
+        "GARCH_Vol",
+        "RVOL_Std",
+        "DownsideVol",
+    ]
+    nan_mask = df[important_cols].isnull().sum(axis=1).gt(0)
+    df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing RVOL values using the last available value
     df["Close_RVOL"] = df["Close_RVOL"].fillna(method="ffill")
-    df[nan_mask]
+    df["RVOL_Std"] = df["RVOL_Std"].fillna(method="ffill")
+    df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing VIX values using the last available value
     df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
-    df[nan_mask]
+    df[important_cols].loc[nan_mask]
+
+    # %%
+    # Impute missing DownsideVol values using the last available value
+    df["DownsideVol"] = df["DownsideVol"].fillna(method="ffill")
+    df[important_cols].loc[nan_mask]
 
     # %%
     # Add feature: is next day trading day or not
@@ -166,29 +186,20 @@ def get_lstm_train_test(include_log_returns=False):
     df["NextDayTradingDay"]
 
     # %%
-    # Add more features:
-    # Volatility-of-volatility
-    df["RVOL_Std"] = (
-        df.groupby(level="Symbol")["Close_RVOL"].rolling(10).std().droplevel(0)
-    )
-
-    # # Downside Volatility
-    # df["DownsideVol"] = df.groupby(level="Symbol")["LogReturn"].apply(
-    #     lambda x: x.where(x < 0).rolling(10).std()
-    # )
-
-    # %%
     # Check for NaN values
-    df[
-        df[["LogReturn", "Close_RVOL", "Close_VIX", "GARCH_Vol"]]
-        .isnull()
-        .sum(axis=1)
-        .gt(0)
+    important_cols = [
+        "LogReturn",
+        "Close_RVOL",
+        "Close_VIX",
+        "GARCH_Vol",
+        "RVOL_Std",
+        "DownsideVol",
     ]
+    df[important_cols][df[important_cols].isnull().sum(axis=1).gt(0)]
 
     # %%
     # Check for infinite values
-    df[np.isinf(df).any(axis=1)]
+    df[important_cols][df[important_cols].eq(np.inf).any(axis=1)]
 
     # %%
     # Prepare data for LSTM
@@ -243,7 +254,8 @@ def get_lstm_train_test(include_log_returns=False):
 
         # New Features
         rvol_std = group["RVOL_Std"].values.reshape(-1, 1)
-        # downside_vol = group["DownsideVol"].values.reshape(-1, 1)
+        downside_vol = group["DownsideVol"].values.reshape(-1, 1)
+        downside_log_var = np.log(downside_vol**2 + (0.1 / 100) ** 2)
         vix_rvol_diff = vix - rvol
 
         # Find date to split on
@@ -264,9 +276,9 @@ def get_lstm_train_test(include_log_returns=False):
                 vix_change_2d,
                 vix_change_7d,
                 next_day_trading_day,
-                # rvol_std,
-                # downside_vol,
-                # vix_rvol_diff,
+                rvol_std,
+                downside_log_var,
+                vix_rvol_diff,
             )
         )
 
