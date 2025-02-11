@@ -15,7 +15,6 @@ EXCLUDE_MODELS = [
     "Yesterday's VIX",
     "Yesterday's RVOL",
     "Transformer MDN w MC Dropout",
-    "Transformer MDN",
     "MLP with MAF",
 ]
 
@@ -252,22 +251,23 @@ except FileNotFoundError:
     print("Monte Carlo LSTM w RVOL and VIX predictions not found")
 
 # Transformer MDN
-try:
-    transformer_mdn_preds = pd.read_csv(
-        f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-    )
-    preds_per_model.append(
-        {
-            "name": "Transformer MDN",
-            "mean_pred": transformer_mdn_preds["Mean_SP"].values,
-            "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
-            "LB_95": transformer_mdn_preds["LB_95"].values,
-            "UB_95": transformer_mdn_preds["UB_95"].values,
-            "nll": transformer_mdn_preds["NLL"].values.mean(),
-        }
-    )
-except FileNotFoundError:
-    print("Transformer MDN predictions not found")
+for version in ["v1"]:
+    try:
+        transformer_mdn_preds = pd.read_csv(
+            f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        )
+        preds_per_model.append(
+            {
+                "name": f"Transformer MDN {version}",
+                "mean_pred": transformer_mdn_preds["Mean_SP"].values,
+                "volatility_pred": transformer_mdn_preds["Vol_SP"].values,
+                "LB_95": transformer_mdn_preds["LB_95"].values,
+                "UB_95": transformer_mdn_preds["UB_95"].values,
+                "nll": transformer_mdn_preds["NLL"].values.mean(),
+            }
+        )
+    except FileNotFoundError:
+        print(f"Transformer MDN {version} predictions not found")
 
 # Transformer MDN w MC Dropout
 try:
@@ -396,7 +396,7 @@ except NameError:
 
 
 # LSTM MDN
-for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig-fng"]:
+for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
     try:
         lstm_mdn_preds = pd.read_csv(
             f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
@@ -903,7 +903,7 @@ def plot_volatility_comparison(
 returns_test = df_test["LogReturn"]
 
 plot_volatility_comparison(
-    preds_per_model, returns_test, abs_returns_test, lookback_days=150, steps=30
+    preds_per_model, returns_test, abs_returns_test, lookback_days=50, steps=50
 )
 
 # %%
