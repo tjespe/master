@@ -48,133 +48,342 @@ X_train.shape, y_train.shape
 y_dim = 1  # Dimension of the target variable
 
 # %%
-# Define a LSTMFeature extractor model
+# ====================================================
+# 1. LSTM Feature Extractor
+# ====================================================
 class LSTMFeatureExtractor(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_layers=1, dropout_rate=0.2):
+        """
+        An LSTM-based feature extractor. Given a time series input, it outputs the final hidden state.
+        
+        Args:
+            input_dim (int): Number of features in the input.
+            hidden_dim (int): Hidden dimension of the LSTM.
+            num_layers (int): Number of LSTM layers.
+            dropout_rate (float): Dropout rate between LSTM layers.
+        """
         super(LSTMFeatureExtractor, self).__init__()
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, batch_first=True, dropout=dropout_rate)
-
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers, 
+                            batch_first=True, dropout=dropout_rate)
+    
     def forward(self, x):
-        _, (hn, _) = self.lstm(x)  # Use the final hidden state as the feature vector
-        return hn[-1]  # Shape: (batch_size, hidden_dim)
+        # x: (batch_size, sequence_length, input_dim)
+        _, (hn, _) = self.lstm(x)
+        # Return the last layer's hidden state: shape (batch_size, hidden_dim)
+        return hn[-1]
+#%%
+# ====================================================
+# 2. Expanded Flow Block (as used in the flow network)
+# ====================================================
+class ExpandedFlowBlock(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_layers, dropout_rate=0.2):
+        """
+        A deep feed-forward network with residual blocks for computing flow parameters.
+        
+        Args:
+            input_dim (int): Dimensionality of the input (e.g. the flattened context).
+            hidden_dim (int): Number of units for hidden layers.
+            output_dim (int): Output dimension (typically 2*y_dim, for mu and log_sigma).
+            num_layers (int): Number of residual layers.
+            dropout_rate (float): Dropout probability.
+        """
+        super(ExpandedFlowBlock, self).__init__()
+        # Initial transformation of the input
+        self.input_layer = nn.Linear(input_dim, hidden_dim)
+        self.input_act = nn.ReLU()
+        self.input_norm = nn.LayerNorm(hidden_dim)
+        self.input_dropout = nn.Dropout(dropout_rate)
+        
+        # Build residual layers
+        self.residual_layers = nn.ModuleList()
+        for _ in range(num_layers):
+            block = nn.Sequential(
+                nn.Linear(hidden_dim, hidden_dim),
+                nn.ReLU(),
+                nn.LayerNorm(hidden_dim),
+                nn.Dropout(dropout_rate)
+            )
+            self.residual_layers.append(block)
+        
+        # Output layer that produces parameters for mu and log_sigma
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        
+    def forward(self, x):
+        """
+        Forward pass through the expanded flow block.
+        
+        Args:
+            x (Tensor): Input of shape (batch_size, input_dim)
+        
+        Returns:
+            Tensor: Output of shape (batch_size, output_dim)
+        """
+        out = self.input_layer(x)
+        out = self.input_act(out)
+        out = self.input_norm(out)
+        out = self.input_dropout(out)
+        
+        for block in self.residual_layers:
+            residual = out  # Save for the skip connection
+            out = block(out)
+            out = out + residual  # Residual (skip) connection
+        
+        out = self.output_layer(out)
+        return out
+#%%
+# ====================================================
+# 3. Expanded Non-Linear Flow
+# ====================================================
+class ExpandedNonLinearFlow(nn.Module):
+    def __init__(self, context_dim, hidden_dim, num_layers, dropout_rate=0.2, y_dim=1):
+        """
+        A flow layer that uses an expanded network to condition on context and transform y.
+        
+        Args:
+            context_dim (int): Dimension of the context vector (e.g. from the LSTM).
+            hidden_dim (int): Hidden dimension for the flow network.
+            num_layers (int): Number of residual layers in the flow block.
+            dropout_rate (float): Dropout rate.
+            y_dim (int): Dimensionality of the target variable.
+        """
+        super(ExpandedNonLinearFlow, self).__init__()
+        # The network takes the flattened context and produces parameters for transforming y.
+        self.context_net = ExpandedFlowBlock(
+            input_dim=context_dim,
+            hidden_dim=hidden_dim,
+            output_dim=y_dim * 2,  # To produce mu and log_sigma
+            num_layers=num_layers,
+            dropout_rate=dropout_rate
+        )
+        self.y_dim = y_dim
 
+    def forward(self, y, context):
+        """
+        Forward pass for the flow layer.
+        
+        Args:
+            y (Tensor): Target variable of shape (batch_size, y_dim)
+            context (Tensor): Conditioning context of shape (batch_size, context_dim)
+        
+        Returns:
+            z (Tensor): Transformed variable.
+            log_det (Tensor): Log-determinant of the Jacobian.
+        """
+        params = self.context_net(context)  # (batch_size, 2*y_dim)
+        mu, log_sigma = params.chunk(2, dim=-1)
+        
+        # Prevent sigma from collapsing to zero
+        sigma = torch.exp(log_sigma).clamp(min=1e-6)
+        
+        # Ensure y has shape (batch_size, y_dim)
+        y = y.view(-1, self.y_dim)
+        
+        # Affine transformation: standardize y
+        u = (y - mu) / sigma
+        
+        # Non-linear transformation for flexibility
+        z = torch.tanh(u)
+        
+        # Compute the log-determinant of the Jacobian.
+        # Derivative of tanh(u) is (1 - tanh(u)^2), then adjust for the division by sigma.
+        log_det = -torch.log(sigma).sum(dim=-1) + torch.log(1 - z**2 + 1e-6).sum(dim=-1)
+        return z, log_det
 
-# %%
-# Define the Masked Autoregressive Network with Non-Linear Flows
-class NonLinearFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout_rate=0.2):
-        super(NonLinearFlow, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),  # Dropout Layer
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),  # Dropout Layer
-            nn.Linear(hidden_dim, y_dim * 2)  # Outputting both mu and log_sigma
+    def inverse(self, z, context):
+        """
+        Inverse transformation for sampling.
+        
+        Args:
+            z (Tensor): Latent variable of shape (batch_size, y_dim)
+            context (Tensor): Conditioning context of shape (batch_size, context_dim)
+        
+        Returns:
+            y (Tensor): Inverted sample (original space).
+        """
+        params = self.context_net(context)
+        mu, log_sigma = params.chunk(2, dim=-1)
+        sigma = torch.exp(log_sigma).clamp(min=1e-6)
+        
+        # Invert the tanh using arctanh, ensuring numerical stability
+        z = torch.clamp(z, -0.999, 0.999)
+        u = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
+        
+        # Reverse the affine transformation
+        y = u * sigma + mu
+        return y
+#%%
+# ====================================================
+# 4. Expanded Masked Autoregressive Flow
+# ====================================================
+class ExpandedMaskedAutoregressiveFlow(nn.Module):
+    def __init__(self, context_dim, hidden_dim, num_layers, num_flows, dropout_rate=0.2, y_dim=1):
+        """
+        Stack multiple flow layers to build a flexible autoregressive flow.
+        
+        Args:
+            context_dim (int): Dimension of the context vector.
+            hidden_dim (int): Hidden dimension for each flow block.
+            num_layers (int): Number of residual layers in each flow block.
+            num_flows (int): Number of flow blocks to stack.
+            dropout_rate (float): Dropout rate.
+            y_dim (int): Dimensionality of the target variable.
+        """
+        super(ExpandedMaskedAutoregressiveFlow, self).__init__()
+        self.flows = nn.ModuleList([
+            ExpandedNonLinearFlow(context_dim, hidden_dim, num_layers, dropout_rate, y_dim)
+            for _ in range(num_flows)
+        ])
+        self.base_dist = torch.distributions.Normal(0, 1)
+        self.y_dim = y_dim
+
+    def log_prob(self, y, context):
+        """
+        Compute the log probability of y given context.
+        
+        Args:
+            y (Tensor): Target variable (batch_size, y_dim)
+            context (Tensor): Conditioning context (batch_size, context_dim)
+        
+        Returns:
+            Tensor: Log probability for each sample in the batch.
+        """
+        log_det_jacobian = 0.0
+        z = y
+        for flow in self.flows:
+            z, log_det = flow(z, context)
+            log_det_jacobian += log_det
+        base_log_prob = self.base_dist.log_prob(z).sum(dim=-1)
+        return base_log_prob + log_det_jacobian
+
+    def sample(self, context, num_samples=1000):
+        """
+        Generate samples for each element in the batch given a context.
+        
+        Args:
+            context (Tensor): Conditioning context (batch_size, context_dim)
+            num_samples (int): Number of samples to generate per batch element.
+        
+        Returns:
+            Tensor: Samples with shape (num_samples, batch_size, y_dim)
+        """
+        base_samples = self.base_dist.sample((num_samples, context.size(0), self.y_dim))
+        z = base_samples
+        # Inverse the flow transformation
+        for flow in reversed(self.flows):
+            new_z = []
+            for i in range(z.size(0)):
+                sample = z[i]  # shape: (batch_size, y_dim)
+                sample_inv = flow.inverse(sample, context)
+                new_z.append(sample_inv)
+            z = torch.stack(new_z, dim=0)
+        return z
+#%%
+# ====================================================
+# 5. Full Model: LSTM Integrated with the Flow Network
+# ====================================================
+class LSTMFlowModel(nn.Module):
+    def __init__(self, lstm_input_dim, lstm_hidden_dim, lstm_num_layers,
+                 flow_context_dim, flow_hidden_dim, flow_num_layers, num_flows,
+                 dropout_rate=0.2, y_dim=1):
+        """
+        A full model that integrates an LSTM feature extractor with an expanded flow network.
+        
+        Args:
+            lstm_input_dim (int): Number of features per time step.
+            lstm_hidden_dim (int): Hidden dimension of the LSTM.
+            lstm_num_layers (int): Number of LSTM layers.
+            flow_context_dim (int): Dimension of the context used by the flow network.
+            flow_hidden_dim (int): Hidden dimension within the flow network.
+            flow_num_layers (int): Number of residual layers per flow block.
+            num_flows (int): Number of flow blocks to stack.
+            dropout_rate (float): Dropout rate (used both in LSTM and flow network).
+            y_dim (int): Dimensionality of the target variable.
+        """
+        super(LSTMFlowModel, self).__init__()
+        self.lstm_feature_extractor = LSTMFeatureExtractor(lstm_input_dim, lstm_hidden_dim, lstm_num_layers, dropout_rate)
+        
+        # Optionally project LSTM output to desired flow context dimension if needed.
+        if lstm_hidden_dim != flow_context_dim:
+            self.context_proj = nn.Linear(lstm_hidden_dim, flow_context_dim)
+        else:
+            self.context_proj = None
+        
+        self.flow = ExpandedMaskedAutoregressiveFlow(
+            context_dim=flow_context_dim,
+            hidden_dim=flow_hidden_dim,
+            num_layers=flow_num_layers,
+            num_flows=num_flows,
+            dropout_rate=dropout_rate,
+            y_dim=y_dim
         )
 
-    def forward(self, y, x):
-        x = x.view(x.size(0), -1)
-        params = self.net(x)
-        mu, log_sigma = params.chunk(2, dim=-1)
-
-        sigma = torch.exp(log_sigma)
-
-        # Non-linear transformation
-        y = y.reshape(-1, 1) # Reshape y to match mu and sigma
-
-        # Non-linear transformation
-        z = (y - mu) / sigma
-        z = torch.tanh(z)  # Adding non-linearity
-
-        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z ** 2 + 1e-6).sum(dim=-1)
-        return z, log_det_jacobian
-
-
-    def inverse(self, z, x):
-        x = x.view(x.size(0), -1)  # Flatten (30, 10) -> (1, 300)
-        params = self.net(x)
-        mu, log_sigma = params.chunk(2, dim=-1)
-
-        sigma = torch.exp(log_sigma)
-        z = torch.tanh(z)
-        z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
-
-        y = z * sigma + mu
-        return y
-
-
-# %% 
-# Define a new type of model
-class LSTMMAFModel(nn.Module):
-    def __init__(self, feature_dim, input_dim, lstm_hidden_dim, maf_hidden_dim, n_flows, num_layers, extractor_dropout, flow_dropout):
-        super(LSTMMAFModel, self).__init__()
-        self.lstm_feature_extractor = LSTMFeatureExtractor(feature_dim, lstm_hidden_dim, num_layers, extractor_dropout)
-        self.maf = MaskedAutoregressiveFlow(lstm_hidden_dim, maf_hidden_dim, n_flows, flow_dropout)
-
-    def log_prob(self, y, x):
-        feature_vector = self.lstm_feature_extractor(x)
-        return self.maf.log_prob(y, feature_vector)
+    def forward(self, x, y):
+        """
+        Compute the log probability (NLL) of y given input sequence x.
+        
+        Args:
+            x (Tensor): Input time series (batch_size, sequence_length, lstm_input_dim)
+            y (Tensor): Target variable (batch_size, y_dim)
+        
+        Returns:
+            Tensor: Log probability for each sample in the batch.
+        """
+        # Extract features from the time series using the LSTM.
+        context = self.lstm_feature_extractor(x)  # (batch_size, lstm_hidden_dim)
+        if self.context_proj is not None:
+            context = self.context_proj(context)     # (batch_size, flow_context_dim)
+        # Compute and return the log probability using the flow network.
+        return self.flow.log_prob(y, context)
 
     def sample(self, x, num_samples=1000):
-        feature_vector = self.lstm_feature_extractor(x)
-        return self.maf.sample(feature_vector, num_samples)
+        """
+        Generate samples of y given the input sequence x.
+        
+        Args:
+            x (Tensor): Input time series (batch_size, sequence_length, lstm_input_dim)
+            num_samples (int): Number of samples to generate per input.
+        
+        Returns:
+            Tensor: Generated samples with shape (num_samples, batch_size, y_dim)
+        """
+        context = self.lstm_feature_extractor(x)
+        if self.context_proj is not None:
+            context = self.context_proj(context)
+        return self.flow.sample(context, num_samples=num_samples)
 
-# %%
-# Define the masked autoregressive flow network (MAF)
-class MaskedAutoregressiveFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_flows, flow_dropout):
-        super(MaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList([NonLinearFlow(input_dim, hidden_dim, flow_dropout) for _ in range(n_flows)])
-        self.base_dist = Normal(0, 1)
-
-    def log_prob(self, y, x):
-        log_det_jacobian = 0
-        #z = y.unsqueeze(1)
-        z = y.clone().unsqueeze(1)
-
-        for flow in self.flows:
-            z, log_det = flow(z, x)
-            log_det_jacobian += log_det
-
-        log_prob = self.base_dist.log_prob(z).sum(dim=-1) + log_det_jacobian
-        return log_prob
-
-    def sample(self, x, num_samples=1000):
-        z = self.base_dist.sample((num_samples, 1))
-        for flow in reversed(self.flows):
-            z = flow.inverse(z, x)
-        return z
-    
 
 
 # %%
 # Define the model
-hidden_dim = 64
-lstm_hidden_dim = 128  # Adjust based on sequence length and features
-maf_hidden_dim = 128 # 64
-n_flows = 20 # 20
-input_dim = 300  # 10 features * 30 lookback days
-# number of features
-feature_dim = X_train.shape[-1]
-extractor_num_layers = 1 
-extractor_dropout = 0
-flow_dropout = 0
-print("Input dimension:", input_dim)
+
+# Example hyperparameters.
+lstm_input_dim = X_train.shape[-1]      # e.g., 10 features per time step.
+sequence_length = LOOKBACK_DAYS     # e.g., lookback period of 30 days.
+lstm_hidden_dim = 256
+lstm_num_layers = 1
+
+# Flow network hyperparameters.
+flow_context_dim = 256   # We can set this equal to lstm_hidden_dim.
+flow_hidden_dim = 128
+flow_num_layers = 3      # Number of residual layers in each flow block.
+num_flows = 10
+dropout_rate = 0.1
+y_dim = 1                # Target variable dimension (e.g., one return value)
 
 
 # %%
 # Initialize the model
-model = LSTMMAFModel(input_dim=input_dim,
-                      feature_dim = feature_dim, 
-                      lstm_hidden_dim=lstm_hidden_dim, 
-                      maf_hidden_dim=maf_hidden_dim, 
-                      n_flows=n_flows,
-                      num_layers=extractor_num_layers,
-                      extractor_dropout=extractor_dropout,
-                      flow_dropout=flow_dropout
-                      )
+model = LSTMFlowModel(
+        lstm_input_dim=lstm_input_dim,
+        lstm_hidden_dim=lstm_hidden_dim,
+        lstm_num_layers=lstm_num_layers,
+        flow_context_dim=flow_context_dim,
+        flow_hidden_dim=flow_hidden_dim,
+        flow_num_layers=flow_num_layers,
+        num_flows=num_flows,
+        dropout_rate=dropout_rate,
+        y_dim=y_dim
+    )
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.5, patience=10, verbose=True)
 
