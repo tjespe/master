@@ -4,7 +4,7 @@ from shared.processing import get_lstm_train_test
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
@@ -368,7 +368,7 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 5
+N_MIXTURES = 20
 transformer_mdn_model = build_transformer_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example
@@ -398,14 +398,6 @@ if os.path.exists(model_fname):
 
 # %%
 # 5) Train
-# Start with a high learning rate, then reduce
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-2), loss=mdn_loss_tf(N_MIXTURES)
-)
-transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
-
-# %%
-# Reduce learning rate
 transformer_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
 )
