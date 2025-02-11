@@ -110,6 +110,13 @@ def get_lstm_train_test(include_log_returns=False):
     vix_df
 
     # %%
+    # Read Fear & Greed Index data
+    fng_df = pd.read_csv("data/fear-greed.csv")
+    fng_df["Date"] = pd.to_datetime(fng_df["Date"])
+    fng_df = fng_df.set_index("Date")
+    fng_df
+
+    # %%
     # Check if TEST_ASSET is in the data
     if TEST_ASSET not in df.index.get_level_values("Symbol"):
         raise ValueError(f"TEST_ASSET '{TEST_ASSET}' not found in the data")
@@ -127,6 +134,12 @@ def get_lstm_train_test(include_log_returns=False):
     df
 
     # %%
+    # Filter away data we don't have Fear & Greed Index data for
+    df = df[df.index.get_level_values("Date") >= fng_df.index[0]]
+    df = df[df.index.get_level_values("Date") <= fng_df.index[-1]]
+    df
+
+    # %%
     # Add RVOL data to the dataframe
     df = df.join(rvol_df, how="left", rsuffix="_RVOL")
     df
@@ -134,6 +147,11 @@ def get_lstm_train_test(include_log_returns=False):
     # %%
     # Add VIX data to the dataframe
     df = df.join(vix_df, how="left", rsuffix="_VIX")
+
+    # %%
+    # Add Fear & Greed Index data to the dataframe
+    df = df.join(fng_df, how="left")
+    df[["LogReturn", "Fear Greed"]]
 
     # %%
     # If we are looking at stocks, enrich with industry codes
@@ -177,6 +195,11 @@ def get_lstm_train_test(include_log_returns=False):
     df[important_cols].loc[nan_mask]
 
     # %%
+    # Impute missing Fear Greed values using the last available value
+    df["Fear Greed"] = df["Fear Greed"].fillna(method="ffill")
+    df[["LogReturn", "Fear Greed"]].loc[nan_mask]
+
+    # %%
     # Add feature: is next day trading day or not
     df["NextDayTradingDay"] = (
         df.index.get_level_values("Date")
@@ -194,6 +217,7 @@ def get_lstm_train_test(include_log_returns=False):
         "GARCH_Vol",
         "RVOL_Std",
         "DownsideVol",
+        "Fear Greed",
     ]
     df[important_cols][df[important_cols].isnull().sum(axis=1).gt(0)]
 
@@ -257,6 +281,9 @@ def get_lstm_train_test(include_log_returns=False):
         downside_vol = group["DownsideVol"].values.reshape(-1, 1)
         downside_log_var = np.log(downside_vol**2 + (0.1 / 100) ** 2)
         vix_rvol_diff = vix - rvol
+        fear_greed = group["Fear Greed"].values.reshape(-1, 1) / 100
+        fear_greed_1d = np.diff(fear_greed, axis=0, prepend=fear_greed[0, 0])
+        fear_greed_7d = fear_greed - np.vstack([fear_greed[:7], fear_greed[:-7]])
 
         # Find date to split on
         train_test_split_index = len(
@@ -279,6 +306,9 @@ def get_lstm_train_test(include_log_returns=False):
                 rvol_std,
                 downside_log_var,
                 vix_rvol_diff,
+                fear_greed,
+                fear_greed_1d * 10,  # Scale by 10 to improve scale
+                fear_greed_7d * 10,  # Scale by 10 to improve scale
             )
         )
 
@@ -329,6 +359,13 @@ def get_lstm_train_test(include_log_returns=False):
     print(f"X_test.shape: {X_test.shape}")
     print(f"y_train.shape: {y_train.shape}")
     print(f"y_test.shape: {y_test.shape}")
+
+    if False:
+        # %%
+        # Describe the data
+        np.set_printoptions(suppress=True)
+        print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=1)))
+        print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=1)))
 
     # %%
     return df, X_train, X_test, y_train, y_test
