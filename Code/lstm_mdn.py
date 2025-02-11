@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = "big"
+VERSION = "big2"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -331,12 +331,13 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 40
+N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example
     dropout=0.1,
     n_mixtures=N_MIXTURES,
+    hidden_units=20,
 )
 
 # %%
@@ -382,7 +383,7 @@ lstm_mdn_model.save(model_fname)
 # %%
 # 6b) Commit and push
 !git pull
-!git add .
+!git add models/lstm_mdn_*.keras
 !git commit -m "Train LSTM w MDN model"
 !git push
 
