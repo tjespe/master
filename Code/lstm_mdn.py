@@ -2,7 +2,7 @@
 # Define parameters (based on settings)
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
 
-VERSION = "big2"
+VERSION = "big3"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -363,18 +363,13 @@ if os.path.exists(model_fname):
 # %%
 # 5) Train
 # Start with a high learning rate, then reduce
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-2), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
-
-# %%
-# Reduce learning rate
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate again
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
@@ -384,7 +379,7 @@ lstm_mdn_model.save(model_fname)
 # 7) Commit and push
 !git pull
 !git add models/lstm_mdn_*.keras
-!git commit -m "Train LSTM w MDN model"
+!git commit -m "Train LSTM w MDN model 3" -m "$history.history"
 !git push
 
 # %%
