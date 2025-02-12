@@ -906,6 +906,9 @@ plot_volatility_comparison(
     preds_per_model, returns_test, abs_returns_test, lookback_days=50, steps=50
 )
 
+
+
+
 # %% Calculate Strategy Returns for Each Model
 for entry in preds_per_model:
     # Generate trading signal: long (1) if predicted mean is positive, short (-1) if negative
@@ -943,4 +946,3 @@ final_cumulative_returns = [entry['cumulative_strategy_returns'].iloc[-2] for en
 final_cumulative_returns.append(df_test['buy_hold_returns'].iloc[-2])
 final_cumulative_returns = pd.Series(final_cumulative_returns, index=[entry['name'] for entry in preds_per_model] + ['Buy-and-Hold'])
 final_cumulative_returns
-# %%
