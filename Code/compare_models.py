@@ -906,4 +906,41 @@ plot_volatility_comparison(
     preds_per_model, returns_test, abs_returns_test, lookback_days=50, steps=50
 )
 
+# %% Calculate Strategy Returns for Each Model
+for entry in preds_per_model:
+    # Generate trading signal: long (1) if predicted mean is positive, short (-1) if negative
+    entry['signal'] = np.where(entry['mean_pred'] > 0, 1, -1)
+    
+    # Calculate daily strategy returns by multiplying the signal with the actual return
+    entry['strategy_returns'] = entry['signal'] * df_test['LogReturn'].shift(-1)
+    
+    # Calculate cumulative returns for the strategy
+    entry['cumulative_strategy_returns'] = (1 + entry['strategy_returns']).cumprod()
+
+# %% Calculate Buy-and-Hold Cumulative Returns
+df_test['buy_hold_returns'] = (1 + df_test['LogReturn']).cumprod()
+
+# %% Plot Cumulative Returns Comparison
+plt.figure(figsize=(14, 8))
+plt.plot(df_test.index, df_test['buy_hold_returns'], label='Buy-and-Hold', color='black', linestyle='--')
+
+for entry in preds_per_model:
+    plt.plot(
+        df_test.index, 
+        entry['cumulative_strategy_returns'], 
+        label=f"{entry['name']} Buy/Short Strategy", 
+        linewidth=1.2
+    )
+
+plt.title(f'Cumulative Returns Comparison ({TEST_ASSET})')
+plt.xlabel('Date')
+plt.ylabel('Cumulative Returns')
+plt.legend()
+plt.show()
+
+# Print final cumulative returns for all and the buy hold strategy, last entry for all is NaN so don't look at that
+final_cumulative_returns = [entry['cumulative_strategy_returns'].iloc[-2] for entry in preds_per_model]
+final_cumulative_returns.append(df_test['buy_hold_returns'].iloc[-2])
+final_cumulative_returns = pd.Series(final_cumulative_returns, index=[entry['name'] for entry in preds_per_model] + ['Buy-and-Hold'])
+final_cumulative_returns
 # %%
