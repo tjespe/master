@@ -333,3 +333,4 @@ def mc_dropout_sample(model, X, num_samples=1000):
     std_prediction = predictions.std(axis=0)  # Uncertainty estimate (standard deviation)
 
     return mean_prediction, std_prediction
+

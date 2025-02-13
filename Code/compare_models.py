@@ -946,3 +946,4 @@ final_cumulative_returns = [entry['cumulative_strategy_returns'].iloc[-2] for en
 final_cumulative_returns.append(df_test['buy_hold_returns'].iloc[-2])
 final_cumulative_returns = pd.Series(final_cumulative_returns, index=[entry['name'] for entry in preds_per_model] + ['Buy-and-Hold'])
 final_cumulative_returns
+# %%
