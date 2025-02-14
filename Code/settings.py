@@ -6,4 +6,5 @@ DATA_PATH = "data/sp500_stocks_garch.csv"
 TRAIN_TEST_SPLIT = "2020-06-30"
 
 # Other
-import _fix_path
+# Not necessary anymore after we stopped using Git LFS
+# import _fix_path
