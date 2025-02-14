@@ -15,7 +15,7 @@ from settings import (
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
-VERSION = 1
+VERSION = 2
 
 # %%
 # Standard imports
@@ -40,7 +40,7 @@ warnings.filterwarnings("ignore")
 # %%
 # Load preprocessed data
 df, X_train, X_val, y_train, y_val = get_lstm_train_test(
-    include_log_returns=False, include_fng=False
+    include_log_returns=True, include_fng=True
 )
 gc.collect()
 
