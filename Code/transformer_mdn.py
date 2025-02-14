@@ -12,10 +12,10 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 VERSION = 2
+MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Standard imports
