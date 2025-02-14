@@ -376,7 +376,7 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
 # %%
 # 1) Inspect shapes
 print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-print(f"X_test.shape: {X_val.shape},   y_test.shape: {y_val.shape}")
+print(f"X_test.shape: {X_val.shape},   y_val.shape: {y_val.shape}")
 
 # %%
 # 2) Build model
@@ -455,7 +455,7 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 # Plot 10 charts with the distributions for 10 random days
 plt.figure(figsize=(10, 40))
 np.random.seed(0)
-days = np.random.randint(0, len(y_test), 10)
+days = np.random.randint(0, len(y_val), 10)
 days = np.sort(days)[::-1]
 for i, day in enumerate(days):
     plt.subplot(10, 1, i + 1)
@@ -488,7 +488,7 @@ for i, day in enumerate(days):
         )
         legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
         plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
-    plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
+    plt.axvline(y_val[-day], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-day]),
         np.array(mu_pred[-day]),
@@ -532,8 +532,8 @@ intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 
 # %%
 # Plot time series with mean, volatility and actual returns for last 100 days
-days = 150
-shift = 500
+days = 500
+shift = 1
 filtered_df = (
     df.xs(TEST_ASSET, level="Symbol")
     .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
