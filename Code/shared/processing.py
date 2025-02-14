@@ -13,6 +13,7 @@ VIX_DATA_PATH = "data/VIX.csv"
 # %%
 import numpy as np
 import pandas as pd
+import gc
 
 # %%
 # Define consistent sector mapping for GICS
@@ -45,7 +46,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     df["Date"] = pd.to_datetime(df["Date"])
 
     # Sort the dataframe by both Date and Symbol
-    df = df.sort_values(["Symbol", "Date"])
+    df.sort_values(["Symbol", "Date"], inplace=True)
     df
 
     # %%
@@ -55,14 +56,16 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         .apply(lambda x: np.log(x / x.shift(1)))
         .reset_index()["Close"]
     )
+    gc.collect()
 
     # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
     df = df[~df["LogReturn"].isnull()]
+    gc.collect()
 
     df["SquaredReturn"] = df["LogReturn"] ** 2
 
     # Set date and symbol as index
-    df: pd.DataFrame = df.set_index(["Date", "Symbol"])
+    df.set_index(["Date", "Symbol"], inplace=True)
     df
 
     # %%
@@ -77,6 +80,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
+    gc.collect()
     if "GARCH_Vol" in df.columns:
         df["GARCH_Resid"] = df["LogReturn"] / df["GARCH_Vol"]
 
@@ -91,12 +95,15 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         # `ewm_stats` now has a multi-index: (Symbol, Date).
         # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
         df = df.join(ewm_stats)
+        gc.collect()
 
         # Drop first 20 rows for each instrument
         df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
+        gc.collect()
 
         # Remove extra level in the multi-index
         df = df.droplevel(0)
+        gc.collect()
         df
 
     # %%
@@ -131,32 +138,38 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     # Filter away data we don't have RVOL data for
     df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
     df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
+    gc.collect()
     df
 
     # %%
     # Filter away data we don't have VIX data for
     df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
     df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
+    gc.collect()
     df
 
     # %%
     # Filter away data we don't have Fear & Greed Index data for
     df = df[df.index.get_level_values("Date") >= fng_df.index[0]]
     df = df[df.index.get_level_values("Date") <= fng_df.index[-1]]
+    gc.collect()
     df
 
     # %%
     # Add RVOL data to the dataframe
     df = df.join(rvol_df, how="left", rsuffix="_RVOL")
+    gc.collect()
     df
 
     # %%
     # Add VIX data to the dataframe
     df = df.join(vix_df, how="left", rsuffix="_VIX")
+    gc.collect()
 
     # %%
     # Add Fear & Greed Index data to the dataframe
     df = df.join(fng_df, how="left")
+    gc.collect()
     df[["LogReturn", "Fear Greed"]]
 
     # %%
@@ -165,6 +178,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         df = df.join(meta_df, how="left", rsuffix="_META")
+        gc.collect()
 
         # Check for nans
         nan_mask = df[["GICS Sector"]].isnull().sum(axis=1).gt(0)
@@ -173,6 +187,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # Check for NaN values
+    gc.collect()
     important_cols = [
         "LogReturn",
         "Close_RVOL",
@@ -225,6 +240,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # Prepare data for LSTM
+    gc.collect()
     X_train = []
     X_test = []
     y_train = []
@@ -344,6 +360,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # Convert X and y to numpy arrays
+    gc.collect()
     X_train = np.array(X_train)
     X_test = np.array(X_test)
     y_train = np.array(y_train)
@@ -371,6 +388,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=1)))
 
     # %%
+    gc.collect()
     return df, X_train, X_test, y_train, y_test
 
 
