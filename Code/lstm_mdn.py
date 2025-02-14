@@ -1,6 +1,13 @@
 # %%
 # Define parameters (based on settings)
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_VALIDATION_SPLIT, VALIDATION_TEST_SPLIT
+import subprocess
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 VERSION = "big-fng"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -377,10 +384,19 @@ lstm_mdn_model.save(model_fname)
 
 # %%
 # 7) Commit and push
-!git pull
-!git add models/lstm_mdn_*.keras
-!git commit -m "Train LSTM w MDN model with FNG" -m "$history.history"
-!git push
+try:
+    subprocess.run(["git", "pull"], check=True)
+    subprocess.run(["git", "add", "models/transformer_mdn_*"], check=True)
+
+    commit_header = "Train LSTM w MDN model with FNG"
+    commit_body = f"Training history: {history.history}"
+
+    subprocess.run(
+        ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+    )
+    subprocess.run(["git", "push"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Git command failed: {e}")
 
 # %%
 # 8) Single-pass predictions
@@ -423,7 +439,7 @@ for i, day in enumerate(days):
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
         legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
-        plt.plot(x_vals, pdf, label=legend, alpha=min(10*weight, 1))
+        plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
     plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-day]),
@@ -535,7 +551,9 @@ plt.show()
 
 # %%
 # 13) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
 # For reference, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(
     pi_pred, mu_pred, sigma_pred
@@ -565,8 +583,12 @@ mc_results = predict_with_mc_dropout_mdn(
 
 df_validation["Mean_MC"] = mc_results["expected_returns"]
 df_validation["Vol_MC"] = mc_results["volatility_estimates"]
-df_validation["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_estimates"]
-df_validation["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
+df_validation["Epistemic_Unc_Vol"] = mc_results[
+    "epistemic_uncertainty_volatility_estimates"
+]
+df_validation["Epistemic_Unc_Mean"] = mc_results[
+    "epistemic_uncertainty_expected_returns"
+]
 
 df_validation.to_csv(
     f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"

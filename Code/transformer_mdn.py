@@ -25,8 +25,27 @@ import matplotlib.pyplot as plt
 import warnings
 import os
 import subprocess
+import gc
 
-# TensorFlow / Keras
+# For old TF versions, you'd need a custom MHA layer or upgrade TF
+# from tensorflow.keras.layers import MultiHeadAttention
+
+# External
+from scipy.optimize import brentq
+from scipy.stats import norm
+
+warnings.filterwarnings("ignore")
+
+
+# %%
+# Load preprocessed data
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(
+    include_log_returns=False, include_fng=False
+)
+gc.collect()
+
+# %%
+# Import tensorflow and keras
 import tensorflow as tf
 from tensorflow.keras import Model
 from tensorflow.keras.layers import (
@@ -41,23 +60,6 @@ from tensorflow.keras.optimizers import Adam
 
 # We will use MultiHeadAttention from TF >= 2.4
 from tensorflow.keras.layers import MultiHeadAttention
-
-# For old TF versions, you'd need a custom MHA layer or upgrade TF
-# from tensorflow.keras.layers import MultiHeadAttention
-
-# External
-from sklearn.preprocessing import StandardScaler
-from scipy.optimize import brentq
-from scipy.stats import norm
-
-warnings.filterwarnings("ignore")
-
-
-# %%
-# Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(
-    include_log_returns=False, include_fng=False
-)
 
 
 # %%
@@ -434,7 +436,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", "models/transformer_mdn_*"], check=True)
 
-    commit_header = "Add transformer MDN model."
+    commit_header = "Train transformer MDN model."
     commit_body = f"Training history: {history.history}"
 
     subprocess.run(
