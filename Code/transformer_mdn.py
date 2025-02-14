@@ -39,7 +39,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(
+df, X_train, X_val, y_train, y_val = get_lstm_train_test(
     include_log_returns=False, include_fng=False
 )
 gc.collect()
@@ -376,7 +376,7 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
 # %%
 # 1) Inspect shapes
 print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
+print(f"X_test.shape: {X_val.shape},   y_test.shape: {y_val.shape}")
 
 # %%
 # 2) Build model
@@ -448,21 +448,24 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 7) Single-pass predictions
-y_pred_mdn = transformer_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
+y_pred_mdn = transformer_mdn_model.predict(X_val)  # shape: (batch, 3*N_MIXTURES)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # Plot 10 charts with the distributions for 10 random days
 plt.figure(figsize=(10, 40))
 np.random.seed(0)
-for i in range(10):
+days = np.random.randint(0, len(y_test), 10)
+days = np.sort(days)[::-1]
+for i, day in enumerate(days):
     plt.subplot(10, 1, i + 1)
-    i = np.random.randint(0, len(y_test))
-    timestamp = df.index[-i][0]
+    timestamp = df.index[-day][0]
     x_min = -0.1
     x_max = 0.1
     x_vals = np.linspace(x_min, x_max, 1000)
-    mixture_pdf = compute_mixture_pdf(x_vals, pi_pred[-i], mu_pred[-i], sigma_pred[-i])
+    mixture_pdf = compute_mixture_pdf(
+        x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+    )
     plt.fill_between(
         x_vals,
         np.zeros_like(x_vals),
@@ -472,22 +475,24 @@ for i in range(10):
         alpha=0.5,
     )
     plotted_mixtures = 0
+    top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
     for j in range(N_MIXTURES):
-        weight = pi_pred[-i, j].numpy()
+        weight = pi_pred[-day, j].numpy()
         if weight < 0.001:
             continue
         plotted_mixtures += 1
-        mu = mu_pred[-i, j]
-        sigma = sigma_pred[-i, j]
+        mu = mu_pred[-day, j]
+        sigma = sigma_pred[-day, j]
         pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
-        plt.plot(x_vals, pdf, label=f"$\pi_{{{j}}}$ = {weight*100:.2f}%")
-    plt.axvline(y_test[-i], color="red", linestyle="--", label="Actual")
+        legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
+        plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
+    plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
     moment_estimates = numerical_mixture_moments(
-        np.array(pi_pred[-i]),
-        np.array(mu_pred[-i]),
-        np.array(sigma_pred[-i]),
+        np.array(pi_pred[-day]),
+        np.array(mu_pred[-day]),
+        np.array(sigma_pred[-day]),
         range_factor=3,
     )
     plt.axvline(
@@ -509,11 +514,14 @@ for i in range(10):
     plt.title(
         f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
     )
-    if plotted_mixtures < 10:
-        plt.legend()
+    plt.ylim(0, 50)
+    plt.legend()
     plt.ylabel("Density")
 plt.xlabel("LogReturn")
 plt.tight_layout()
+plt.savefig(
+    f"results/transformer_mdn_distributions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.svg"
+)
 plt.show()
 
 
@@ -585,9 +593,9 @@ uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
-df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_val, y_pred_mdn)
 crps = crps_mdn_numpy(N_MIXTURES)
-df_validation["CRPS"] = crps(y_test, y_pred_mdn)
+df_validation["CRPS"] = crps(y_val, y_pred_mdn)
 
 for i, cl in enumerate(confidence_levels):
     df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
@@ -601,7 +609,7 @@ df_validation.to_csv(
 # %%
 # 9) MC Dropout predictions
 mc_results = predict_with_mc_dropout_mdn(
-    transformer_mdn_model, X_test, T=100, n_mixtures=N_MIXTURES
+    transformer_mdn_model, X_val, T=100, n_mixtures=N_MIXTURES
 )
 
 df_validation["Mean_MC"] = mc_results["expected_returns"]
