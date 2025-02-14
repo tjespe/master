@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import brentq
 from scipy.stats import norm
 
+from settings import TEST_ASSET
 from shared.numerical_mixture_moments import numerical_mixture_moments
 
 

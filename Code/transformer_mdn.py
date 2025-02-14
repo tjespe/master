@@ -6,6 +6,7 @@ from shared.mdn import (
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
+    plot_sample_days,
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
@@ -220,76 +221,15 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # Plot 10 charts with the distributions for 10 random days
-plt.figure(figsize=(10, 40))
-np.random.seed(0)
-days = np.random.randint(0, len(y_val), 10)
-days = np.sort(days)[::-1]
-for i, day in enumerate(days):
-    plt.subplot(10, 1, i + 1)
-    timestamp = df.index[-day][0]
-    x_min = -0.1
-    x_max = 0.1
-    x_vals = np.linspace(x_min, x_max, 1000)
-    mixture_pdf = compute_mixture_pdf(
-        x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
-    )
-    plt.fill_between(
-        x_vals,
-        np.zeros_like(x_vals),
-        mixture_pdf,
-        color="blue",
-        label="Mixture",
-        alpha=0.5,
-    )
-    plotted_mixtures = 0
-    top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
-    for j in range(N_MIXTURES):
-        weight = pi_pred[-day, j].numpy()
-        if weight < 0.001:
-            continue
-        plotted_mixtures += 1
-        mu = mu_pred[-day, j]
-        sigma = sigma_pred[-day, j]
-        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
-            -0.5 * ((x_vals - mu) / sigma) ** 2
-        )
-        legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
-        plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
-    plt.axvline(y_val[-day], color="red", linestyle="--", label="Actual")
-    moment_estimates = numerical_mixture_moments(
-        np.array(pi_pred[-day]),
-        np.array(mu_pred[-day]),
-        np.array(sigma_pred[-day]),
-        range_factor=3,
-    )
-    plt.axvline(
-        moment_estimates["mean"], color="black", linestyle="--", label="Predicted Mean"
-    )
-    plt.text(
-        x_min + 0.01,
-        5,
-        f"Mean: {moment_estimates['mean']*100:.2f}%\n"
-        f"Std: {moment_estimates['std']*100:.2f}%\n"
-        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
-        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
-        f"* Numerically estimated",
-        fontsize=10,
-    )
-    plt.gca().set_xticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-    )
-    plt.title(
-        f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
-    )
-    plt.ylim(0, 50)
-    plt.legend()
-    plt.ylabel("Density")
-plt.xlabel("LogReturn")
-plt.tight_layout()
-plt.savefig(
-    f"results/transformer_mdn_distributions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.svg"
+plot_sample_days(
+    df,
+    y_val,
+    pi_pred,
+    mu_pred,
+    sigma_pred,
+    N_MIXTURES,
+    f"results/transformer_mdn_distributions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.svg",
 )
-plt.show()
 
 
 # %%
@@ -403,7 +343,7 @@ else:
 # %%
 # We'll do a short coverage example on the last 100 points
 lookback_days_plot = 100
-shift = 200
+shift = 1
 idx_start = max(0, len(df_validation) - lookback_days_plot - shift)
 idx_end = idx_start + lookback_days_plot
 
@@ -444,68 +384,3 @@ plt.xlabel("Date")
 plt.ylabel("LogReturn")
 plt.legend()
 plt.show()
-
-# %%
-# Coverage stats
-# 67% ~ 1 std
-cov_67 = np.mean(
-    (actual_returns >= mc_means - mc_vols) & (actual_returns <= mc_means + mc_vols)
-)
-# 95% ~ 2 std
-cov_95 = np.mean(
-    (actual_returns >= mc_means - 2 * mc_vols)
-    & (actual_returns <= mc_means + 2 * mc_vols)
-)
-
-# %%
-# Compare with GARCH if available
-if garch_vol_pred is not None:
-    # align garch_vol_pred with same date range
-    garch_vol_plot = garch_vol_pred.loc[mc_means.index]
-    cov_67_garch = np.mean(
-        (actual_returns >= -garch_vol_plot) & (actual_returns <= garch_vol_plot)
-    )
-    cov_95_garch = np.mean(
-        (actual_returns >= -1.96 * garch_vol_plot)
-        & (actual_returns <= 1.96 * garch_vol_plot)
-    )
-
-    mean_width_67_garch = garch_vol_plot.mean()
-    mean_width_95_garch = 1.96 * 2 * garch_vol_plot.mean()
-
-    mean_width_67_mc = mc_vols.mean()
-    mean_width_95_mc = 2.0 * 2 * mc_vols.mean()  # 2 stdev => 95% in normal approx
-
-    print(f"Stats for last {lookback_days_plot} points:")
-    stats_df = pd.DataFrame(
-        {
-            "Model": ["MC Dropout", "GARCH"],
-            "PICP (67%)": [cov_67, cov_67_garch],
-            "PICP (95%)": [cov_95, cov_95_garch],
-            "Width (67%)": [mean_width_67_mc, mean_width_67_garch],
-            "Width (95%)": [mean_width_95_mc, mean_width_95_garch],
-            "PICP/Width (67%)": [
-                cov_67 / mean_width_67_mc if mean_width_67_mc != 0 else np.nan,
-                (
-                    cov_67_garch / mean_width_67_garch
-                    if mean_width_67_garch != 0
-                    else np.nan
-                ),
-            ],
-            "PICP/Width (95%)": [
-                cov_95 / mean_width_95_mc if mean_width_95_mc != 0 else np.nan,
-                (
-                    cov_95_garch / mean_width_95_garch
-                    if mean_width_95_garch != 0
-                    else np.nan
-                ),
-            ],
-        }
-    )
-    print(stats_df)
-else:
-    print(f"Coverage (67%): {cov_67:.3f}, Coverage (95%): {cov_95:.3f}")
-
-print("Done.")
-
-# %%

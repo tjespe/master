@@ -16,12 +16,10 @@ MODEL_NAME = f"lstm_ffnn_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # Imports from code shared across models
 from shared.mdn import (
     calculate_intervals,
-    compute_mixture_pdf,
     get_mdn_kernel_initializer,
     get_mdn_bias_initializer,
     parse_mdn_output,
     plot_sample_days,
-    predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
 from shared.numerical_mixture_moments import numerical_mixture_moments
