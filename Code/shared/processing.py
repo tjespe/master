@@ -181,6 +181,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         "RVOL_Std",
         "DownsideVol",
     ]
+    important_cols = [col for col in important_cols if col in df.columns]
     nan_mask = df[important_cols].isnull().sum(axis=1).gt(0)
     df[important_cols].loc[nan_mask]
 
@@ -216,15 +217,6 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # Check for NaN values
-    important_cols = [
-        "LogReturn",
-        "Close_RVOL",
-        "Close_VIX",
-        "GARCH_Vol",
-        "RVOL_Std",
-        "DownsideVol",
-        "Fear Greed",
-    ]
     df[important_cols][df[important_cols].isnull().sum(axis=1).gt(0)]
 
     # %%

@@ -407,7 +407,7 @@ transformer_mdn_model.compile(
 history = transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
-# Reduce learning rate again
+# Reduce learning rate
 transformer_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
 )
