@@ -1,6 +1,6 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_VALIDATION_SPLIT
 
 # %%
 import numpy as np
@@ -54,11 +54,11 @@ df
 df_filtered = df.xs(TEST_ASSET, level="Symbol")
 
 # Training data
-returns_train = df_filtered["LogReturn"].loc[:TRAIN_TEST_SPLIT]
+returns_train = df_filtered["LogReturn"].loc[:TRAIN_VALIDATION_SPLIT]
 returns_train = returns_train * 100  # Scale to percentages
 
 # Test data
-returns_test = df_filtered["LogReturn"].loc[TRAIN_TEST_SPLIT:]
+returns_test = df_filtered["LogReturn"].loc[TRAIN_VALIDATION_SPLIT:]
 scaled_returns_test = returns_test * 100  # Scale to percentages
 
 # Initialize an empty list to store forecasts
@@ -91,10 +91,10 @@ gjr_vol_pred = np.array(gjr_vol_pred)
 
 # %%
 # Save GJR-GARCH predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Volatility"] = gjr_vol_pred
-df_test["Mean"] = 0  # Assume mean is 0
-df_test.to_csv(
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:]
+df_validation["Volatility"] = gjr_vol_pred
+df_validation["Mean"] = 0  # Assume mean is 0
+df_validation.to_csv(
     f"predictions/gjr_garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 

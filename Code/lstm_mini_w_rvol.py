@@ -1,6 +1,13 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 MODEL_NAME = f"lstm_mini_w_rvol_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
@@ -122,21 +129,24 @@ for symbol, group in df.groupby(level="Symbol"):
     rvol = np.log(rvol_daily**2 + (0.1 / 100) ** 2)
 
     # Find date to split on
-    train_test_split_index = len(
-        group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+    TRAIN_VALIDATION_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
+    )
+    VALIDATION_TEST_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
     )
 
     # Stack returns and squared returns together
     data = np.hstack((log_sq_returns, rvol))
 
     # Create training sequences of length 'sequence_length'
-    for i in range(LOOKBACK_DAYS, train_test_split_index):
+    for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
         X_train.append(data[i - LOOKBACK_DAYS : i])
         y_train.append(returns[i, 0])
 
     # Add the test data
     if symbol == TEST_ASSET:
-        for i in range(train_test_split_index, len(data)):
+        for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
             X_test.append(data[i - LOOKBACK_DAYS : i])
             y_test.append(returns[i, 0])
 
@@ -220,23 +230,21 @@ volatility_pred = np.sqrt(variance_pred)
 
 # %%
 # Save predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Volatility"] = volatility_pred
-df_test["Mean"] = mean_pred
-df_test.to_csv(
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation["Volatility"] = volatility_pred
+df_validation["Mean"] = mean_pred
+df_validation.to_csv(
     f"predictions/lstm_mini_w_rvol_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
-
-
-# %%
-# Get test part of df
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test
 
 # %%
 # Plot results of only LSTM
 plt.figure(figsize=(12, 6))
-plt.plot(df_test.index, volatility_pred, label="Volatility Prediction", color="black")
+plt.plot(
+    df_validation.index, volatility_pred, label="Volatility Prediction", color="black"
+)
 plt.title("Volatility Prediction with LSTM")
 plt.xlabel("Date")
 plt.ylabel("Volatility")

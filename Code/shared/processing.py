@@ -1,6 +1,12 @@
 # %%
 # Define parameters (imported from your settings)
-from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
@@ -285,9 +291,12 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         fear_greed_1d = np.diff(fear_greed, axis=0, prepend=fear_greed[0, 0])
         fear_greed_7d = fear_greed - np.vstack([fear_greed[:7], fear_greed[:-7]])
 
-        # Find date to split on
-        train_test_split_index = len(
-            group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+        # Find dates to split on
+        TRAIN_VALIDATION_SPLIT_index = len(
+            group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
+        )
+        VALIDATION_TEST_SPLIT_index = len(
+            group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
         )
 
         # Stack returns and squared returns together
@@ -331,13 +340,13 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
             data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
 
         # Create training sequences of length 'sequence_length'
-        for i in range(LOOKBACK_DAYS, train_test_split_index):
+        for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
             X_train.append(data[i - LOOKBACK_DAYS : i])
             y_train.append(returns[i, 0])
 
         # Add the test data
         if symbol == TEST_ASSET:
-            for i in range(train_test_split_index, len(data)):
+            for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
                 X_test.append(data[i - LOOKBACK_DAYS : i])
                 y_test.append(returns[i, 0])
 

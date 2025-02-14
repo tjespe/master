@@ -1,6 +1,13 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 # %%
 import numpy as np
@@ -80,21 +87,24 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Find date to split on
-    train_test_split_index = len(
-        group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+    TRAIN_VALIDATION_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
+    )
+    VALIDATION_TEST_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
     )
 
     # # Stack returns and squared returns together
     data = np.hstack((returns, log_sq_returns))
 
     # Create training sequences of length 'sequence_length'
-    for i in range(LOOKBACK_DAYS, train_test_split_index):
+    for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
         X_train.append(data[i - LOOKBACK_DAYS : i])
         y_train.append(returns[i, 0])
 
     # Add the test data
     if symbol == TEST_ASSET:
-        for i in range(train_test_split_index, len(data)):
+        for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
             X_test.append(data[i - LOOKBACK_DAYS : i])
             y_test.append(returns[i, 0])
 
@@ -243,10 +253,14 @@ volatility_pred_linreg = np.sqrt(variance_pred_linreg)
 
 # %%
 # Save predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Mean"] = mean_pred_linreg
-df_test["Volatility"] = volatility_pred_linreg
-df_test.to_csv(f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation["Mean"] = mean_pred_linreg
+df_validation["Volatility"] = volatility_pred_linreg
+df_validation.to_csv(
+    f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+)
 
 # %%
 # Print the weights for the variance output with labels

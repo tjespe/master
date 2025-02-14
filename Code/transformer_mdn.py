@@ -4,7 +4,7 @@ from shared.processing import get_lstm_train_test
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_VALIDATION_SPLIT, VALIDATION_TEST_SPLIT
 
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
@@ -506,7 +506,7 @@ days = 150
 shift = 500
 filtered_df = (
     df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_TEST_SPLIT:]
+    .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     .tail(days + shift)
     .head(days)
 )
@@ -552,25 +552,25 @@ plt.show()
 
 # %%
 # 8) Store single-pass predictions
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
 # For reference, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(
     pi_pred, mu_pred, sigma_pred
 )
 uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
-df_test["Mean_SP"] = uni_mixture_mean_sp
-df_test["Vol_SP"] = uni_mixture_std_sp
-df_test["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+df_validation["Mean_SP"] = uni_mixture_mean_sp
+df_validation["Vol_SP"] = uni_mixture_std_sp
+df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
 crps = crps_mdn_numpy(N_MIXTURES)
-df_test["CRPS"] = crps(y_test, y_pred_mdn)
+df_validation["CRPS"] = crps(y_test, y_pred_mdn)
 
 for i, cl in enumerate(confidence_levels):
-    df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
-    df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
 # %%
-df_test.to_csv(
+df_validation.to_csv(
     f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
@@ -580,12 +580,12 @@ mc_results = predict_with_mc_dropout_mdn(
     transformer_mdn_model, X_test, T=100, n_mixtures=N_MIXTURES
 )
 
-df_test["Mean_MC"] = mc_results["expected_returns"]
-df_test["Vol_MC"] = mc_results["volatility_estimates"]
-df_test["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_estimates"]
-df_test["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
+df_validation["Mean_MC"] = mc_results["expected_returns"]
+df_validation["Vol_MC"] = mc_results["volatility_estimates"]
+df_validation["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_estimates"]
+df_validation["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
 
-df_test.to_csv(
+df_validation.to_csv(
     f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
@@ -601,12 +601,12 @@ else:
 # We'll do a short coverage example on the last 100 points
 lookback_days_plot = 100
 shift = 200
-idx_start = max(0, len(df_test) - lookback_days_plot - shift)
+idx_start = max(0, len(df_validation) - lookback_days_plot - shift)
 idx_end = idx_start + lookback_days_plot
 
-actual_returns = df_test["LogReturn"].iloc[idx_start:idx_end]
-mc_means = df_test["Mean_MC"].iloc[idx_start:idx_end]
-mc_vols = df_test["Vol_MC"].iloc[idx_start:idx_end]
+actual_returns = df_validation["LogReturn"].iloc[idx_start:idx_end]
+mc_means = df_validation["Mean_MC"].iloc[idx_start:idx_end]
+mc_vols = df_validation["Vol_MC"].iloc[idx_start:idx_end]
 
 # Chart with intervals
 plt.figure(figsize=(12, 6))
@@ -631,7 +631,7 @@ plt.fill_between(
 # Plot epistemc uncertainty as a bar chart on a secondary y-axis
 plt.bar(
     mc_means.index,
-    df_test["Epistemic_Unc_Mean"].iloc[idx_start:idx_end],
+    df_validation["Epistemic_Unc_Mean"].iloc[idx_start:idx_end],
     alpha=0.3,
     color="red",
     label="Epistemic Uncertainty (MC)",

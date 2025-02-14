@@ -1,7 +1,13 @@
 # %%
 # Define parameters
 from shared.loss import nll_loss_mean_and_vol
-from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 from shared.crps import crps_loss_mean_and_vol
 
 # %%
@@ -68,8 +74,10 @@ df
 
 # %%
 # Get test part of df
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation
 
 
 # %%
@@ -78,8 +86,12 @@ preds_per_model = []
 
 # Linear Regression Model
 try:
-    linreg_preds = pd.read_csv(
-        f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    linreg_preds = (
+        pd.read_csv(
+            f"predictions/linreg_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -93,9 +105,14 @@ except FileNotFoundError:
 
 # GARCH Model
 try:
-    garch_vol_pred = pd.read_csv(
-        f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-    )["Volatility"].values
+    garch_vol_pred = (
+        pd.read_csv(
+            f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]["Volatility"]
+        .values
+    )
     preds_per_model.append(
         {
             "name": "GARCH",
@@ -108,9 +125,14 @@ except FileNotFoundError:
 
 # GARCH-GJR Model
 try:
-    garch_gjr_vol_pred = pd.read_csv(
-        f"predictions/gjr_garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-    )["Volatility"].values
+    garch_gjr_vol_pred = (
+        pd.read_csv(
+            f"predictions/gjr_garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]["Volatility"]
+        .values
+    )
     preds_per_model.append(
         {
             "name": "GARCH-GJR",
@@ -123,8 +145,12 @@ except FileNotFoundError:
 
 # LSTM Model
 try:
-    lstm_preds = pd.read_csv(
-        f"predictions/lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    lstm_preds = (
+        pd.read_csv(
+            f"predictions/lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -138,8 +164,12 @@ except FileNotFoundError:
 
 # LSTM with MC Dropout Model
 try:
-    lstm_mc_preds = pd.read_csv(
-        f"predictions/lstm_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    lstm_mc_preds = (
+        pd.read_csv(
+            f"predictions/lstm_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -156,8 +186,12 @@ except FileNotFoundError:
 
 # LSTM with FFNN Model
 try:
-    lstm_w_ffnn_preds = pd.read_csv(
-        f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    lstm_w_ffnn_preds = (
+        pd.read_csv(
+            f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -171,8 +205,12 @@ except FileNotFoundError:
 
 # LSTM with FFNN and MC Dropout Model
 try:
-    lstm_w_ffnn_mc_preds = pd.read_csv(
-        f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    lstm_w_ffnn_mc_preds = (
+        pd.read_csv(
+            f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -189,8 +227,12 @@ except FileNotFoundError:
 
 # Mini LSTM
 try:
-    mini_lstm_preds = pd.read_csv(
-        f"predictions/lstm_mini_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mini_lstm_preds = (
+        pd.read_csv(
+            f"predictions/lstm_mini_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -204,8 +246,12 @@ except FileNotFoundError:
 
 # Mini LSTM w RVOL
 try:
-    mini_lstm_w_rvol_preds = pd.read_csv(
-        f"predictions/lstm_mini_w_rvol_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mini_lstm_w_rvol_preds = (
+        pd.read_csv(
+            f"predictions/lstm_mini_w_rvol_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -219,8 +265,12 @@ except FileNotFoundError:
 
 # Mini LSTM w RVOL and VIX
 try:
-    mini_lstm_w_rvol_and_vix_preds = pd.read_csv(
-        f"predictions/lstm_mini_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mini_lstm_w_rvol_and_vix_preds = (
+        pd.read_csv(
+            f"predictions/lstm_mini_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -234,8 +284,12 @@ except FileNotFoundError:
 
 # Monte Carlo LSTM w RVOL and VIX
 try:
-    mc_lstm_w_rvol_and_vix_preds = pd.read_csv(
-        f"predictions/lstm_mc_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mc_lstm_w_rvol_and_vix_preds = (
+        pd.read_csv(
+            f"predictions/lstm_mc_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -253,8 +307,12 @@ except FileNotFoundError:
 # Transformer MDN
 for version in ["v1"]:
     try:
-        transformer_mdn_preds = pd.read_csv(
-            f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        transformer_mdn_preds = (
+            pd.read_csv(
+                f"predictions/transformer_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+            )
+            .set_index("Date")
+            .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
         )
         preds_per_model.append(
             {
@@ -271,8 +329,12 @@ for version in ["v1"]:
 
 # Transformer MDN w MC Dropout
 try:
-    transformer_mdn_mc_preds = pd.read_csv(
-        f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    transformer_mdn_mc_preds = (
+        pd.read_csv(
+            f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+        )
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -287,8 +349,10 @@ except FileNotFoundError:
 
 # MLP with MAF model
 try:
-    mlp_with_maf_preds = pd.read_csv(
-        f"predictions/mlp_maf_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mlp_with_maf_preds = (
+        pd.read_csv(f"predictions/mlp_maf_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -302,8 +366,10 @@ except FileNotFoundError:
 
     # LSTM with MAF and LSTM feature extractor model
 try:
-    mlp_with_maf_non_linear_preds = pd.read_csv(
-        f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
+    mlp_with_maf_non_linear_preds = (
+        pd.read_csv(f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
     )
     preds_per_model.append(
         {
@@ -321,7 +387,7 @@ if TEST_ASSET == "S&P":
         vix_preds = pd.read_csv(f"data/VIX.csv")
         vix_preds["Date"] = pd.to_datetime(vix_preds["Date"])
         vix_preds = vix_preds.set_index("Date")
-        vix_preds = vix_preds.loc[df_test.index]
+        vix_preds = vix_preds.loc[df_validation.index]
         vix_vol_est = vix_preds["Close"].values / 100 / np.sqrt(252)
         preds_per_model.append(
             {
@@ -348,8 +414,8 @@ if TEST_ASSET == "S&P":
         rvol_preds = pd.read_csv(f"data/RVOL.csv")
         rvol_preds["Date"] = pd.to_datetime(rvol_preds["Date"]).dt.date
         rvol_preds = rvol_preds.set_index("Date")
-        # Reindex to same index as df_test and fill missing
-        rvol_preds = rvol_preds.reindex(df_test.index, method="ffill")
+        # Reindex to same index as df_validation and fill missing
+        rvol_preds = rvol_preds.reindex(df_validation.index, method="ffill")
         rvol_vol_est = rvol_preds["Close"].values / 100 / np.sqrt(252)
         preds_per_model.append(
             {
@@ -398,8 +464,12 @@ except NameError:
 # LSTM MDN
 for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
     try:
-        lstm_mdn_preds = pd.read_csv(
-            f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        lstm_mdn_preds = (
+            pd.read_csv(
+                f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+            )
+            .set_index("Date")
+            .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
         )
         preds_per_model.append(
             {
@@ -426,17 +496,19 @@ preds_per_model = [
 
 # %%
 # Functions for plotting and evaluation
-def plot_volatility_prediction(model, df_test, abs_returns_test):
+def plot_volatility_prediction(model, df_validation, abs_returns_test):
     plt.figure(figsize=(12, 6))
-    plt.plot(df_test.index, abs_returns_test, label="Absolute Returns", color="black")
     plt.plot(
-        df_test.index,
+        df_validation.index, abs_returns_test, label="Absolute Returns", color="black"
+    )
+    plt.plot(
+        df_validation.index,
         model["volatility_pred"],
         label=f"{model['name']} Volatility Prediction",
     )
     if "epistemic_sd_vol" in model:
         plt.fill_between(
-            df_test.index,
+            df_validation.index,
             model["volatility_pred"] - model["epistemic_sd_vol"],
             model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.5,
@@ -452,13 +524,15 @@ def plot_volatility_prediction(model, df_test, abs_returns_test):
     plt.show()
 
 
-def plot_mean_returns_prediction(model, df_test):
+def plot_mean_returns_prediction(model, df_validation):
     plt.figure(figsize=(12, 6))
     plt.plot(
-        df_test.index, model["mean_pred"], label=f"{model['name']} Mean Prediction"
+        df_validation.index,
+        model["mean_pred"],
+        label=f"{model['name']} Mean Prediction",
     )
     plt.fill_between(
-        df_test.index,
+        df_validation.index,
         model["mean_pred"] - model["volatility_pred"],
         model["mean_pred"] + model["volatility_pred"],
         alpha=0.5,
@@ -466,15 +540,15 @@ def plot_mean_returns_prediction(model, df_test):
     )
     if "epistemic_sd_vol" in model:
         plt.fill_between(
-            df_test.index,
+            df_validation.index,
             model["mean_pred"] - model["volatility_pred"] - model["epistemic_sd_vol"],
             model["mean_pred"] + model["volatility_pred"] + model["epistemic_sd_vol"],
             alpha=0.3,
             label="Volatility w Epistemic Uncertainty",
         )
     plt.scatter(
-        df_test.index,
-        df_test["LogReturn"],
+        df_validation.index,
+        df_validation["LogReturn"],
         label="True Log Returns",
         color="black",
         s=1,
@@ -639,15 +713,15 @@ def calculate_rmse(y_true, y_pred):
 
 # %%
 # Evaluate models
-y_test_actual = df_test["LogReturn"].values
+y_test_actual = df_validation["LogReturn"].values
 abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Plot volatility predictions
-    plot_volatility_prediction(entry, df_test, abs_returns_test)
+    plot_volatility_prediction(entry, df_validation, abs_returns_test)
 
     # Plot mean return predictions
-    plot_mean_returns_prediction(entry, df_test)
+    plot_mean_returns_prediction(entry, df_validation)
 
     # Calculate prediction intervals
     calculate_prediction_intervals(entry, CONFIDENCE_LEVEL)
@@ -900,50 +974,59 @@ def plot_volatility_comparison(
     plt.show()
 
 
-returns_test = df_test["LogReturn"]
+returns_test = df_validation["LogReturn"]
 
 plot_volatility_comparison(
     preds_per_model, returns_test, abs_returns_test, lookback_days=50, steps=50
 )
 
 
-
-
 # %% Calculate Strategy Returns for Each Model
 for entry in preds_per_model:
     # Generate trading signal: long (1) if predicted mean is positive, short (-1) if negative
-    entry['signal'] = np.where(entry['mean_pred'] > 0, 1, -1)
-    
+    entry["signal"] = np.where(entry["mean_pred"] > 0, 1, -1)
+
     # Calculate daily strategy returns by multiplying the signal with the actual return
-    entry['strategy_returns'] = entry['signal'] * df_test['LogReturn'].shift(-1)
-    
+    entry["strategy_returns"] = entry["signal"] * df_validation["LogReturn"].shift(-1)
+
     # Calculate cumulative returns for the strategy
-    entry['cumulative_strategy_returns'] = (1 + entry['strategy_returns']).cumprod()
+    entry["cumulative_strategy_returns"] = (1 + entry["strategy_returns"]).cumprod()
 
 # %% Calculate Buy-and-Hold Cumulative Returns
-df_test['buy_hold_returns'] = (1 + df_test['LogReturn']).cumprod()
+df_validation["buy_hold_returns"] = (1 + df_validation["LogReturn"]).cumprod()
 
 # %% Plot Cumulative Returns Comparison
 plt.figure(figsize=(14, 8))
-plt.plot(df_test.index, df_test['buy_hold_returns'], label='Buy-and-Hold', color='black', linestyle='--')
+plt.plot(
+    df_validation.index,
+    df_validation["buy_hold_returns"],
+    label="Buy-and-Hold",
+    color="black",
+    linestyle="--",
+)
 
 for entry in preds_per_model:
     plt.plot(
-        df_test.index, 
-        entry['cumulative_strategy_returns'], 
-        label=f"{entry['name']} Buy/Short Strategy", 
-        linewidth=1.2
+        df_validation.index,
+        entry["cumulative_strategy_returns"],
+        label=f"{entry['name']} Buy/Short Strategy",
+        linewidth=1.2,
     )
 
-plt.title(f'Cumulative Returns Comparison ({TEST_ASSET})')
-plt.xlabel('Date')
-plt.ylabel('Cumulative Returns')
+plt.title(f"Cumulative Returns Comparison ({TEST_ASSET})")
+plt.xlabel("Date")
+plt.ylabel("Cumulative Returns")
 plt.legend()
 plt.show()
 
 # Print final cumulative returns for all and the buy hold strategy, last entry for all is NaN so don't look at that
-final_cumulative_returns = [entry['cumulative_strategy_returns'].iloc[-2] for entry in preds_per_model]
-final_cumulative_returns.append(df_test['buy_hold_returns'].iloc[-2])
-final_cumulative_returns = pd.Series(final_cumulative_returns, index=[entry['name'] for entry in preds_per_model] + ['Buy-and-Hold'])
+final_cumulative_returns = [
+    entry["cumulative_strategy_returns"].iloc[-2] for entry in preds_per_model
+]
+final_cumulative_returns.append(df_validation["buy_hold_returns"].iloc[-2])
+final_cumulative_returns = pd.Series(
+    final_cumulative_returns,
+    index=[entry["name"] for entry in preds_per_model] + ["Buy-and-Hold"],
+)
 final_cumulative_returns
 # %%

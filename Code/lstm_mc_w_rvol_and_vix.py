@@ -1,6 +1,13 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 MODEL_NAME = f"lstm_mc_w_rvol_and_vix_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
@@ -176,8 +183,11 @@ for symbol, group in df.groupby(level="Symbol"):
     vix_change_7d = vix - np.vstack([vix[:7], vix[:-7]])
 
     # Find date to split on
-    train_test_split_index = len(
-        group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+    TRAIN_VALIDATION_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
+    )
+    VALIDATION_TEST_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
     )
 
     # Stack returns and squared returns together
@@ -197,13 +207,13 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Create training sequences of length 'sequence_length'
-    for i in range(LOOKBACK_DAYS, train_test_split_index):
+    for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
         X_train.append(data[i - LOOKBACK_DAYS : i])
         y_train.append(returns[i, 0])
 
     # Add the test data
     if symbol == TEST_ASSET:
-        for i in range(train_test_split_index, len(data)):
+        for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
             X_test.append(data[i - LOOKBACK_DAYS : i])
             y_test.append(returns[i, 0])
 
@@ -303,13 +313,17 @@ print(f"NLL on test set: {nll_test}")
 
 # %%
 # Get test part of df
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation
 
 # %%
 # Plot results of only LSTM
 plt.figure(figsize=(12, 6))
-plt.plot(df_test.index, volatility_pred, label="Volatility Prediction", color="black")
+plt.plot(
+    df_validation.index, volatility_pred, label="Volatility Prediction", color="black"
+)
 plt.title("Volatility Prediction with LSTM")
 plt.xlabel("Date")
 plt.ylabel("Volatility")
@@ -328,23 +342,23 @@ epistemic_uncertainty = preds["epistemic_uncertainty_volatility_estimates"]
 
 # %%
 # Plot results of LSTM with epistemic uncertainty
-from_i = np.argmax(df_test.index > "2024-05")
+from_i = np.argmax(df_validation.index > "2024-05")
 plt.figure(figsize=(12, 6))
 plt.plot(
-    df_test.index[from_i:],
-    df_test["LogReturn"].abs().values[from_i:],
+    df_validation.index[from_i:],
+    df_validation["LogReturn"].abs().values[from_i:],
     label="Absolute Return",
     color="red",
     linewidth=1,
 )
 plt.plot(
-    df_test.index[from_i:],
+    df_validation.index[from_i:],
     volatility_pred[from_i:],
     label="Volatility Prediction",
     color="black",
 )
 plt.fill_between(
-    df_test.index[from_i:],
+    df_validation.index[from_i:],
     volatility_pred[from_i:] - epistemic_uncertainty[from_i:],
     volatility_pred[from_i:] + epistemic_uncertainty[from_i:],
     color="black",
@@ -352,7 +366,7 @@ plt.fill_between(
     label="67% confidence interval",
 )
 plt.fill_between(
-    df_test.index[from_i:],
+    df_validation.index[from_i:],
     volatility_pred[from_i:] - 2 * epistemic_uncertainty[from_i:],
     volatility_pred[from_i:] + 2 * epistemic_uncertainty[from_i:],
     color="black",
@@ -379,7 +393,9 @@ vals = plt.gca().get_xticks()
 plt.gca().set_xticklabels(["{:.2f}%".format(x * 100) for x in vals])
 plt.axvline(volatility_pred[random_day], color="black", label="Mean Prediction")
 plt.axvline(
-    df_test["LogReturn"].abs().values[random_day], color="red", label="Absolute Return"
+    df_validation["LogReturn"].abs().values[random_day],
+    color="red",
+    label="Absolute Return",
 )
 plt.legend()
 plt.show()
@@ -419,11 +435,13 @@ plt.show()
 
 # %%
 # Save predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Volatility"] = volatility_pred
-df_test["Mean"] = mean_pred
-df_test["Epistemic_Uncertainty_Volatility"] = epistemic_uncertainty
-df_test.to_csv(
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation["Volatility"] = volatility_pred
+df_validation["Mean"] = mean_pred
+df_validation["Epistemic_Uncertainty_Volatility"] = epistemic_uncertainty
+df_validation.to_csv(
     f"predictions/lstm_mc_w_rvol_and_vix_predicitons_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 

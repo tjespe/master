@@ -1,10 +1,13 @@
 # %%
 # Define parameters (imported from your settings)
 from shared.processing import get_cgan_train_test
-from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
-from shared.crps import crps_mdn_numpy
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 VERSION = 1
 MODEL_NAME = f"lstm_cgan_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -374,21 +377,25 @@ confidence_levels = [0.5, 0.67, 0.95, 0.975, 0.99]
 intervals_cgan = compute_empirical_intervals(samples_test, confidence_levels)
 
 # %%
-# 9) Store predictions in a DataFrame, similar to your MDN code
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:].copy()
-df_test = df_test.iloc[-len(X_test) :]  # align shapes if needed
+# 9) Store predictions in a DataFrame
+df_validation = (
+    df.xs(TEST_ASSET, level="Symbol")
+    .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+    .copy()
+)
+df_validation = df_validation.iloc[-len(X_test) :]  # align shapes if needed
 
-df_test["Mean_cGAN"] = mean_cgan
-df_test["Vol_cGAN"] = std_cgan
+df_validation["Mean_cGAN"] = mean_cgan
+df_validation["Vol_cGAN"] = std_cgan
 
 # Add intervals
 for i, cl in enumerate(confidence_levels):
-    df_test[f"LB_{int(100*cl)}"] = intervals_cgan[:, i, 0]
-    df_test[f"UB_{int(100*cl)}"] = intervals_cgan[:, i, 1]
+    df_validation[f"LB_{int(100*cl)}"] = intervals_cgan[:, i, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals_cgan[:, i, 1]
 
 # %%
 # Save
-df_test.to_csv(
+df_validation.to_csv(
     f"predictions/lstm_cgan_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
@@ -396,26 +403,26 @@ df_test.to_csv(
 # Plot the mean and volatility of the cGAN predictions over time, along with the true return
 lookback = 50
 shift = 1
-df_test_filtered = df_test.iloc[-lookback - shift : -shift]
+df_validation_filtered = df_validation.iloc[-lookback - shift : -shift]
 plt.figure(figsize=(15, 5))
 plt.plot(
-    df_test_filtered.index,
-    df_test_filtered["Mean_cGAN"],
+    df_validation_filtered.index,
+    df_validation_filtered["Mean_cGAN"],
     label="cGAN Mean",
     color="black",
 )
 for i, cl in enumerate(confidence_levels[1:]):
     plt.fill_between(
-        df_test_filtered.index,
-        df_test_filtered[f"LB_{int(100*cl)}"],
-        df_test_filtered[f"UB_{int(100*cl)}"],
+        df_validation_filtered.index,
+        df_validation_filtered[f"LB_{int(100*cl)}"],
+        df_validation_filtered[f"UB_{int(100*cl)}"],
         alpha=0.5 - i * 0.1,
         label=f"{int(100*cl)}% CI",
         color="C0",
     )
 plt.plot(
-    df_test_filtered.index,
-    df_test_filtered["LogReturn"],
+    df_validation_filtered.index,
+    df_validation_filtered["LogReturn"],
     label="True Return",
     linestyle="--",
     color="red",

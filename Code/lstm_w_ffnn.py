@@ -1,6 +1,13 @@
 # %%
 # Define parameters
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
 
@@ -88,21 +95,24 @@ for symbol, group in df.groupby(level="Symbol"):
     )
 
     # Find date to split on
-    train_test_split_index = len(
-        group[group.index.get_level_values("Date") < TRAIN_TEST_SPLIT]
+    TRAIN_VALIDATION_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
+    )
+    VALIDATION_TEST_SPLIT_index = len(
+        group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
     )
 
     # # Stack returns and squared returns together
     data = np.hstack((returns, log_sq_returns))
 
     # Create training sequences of length 'sequence_length'
-    for i in range(LOOKBACK_DAYS, train_test_split_index):
+    for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
         X_train.append(data[i - LOOKBACK_DAYS : i])
         y_train.append(returns[i, 0])
 
     # Add the test data
     if symbol == TEST_ASSET:
-        for i in range(train_test_split_index, len(data)):
+        for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
             X_test.append(data[i - LOOKBACK_DAYS : i])
             y_test.append(returns[i, 0])
 
@@ -265,10 +275,12 @@ volatility_pred_lstm_w_ffnn = np.sqrt(variance_pred_lstm_w_ffnn)
 
 # %%
 # Save predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Mean"] = mean_pred_lstm_w_ffnn
-df_test["Volatility"] = volatility_pred_lstm_w_ffnn
-df_test.to_csv(
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation["Mean"] = mean_pred_lstm_w_ffnn
+df_validation["Volatility"] = volatility_pred_lstm_w_ffnn
+df_validation.to_csv(
     f"predictions/lstm_ffnn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 
@@ -278,16 +290,18 @@ mc_results = predict_with_mc_dropout(lstm_w_ffnn_model, scaled_X_test, T=100)
 
 # %%
 # Save predictions to file
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-df_test["Mean"] = mc_results["expected_returns"]
-df_test["Volatility"] = mc_results["volatility_estimates"]
-df_test["Epistemic_Uncertainty_Volatility"] = mc_results[
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+df_validation["Mean"] = mc_results["expected_returns"]
+df_validation["Volatility"] = mc_results["volatility_estimates"]
+df_validation["Epistemic_Uncertainty_Volatility"] = mc_results[
     "epistemic_uncertainty_volatility_estimates"
 ]
-df_test["Epistemic_Uncertainty_Mean"] = mc_results[
+df_validation["Epistemic_Uncertainty_Mean"] = mc_results[
     "epistemic_uncertainty_expected_returns"
 ]
-df_test.to_csv(
+df_validation.to_csv(
     f"predictions/lstm_ffnn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
 )
 
@@ -300,14 +314,16 @@ garch_vol_pred = pd.read_csv(
 
 # %%
 # Get test part of df
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-abs_returns_test = df_test["LogReturn"].abs()
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
+abs_returns_test = df_validation["LogReturn"].abs()
 
 # Training and test data
 returns_train = (
-    df.xs(TEST_ASSET, level="Symbol")["LogReturn"].loc[:TRAIN_TEST_SPLIT] * 100
+    df.xs(TEST_ASSET, level="Symbol")["LogReturn"].loc[:TRAIN_VALIDATION_SPLIT] * 100
 )  # Scale to percentages
-returns_test = df_test["LogReturn"]
+returns_test = df_validation["LogReturn"]
 
 # %%
 # Plot bounds of MC against actual returns last X days

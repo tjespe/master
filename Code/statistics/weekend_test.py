@@ -1,6 +1,6 @@
 # %%
 # Define parameters
-from ..settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, DATA_PATH, TRAIN_TEST_SPLIT
+from ..settings import TEST_ASSET, DATA_PATH
 
 # %%
 import numpy as np
