@@ -4,7 +4,13 @@ from shared.processing import get_lstm_train_test
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_VALIDATION_SPLIT, VALIDATION_TEST_SPLIT
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    TEST_ASSET,
+    TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT,
+)
 
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
@@ -18,6 +24,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
 import os
+import subprocess
 
 # TensorFlow / Keras
 import tensorflow as tf
@@ -404,14 +411,18 @@ if os.path.exists(model_fname):
 transformer_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
 )
-history = transformer_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = transformer_mdn_model.fit(
+    X_train, y_train, epochs=10, batch_size=32, verbose=1
+)
 
 # %%
 # Reduce learning rate
-transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
-)
-history = transformer_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+# transformer_mdn_model.compile(
+#     optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
+# )
+# history = transformer_mdn_model.fit(
+#     X_train, y_train, epochs=5, batch_size=32, verbose=1
+# )
 
 # %%
 # 6) Save
@@ -419,10 +430,19 @@ transformer_mdn_model.save(model_fname)
 
 # %%
 # 6b) Commit and push
-!git pull
-!git add models/transformer_mdn_*
-!git commit -m "Add transformer MDN model." -m "Training history: {history.history}"
-!git push
+try:
+    subprocess.run(["git", "pull"], check=True)
+    subprocess.run(["git", "add", "models/transformer_mdn_*"], check=True)
+
+    commit_header = "Add transformer MDN model."
+    commit_body = f"Training history: {history.history}"
+
+    subprocess.run(
+        ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+    )
+    subprocess.run(["git", "push"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Git command failed: {e}")
 
 # %%
 # 7) Single-pass predictions
@@ -552,7 +572,9 @@ plt.show()
 
 # %%
 # 8) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]
 # For reference, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(
     pi_pred, mu_pred, sigma_pred
@@ -582,8 +604,12 @@ mc_results = predict_with_mc_dropout_mdn(
 
 df_validation["Mean_MC"] = mc_results["expected_returns"]
 df_validation["Vol_MC"] = mc_results["volatility_estimates"]
-df_validation["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_estimates"]
-df_validation["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
+df_validation["Epistemic_Unc_Vol"] = mc_results[
+    "epistemic_uncertainty_volatility_estimates"
+]
+df_validation["Epistemic_Unc_Mean"] = mc_results[
+    "epistemic_uncertainty_expected_returns"
+]
 
 df_validation.to_csv(
     f"predictions/transformer_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
