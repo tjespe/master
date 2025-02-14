@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/bash
 #PBS -N train_transformer           # Job name
 #PBS -l nodes=1:ppn=4:gpus=1  # Request 1 GPU with 4 CPU cores
 #PBS -l walltime=05:00:00  # Max runtime of 5 hours
@@ -7,6 +7,7 @@
 #PBS -e error.log       # Redirect stderr to a file
 
 cd /storage/users/tordjes/Git/master/Code
-module load Python/3.11.5-GCCcore-13.2.0
+module use /share/apps/modulefiles/all
+module load Python/3.11.5-GCCcore-13.2.0 || echo "Python module not found, using system Python"
 source env/bin/activate
 python transformer_mdn.py
