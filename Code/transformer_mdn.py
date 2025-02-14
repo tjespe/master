@@ -434,7 +434,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", "models/transformer_mdn_*"], check=True)
 
-    commit_header = "Add transformer MDN model."
+    commit_header = "Train transformer MDN model."
     commit_body = f"Training history: {history.history}"
 
     subprocess.run(
