@@ -1,8 +1,13 @@
+from typing import Optional
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+import matplotlib.pyplot as plt
 
 from scipy.optimize import brentq
 from scipy.stats import norm
+
+from shared.numerical_mixture_moments import numerical_mixture_moments
 
 
 def get_mdn_kernel_initializer(n_mixtures):
@@ -112,7 +117,7 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
         pi, mu, sigma = parse_mdn_output(mdn_out, n_mixtures)
 
         # compute mixture mean & var for each sample
-        mean_s, var_s = univariate_mixture_mean_and_var(pi, mu, sigma)
+        mean_s, var_s = univariate_mixture_mean_and_var_approx(pi, mu, sigma)
         mc_means.append(mean_s.numpy())
         mc_vars.append(var_s.numpy())
 
@@ -238,3 +243,88 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
             intervals[i, j, 1] = upper_bound
 
     return intervals
+
+
+def plot_sample_days(
+    df: pd.DataFrame,
+    y_test: np.ndarray,
+    pi_pred: np.ndarray,
+    mu_pred: np.ndarray,
+    sigma_pred: np.ndarray,
+    n_mixtures: int,
+    save_to: Optional[str] = None,
+    show=True,
+):
+    plt.figure(figsize=(10, 40))
+    np.random.seed(0)
+    days = np.random.randint(0, len(y_test), 10)
+    days = np.sort(days)[::-1]
+    for i, day in enumerate(days):
+        plt.subplot(10, 1, i + 1)
+        timestamp = df.index[-day][0]
+        x_min = -0.1
+        x_max = 0.1
+        x_vals = np.linspace(x_min, x_max, 1000)
+        mixture_pdf = compute_mixture_pdf(
+            x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+        )
+        plt.fill_between(
+            x_vals,
+            np.zeros_like(x_vals),
+            mixture_pdf,
+            color="blue",
+            label="Mixture",
+            alpha=0.5,
+        )
+        plotted_mixtures = 0
+        top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
+        for j in range(n_mixtures):
+            weight = pi_pred[-day, j].numpy()
+            if weight < 0.001:
+                continue
+            plotted_mixtures += 1
+            mu = mu_pred[-day, j]
+            sigma = sigma_pred[-day, j]
+            pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
+                -0.5 * ((x_vals - mu) / sigma) ** 2
+            )
+            legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
+            plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
+        plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
+        moment_estimates = numerical_mixture_moments(
+            np.array(pi_pred[-day]),
+            np.array(mu_pred[-day]),
+            np.array(sigma_pred[-day]),
+            range_factor=3,
+        )
+        plt.axvline(
+            moment_estimates["mean"],
+            color="black",
+            linestyle="--",
+            label="Predicted Mean",
+        )
+        plt.text(
+            x_min + 0.01,
+            5,
+            f"Mean: {moment_estimates['mean']*100:.2f}%\n"
+            f"Std: {moment_estimates['std']*100:.2f}%\n"
+            f"Skewness: {moment_estimates['skewness']:.4f}*\n"
+            f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
+            f"* Numerically estimated",
+            fontsize=10,
+        )
+        plt.gca().set_xticklabels(
+            ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+        )
+        plt.title(
+            f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
+        )
+        plt.ylim(0, 50)
+        plt.legend()
+        plt.ylabel("Density")
+    plt.xlabel("LogReturn")
+    plt.tight_layout()
+    if save_to:
+        plt.savefig(save_to)
+    if show:
+        plt.show()
