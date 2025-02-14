@@ -9,7 +9,7 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-VERSION = 2
+VERSION = 1
 MODEL_NAME = f"lstm_ffnn_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -75,12 +75,9 @@ def build_model(
     # Add dropout
     x = Dropout(0.1)(x)
 
-    # Add feed-forward layers with dropouts
+    # Add feed-forward layers
     x = Dense(100, activation="relu")(x)
-    x = Dropout(0.1)(x)
-
     x = Dense(50, activation="relu")(x)
-    x = Dropout(0.1)(x)
 
     # Create the custom kernel initializer for the Dense layer.
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
