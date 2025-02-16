@@ -32,7 +32,7 @@ from tensorflow.keras.layers import (
     Flatten,
 )
 from tensorflow.keras.regularizers import l2
-from tensorflow.keras.optimizers.legacy import Adam
+from tensorflow.keras.optimizers import Adam
 import tensorflow as tf
 import warnings
 import os

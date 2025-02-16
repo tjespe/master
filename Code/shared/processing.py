@@ -272,12 +272,13 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # %%
     # Add feature: is next day trading day or not
-    df["NextDayTradingDay"] = (
-        df.index.get_level_values("Date")
-        .shift(1, freq="D")
-        .isin(df.index.get_level_values("Date"))
-    )
+    dates = pd.to_datetime(df.index.get_level_values("Date"))
+    df["NextDayTradingDay"] = dates.shift(1, freq="D").isin(dates)
     df["NextDayTradingDay"]
+
+    # %%
+    # Backfill missing Beta values
+    df["Beta"] = df["Beta"].bfill()
 
     # %%
     # Check for NaN values
@@ -350,12 +351,9 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         beta = group["Beta"].values.reshape(-1, 1)
 
         # Find dates to split on
-        TRAIN_VALIDATION_SPLIT_index = len(
-            group[group.index.get_level_values("Date") < TRAIN_VALIDATION_SPLIT]
-        )
-        VALIDATION_TEST_SPLIT_index = len(
-            group[group.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
-        )
+        dates = pd.to_datetime(group.index.get_level_values("Date"))
+        TRAIN_VALIDATION_SPLIT_index = len(group[dates < TRAIN_VALIDATION_SPLIT])
+        VALIDATION_TEST_SPLIT_index = len(group[dates < VALIDATION_TEST_SPLIT])
 
         # Stack returns and squared returns together
         data = np.hstack(
@@ -398,8 +396,16 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
             garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
             data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
 
-        if "High" in group.columns and "Low" in group.columns:
-            high_low_diff = (group["High"] - group["Low"]).values.reshape(-1, 1)
+        # Include relative high-low difference as a feature if available to indicate volatility
+        if (
+            "High" in group.columns
+            and "Low" in group.columns
+            and not pd.isna(group["High"]).any()
+            and not pd.isna(group["Low"]).any()
+        ):
+            high_low_diff = (
+                (group["High"] - group["Low"]) / group["Close"]
+            ).values.reshape(-1, 1)
             data = np.hstack((data, high_low_diff))
 
         # Create training sequences of length 'sequence_length'
@@ -441,6 +447,12 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         np.set_printoptions(suppress=True)
         print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=1)))
         print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=1)))
+
+    # %%
+    # Change Date to datetime
+    df.reset_index(inplace=True)
+    df["Date"] = pd.to_datetime(df["Date"])
+    df.set_index(["Date", "Symbol"], inplace=True)
 
     # %%
     gc.collect()
