@@ -487,6 +487,33 @@ for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
+
+# LSTM FFNN MDN
+for version in ["v1", "v2"]:
+    try:
+        lstm_ffnn_mdn_preds = (
+            pd.read_csv(
+                f"predictions/lstm_ffnn_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+            )
+            .set_index("Date")
+            .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+        )
+        preds_per_model.append(
+            {
+                "name": f"LSTM FFNN MDN {version}",
+                "mean_pred": lstm_ffnn_mdn_preds["Mean_SP"].values,
+                "volatility_pred": lstm_ffnn_mdn_preds["Vol_SP"].values,
+                "LB_95": lstm_ffnn_mdn_preds["LB_95"].values,
+                "UB_95": lstm_ffnn_mdn_preds["UB_95"].values,
+                "nll": lstm_ffnn_mdn_preds["NLL"].values.mean(),
+                "LB_99": lstm_ffnn_mdn_preds["LB_99"].values,
+                "UB_99": lstm_ffnn_mdn_preds["UB_99"].values,
+                "crps": lstm_ffnn_mdn_preds["CRPS"].values.mean(),
+            }
+        )
+    except FileNotFoundError:
+        print(f"LSTM FFNN MDN {version} predictions not found")
+
 # %%
 # Remove excluded models
 preds_per_model = [

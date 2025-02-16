@@ -213,7 +213,7 @@ intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
 # %%
 # 12) Plot time series with mean, volatility and actual returns for last X days
 days = 150
-shift = 500
+shift = 1
 filtered_df = (
     df.xs(TEST_ASSET, level="Symbol")
     .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
