@@ -22,6 +22,7 @@ EXCLUDE_MODELS = [
     "Yesterday's RVOL",
     "Transformer MDN w MC Dropout",
     "MLP with MAF",
+    "LSTM FFNN MDN w MC Dropout v2",
 ]
 
 # %%
@@ -513,6 +514,34 @@ for version in ["v1", "v2"]:
         )
     except FileNotFoundError:
         print(f"LSTM FFNN MDN {version} predictions not found")
+
+# LSTM FFNN MDN w MC Dropout
+for version in ["v2"]:
+    try:
+        lstm_ffnn_mdn_mc_preds = (
+            pd.read_csv(
+                f"predictions/lstm_ffnn_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+            )
+            .set_index("Date")
+            .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+        )
+        preds_per_model.append(
+            {
+                "name": f"LSTM FFNN MDN w MC Dropout {version}",
+                "mean_pred": lstm_ffnn_mdn_mc_preds["expected_returns"].values,
+                "volatility_pred": lstm_ffnn_mdn_mc_preds[
+                    "volatility_estimates"
+                ].values,
+                "epistemic_sd_vol": lstm_ffnn_mdn_mc_preds[
+                    "epistemic_uncertainty_volatility_estimates"
+                ].values,
+                "epistemic_sd_mean": lstm_ffnn_mdn_mc_preds[
+                    "epistemic_uncertainty_expected_returns"
+                ].values,
+            }
+        )
+    except FileNotFoundError:
+        print("LSTM FFNN MDN w MC Dropout predictions not found")
 
 # %%
 # Remove excluded models

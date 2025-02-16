@@ -20,6 +20,7 @@ from shared.mdn import (
     get_mdn_bias_initializer,
     parse_mdn_output,
     plot_sample_days,
+    predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
 from shared.numerical_mixture_moments import numerical_mixture_moments
@@ -144,8 +145,8 @@ history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose
 
 # %%
 # Reduce learning rate
-# lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-# history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
+history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
@@ -287,3 +288,18 @@ df_validation.to_csv(
 )
 
 # %%
+# Make predictions with Monte Carlo dropout
+mc_results = predict_with_mc_dropout_mdn(lstm_mdn_model, X_test, 1000, N_MIXTURES)
+mc_df = pd.DataFrame(mc_results)
+mc_df
+
+# %%
+# Set correct index for the dataframe
+mc_df.index = df_validation.index
+mc_df
+
+# %%
+# Store MC dropout predictions
+mc_df.to_csv(
+    f"predictions/lstm_ffnn_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
+)
