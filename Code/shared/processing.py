@@ -43,19 +43,36 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         df["Symbol"] = TEST_ASSET
 
     # Ensure the Date column is in datetime format
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
 
     # Sort the dataframe by both Date and Symbol
     df.sort_values(["Symbol", "Date"], inplace=True)
     df
 
     # %%
+    # Join in the S&P 500 data
+    spx_df = pd.read_csv("data/spx.csv")
+    spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
+    spx_df.set_index("Date", inplace=True)
+    df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values
+    gc.collect()
+    df[["Close", "Close_SPX"]]
+
+    # %%
     # Calculate log returns for each instrument separately using groupby
+    df.sort_values(["Symbol", "Date"], inplace=True)
     df["LogReturn"] = (
         df.groupby("Symbol")["Close"]
         .apply(lambda x: np.log(x / x.shift(1)))
-        .reset_index()["Close"]
+        .droplevel(0)
     )
+    df["PctReturn"] = df.groupby("Symbol")["Close"].pct_change()
+    df["MonthlyReturn"] = (
+        df.groupby("Symbol")["Close"].apply(lambda x: x / x.shift(21) - 1).droplevel(0)
+    )
+    df["SPX_PctReturn"] = df.groupby("Symbol")["Close_SPX"].pct_change()
+    df["SPX_LogReturn"] = np.log(df["Close_SPX"] / df["Close_SPX"].shift(1))
+    df["SPX_MonthlyReturn"] = df["Close_SPX"] / df["Close_SPX"].shift(21) - 1
     gc.collect()
 
     # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
@@ -66,7 +83,18 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
 
     # Set date and symbol as index
     df.set_index(["Date", "Symbol"], inplace=True)
-    df
+    df[
+        [
+            "Close",
+            "LogReturn",
+            "PctReturn",
+            "MonthlyReturn",
+            "Close_SPX",
+            "SPX_LogReturn",
+            "SPX_PctReturn",
+            "SPX_MonthlyReturn",
+        ]
+    ]
 
     # %%
     # Add more features:
@@ -109,7 +137,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     # %%
     # Read RVOL data
     rvol_df = pd.read_csv(RVOL_DATA_PATH)
-    rvol_df["Date"] = pd.to_datetime(rvol_df["Date"])
+    rvol_df["Date"] = pd.to_datetime(rvol_df["Date"]).dt.date
     rvol_df = rvol_df.set_index("Date")
     rvol_df["RVOL_Std"] = rvol_df["Close"].rolling(10).std()
     rvol_df = rvol_df.dropna()
@@ -118,14 +146,14 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     # %%
     # Read VIX data
     vix_df = pd.read_csv(VIX_DATA_PATH)
-    vix_df["Date"] = pd.to_datetime(vix_df["Date"])
+    vix_df["Date"] = pd.to_datetime(vix_df["Date"]).dt.date
     vix_df = vix_df.set_index("Date")
     vix_df
 
     # %%
     # Read Fear & Greed Index data
     fng_df = pd.read_csv("data/fear-greed.csv")
-    fng_df["Date"] = pd.to_datetime(fng_df["Date"])
+    fng_df["Date"] = pd.to_datetime(fng_df["Date"]).dt.date
     fng_df = fng_df.set_index("Date")
     fng_df
 
@@ -173,6 +201,26 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     df[["LogReturn", "Fear Greed"]]
 
     # %%
+    # Compute rolling beta for each stock
+    def compute_beta(g, window=251):
+        g = g.reset_index().set_index("Date")
+        rolling_df = g[["PctReturn", "SPX_PctReturn"]].rolling(
+            window, min_periods=window
+        )
+        cov = rolling_df.cov().unstack()
+        beta = (
+            cov[("PctReturn", "SPX_PctReturn")]
+            / cov[("SPX_PctReturn", "SPX_PctReturn")]
+        )
+        g["Beta"] = beta
+        g = g.reset_index().set_index(["Date", "Symbol"])
+        return g
+
+    df = df.groupby("Symbol").apply(lambda g: compute_beta(g)).droplevel(0)
+    gc.collect()
+    df["Beta"]
+
+    # %%
     # If we are looking at stocks, enrich with industry codes
     if DATA_PATH.startswith("data/sp500_stocks"):
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
@@ -195,6 +243,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         "GARCH_Vol",
         "RVOL_Std",
         "DownsideVol",
+        "Beta",
     ]
     important_cols = [col for col in important_cols if col in df.columns]
     nan_mask = df[important_cols].isnull().sum(axis=1).gt(0)
@@ -298,6 +347,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         fear_greed = group["Fear Greed"].values.reshape(-1, 1) / 100
         fear_greed_1d = np.diff(fear_greed, axis=0, prepend=fear_greed[0, 0])
         fear_greed_7d = fear_greed - np.vstack([fear_greed[:7], fear_greed[:-7]])
+        beta = group["Beta"].values.reshape(-1, 1)
 
         # Find dates to split on
         TRAIN_VALIDATION_SPLIT_index = len(
@@ -323,6 +373,7 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
                 rvol_std,
                 downside_log_var,
                 vix_rvol_diff,
+                beta,
             )
         )
 

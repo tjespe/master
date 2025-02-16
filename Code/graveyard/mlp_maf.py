@@ -49,9 +49,7 @@ df
 # %%
 # Calculate log returns for each instrument separately using groupby
 df["LogReturn"] = (
-    df.groupby("Symbol")["Close"]
-    .apply(lambda x: np.log(x / x.shift(1)))
-    .reset_index()["Close"]
+    df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
 )
 # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
 df = df[~df["LogReturn"].isnull()]
