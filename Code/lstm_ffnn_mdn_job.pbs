@@ -1,0 +1,13 @@
+#!/usr/bin/bash
+#PBS -N train_ffnn_mdn          # Job name
+#PBS -l nodes=1:ppn=4:gpus=1    # Request 1 GPU with 4 CPU cores
+#PBS -l walltime=20:00:00       # Max runtime of 20 hours
+#PBS -l mem=8gb                 # Request 8GB memory
+#PBS -o output.log              # Redirect stdout to a file
+#PBS -e error.log               # Redirect stderr to a file
+
+cd /storage/users/tordjes/Git/master/Code
+module use /share/apps/modulefiles/all
+module load Python/3.11.5-GCCcore-13.2.0 || echo "Python module not found, using system Python"
+source env/bin/activate
+python lstm_mdn_ffnn.py

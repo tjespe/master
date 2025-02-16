@@ -1,12 +1,12 @@
 ,GARCH,GARCH-GJR,Transformer MDN v1,LSTM with MAF non-linear flows,LSTM MDN v2,LSTM MDN v3,LSTM MDN vbig,LSTM MDN vbig2,LSTM MDN vbig3,LSTM MDN vbig-fng
-PICP,1,9,4,3,2,5,5,8,10,7
+PICP,8,10,1,3,7,5,2,6,9,3
 Mean width (MPIW),10,2,7,8,9,4,5,3,1,6
-Interval Score,1,9,3,4,2,7,5,8,10,6
-Correlation (vol. vs. errors),1,9,7,10,2,3,8,6,4,5
-NLL,8,10,6,9,7,4,2,3,5,1
-QL,10,2,7,8,9,4,5,3,1,6
-CRPS,6,10,8,9,7,1,2,5,3,4
-Lopez Loss,1,10,4,8,2,3,5,7,9,6
-RMSE,2,2,6,10,1,4,8,7,5,9
-Sign accuracy,1,1,4,10,9,7,6,4,3,8
-Rank Sum,41,64,56,79,50,42,51,54,51,58
+Interval Score,10,8,7,6,9,5,3,1,4,2
+Correlation (vol. vs. errors),10,8,7,6,9,2,4,3,5,1
+NLL,9,8,6,7,10,4,2,3,5,1
+QL,10,2,7,8,9,4,6,3,1,5
+CRPS,9,5,7,8,10,1,2,6,3,4
+Lopez Loss,1,10,4,9,2,3,5,8,7,6
+RMSE,3,3,7,10,5,2,8,6,1,9
+Sign accuracy,1,1,5,10,8,7,4,5,9,3
+Rank Sum,71,57,58,75,78,37,41,44,45,40
