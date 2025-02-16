@@ -398,6 +398,10 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
             garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
             data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
 
+        if "High" in group.columns and "Low" in group.columns:
+            high_low_diff = (group["High"] - group["Low"]).values.reshape(-1, 1)
+            data = np.hstack((data, high_low_diff))
+
         # Create training sequences of length 'sequence_length'
         for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
             X_train.append(data[i - LOOKBACK_DAYS : i])
