@@ -381,6 +381,24 @@ try:
 except FileNotFoundError:
     print("LSTM with MAF non-linear flows predictions not found")
 
+
+# LSTM with MAF and LSTM v4
+try:
+    mlp_with_maf_non_linear_preds_v4 = (
+        pd.read_csv(f"predictions/lstm_MAF_v4_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM with MAF non-linear flows v4",
+            "mean_pred": mlp_with_maf_non_linear_preds_v4["Mean_SP"].values,
+            "volatility_pred": mlp_with_maf_non_linear_preds_v4["Vol_SP"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM with MAF non-linear flows v4 predictions not found")
+
 if TEST_ASSET == "S&P":
     # VIX
     try:
@@ -886,7 +904,7 @@ for metric in results_df.index:
         # Since picp_miss = target - picp, |picp - target| is equivalent.
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
-    elif metric in ["Correlation (vol. vs. errors)", "QL"]:
+    elif metric in ["Correlation (vol. vs. errors)", "QL", "Sign Accuracy"]:
         # For these, higher is better.
         key = values
         ascending = False
