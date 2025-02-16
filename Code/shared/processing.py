@@ -97,6 +97,26 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     ]
 
     # %%
+    # Compute rolling beta for each stock
+    def compute_beta(g, window=251):
+        g = g.reset_index().set_index("Date")
+        rolling_df = g[["PctReturn", "SPX_PctReturn"]].rolling(
+            window, min_periods=window
+        )
+        cov = rolling_df.cov().unstack()
+        beta = (
+            cov[("PctReturn", "SPX_PctReturn")]
+            / cov[("SPX_PctReturn", "SPX_PctReturn")]
+        )
+        g["Beta"] = beta
+        g = g.reset_index().set_index(["Date", "Symbol"])
+        return g
+
+    df = df.groupby("Symbol").apply(lambda g: compute_beta(g)).droplevel(0)
+    gc.collect()
+    df["Beta"]
+
+    # %%
     # Add more features:
     # Downside Volatility
     df["DownsideVol"] = (
@@ -201,26 +221,6 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     df[["LogReturn", "Fear Greed"]]
 
     # %%
-    # Compute rolling beta for each stock
-    def compute_beta(g, window=251):
-        g = g.reset_index().set_index("Date")
-        rolling_df = g[["PctReturn", "SPX_PctReturn"]].rolling(
-            window, min_periods=window
-        )
-        cov = rolling_df.cov().unstack()
-        beta = (
-            cov[("PctReturn", "SPX_PctReturn")]
-            / cov[("SPX_PctReturn", "SPX_PctReturn")]
-        )
-        g["Beta"] = beta
-        g = g.reset_index().set_index(["Date", "Symbol"])
-        return g
-
-    df = df.groupby("Symbol").apply(lambda g: compute_beta(g)).droplevel(0)
-    gc.collect()
-    df["Beta"]
-
-    # %%
     # If we are looking at stocks, enrich with industry codes
     if DATA_PATH.startswith("data/sp500_stocks"):
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
@@ -244,6 +244,8 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         "RVOL_Std",
         "DownsideVol",
         "Beta",
+        "Skew_EWM",
+        "Kurt_EWM",
     ]
     important_cols = [col for col in important_cols if col in df.columns]
     nan_mask = df[important_cols].isnull().sum(axis=1).gt(0)
@@ -287,6 +289,11 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     # %%
     # Check for infinite values
     df[important_cols][df[important_cols].eq(np.inf).any(axis=1)]
+
+    # %%
+    # Drop any rows with NaNs in important columns
+    df = df.dropna(subset=important_cols)
+    gc.collect()
 
     # %%
     # Prepare data for LSTM
