@@ -279,10 +279,6 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
     df["NextDayTradingDay"]
 
     # %%
-    # Backfill missing Beta values
-    df["Beta"] = df["Beta"].bfill()
-
-    # %%
     # Check for NaN values
     df[important_cols][df[important_cols].isnull().sum(axis=1).gt(0)]
 
