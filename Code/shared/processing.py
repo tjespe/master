@@ -371,9 +371,13 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
                 rvol_std,
                 downside_log_var,
                 vix_rvol_diff,
-                beta,
             )
         )
+
+        if not (beta == 1).all():
+            # If beta is not 1, add it as a feature
+            # (It might be 1 if we are looking at the S&P 500 index)
+            data = np.hstack((data, beta))
 
         if include_log_returns:
             data = np.hstack((data, returns))
@@ -445,8 +449,8 @@ def get_lstm_train_test(include_log_returns=False, include_fng=True):
         """
         # %%
         np.set_printoptions(suppress=True)
-        print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=1)))
-        print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=1)))
+        print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=0)))
+        print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=0)))
 
     # %%
     # Change Date to datetime
