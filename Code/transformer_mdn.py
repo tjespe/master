@@ -170,16 +170,12 @@ if os.path.exists(model_fname):
             "mdn_bias_initializer": mdn_bias_initializer,
         },
     )
-    # Re-compile
-    transformer_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
-    )
     print("Loaded pre-trained model from disk.")
 
 # %%
 # 5) Train
 transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES), weight_decay=1e-5
 )
 history = transformer_mdn_model.fit(
     X_train, y_train, epochs=10, batch_size=32, verbose=1
@@ -188,7 +184,7 @@ history = transformer_mdn_model.fit(
 # %%
 # Reduce learning rate
 # transformer_mdn_model.compile(
-#     optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES)
+#     optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES), weight_decay=1e-5
 # )
 # history = transformer_mdn_model.fit(
 #     X_train, y_train, epochs=5, batch_size=32, verbose=1
