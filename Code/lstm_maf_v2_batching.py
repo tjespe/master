@@ -280,7 +280,7 @@ for idx in random_indices:
     actual_return = y_test[idx].item()  # Actual next-day return
 
     # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=10000)
+    samples = model.sample(x=specific_sample, num_samples=25000)
     predicted_return = samples.mean().item()  # Mean of predicted distribution
 
     print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
@@ -320,7 +320,7 @@ for idx in random_indices:
     actual_return = y_test[idx].item()  # Actual next-day return
 
     # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=10000).detach().numpy().flatten()
+    samples = model.sample(x=specific_sample, num_samples=25000).detach().numpy().flatten()
     predicted_return = np.mean(samples)  # Mean of predicted distribution
 
     print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
@@ -354,7 +354,7 @@ for idx in random_indices:
     plt.title(f"Predicted Return Distribution for Test Point {idx}")
     plt.legend()
     plt.show()
-    
+
 # %%
 # Predicting the Distribution for the Entire Test Period
 confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
@@ -365,7 +365,7 @@ actual_returns = y_test.numpy().flatten()
 
 for i in range(len(X_test)):
     specific_sample = X_test[i].unsqueeze(0)
-    samples = model.sample(x=specific_sample, num_samples=5000)
+    samples = model.sample(x=specific_sample, num_samples=25000)
     samples_np = samples.detach().cpu().numpy().flatten()
     predicted_return = samples.mean().item()
     predicted_std = samples.std().item()
