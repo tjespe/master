@@ -3,10 +3,10 @@ PICP,2,1,3
 Mean width (MPIW),2,3,1
 Interval Score,2,1,3
 Correlation (vol. vs. errors),3,2,1
-NLL,3,2,1
+NLL,2,1,3
 QL,2,3,1
-CRPS,2,1,3
+CRPS,1,2,3
 Lopez Loss,2,1,3
 RMSE,1,1,3
 Sign accuracy,1,1,3
-Rank Sum,20,16,22
+Rank Sum,18,16,24
