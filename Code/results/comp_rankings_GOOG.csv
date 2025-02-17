@@ -1,12 +1,12 @@
-,GARCH,LSTM with MAF non-linear flows
-PICP,2,1
-Mean width (MPIW),1,2
-Interval Score,1,2
-Correlation (vol. vs. errors),2,1
-NLL,2,1
-QL,1,2
-CRPS,1,2
-Lopez Loss,2,1
-RMSE,1,2
-Sign accuracy,1,2
-Rank Sum,14,16
+,GARCH,GARCH-GJR,LSTM MDN vbig-fng,LSTM MDN vquick,LSTM FFNN MDN v2
+PICP,2,3,5,1,4
+Mean width (MPIW),4,3,2,5,1
+Interval Score,2,3,5,1,4
+Correlation (vol. vs. errors),5,4,3,1,2
+NLL,3,4,5,1,2
+QL,4,3,1,5,2
+CRPS,3,2,5,1,4
+Lopez Loss,2,3,5,1,4
+RMSE,1,1,5,3,4
+Sign accuracy,1,1,4,5,3
+Rank Sum,27,27,40,24,30

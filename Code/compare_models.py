@@ -479,7 +479,7 @@ except NameError:
 
 
 # LSTM MDN
-for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
+for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng", "vquick"]:
     try:
         lstm_mdn_preds = (
             pd.read_csv(

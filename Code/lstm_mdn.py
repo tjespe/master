@@ -9,7 +9,7 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-VERSION = "big-fng"
+VERSION = "relu"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -75,7 +75,7 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    x = LSTM(units=hidden_units, activation="relu")(inputs)
 
     # Add dropout
     if dropout > 0:
@@ -137,13 +137,15 @@ if os.path.exists(model_fname):
 # %%
 # 5) Train
 # Start with one learning rate, then reduce
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+# lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
+# history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate again
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+lstm_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
+)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=3, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
