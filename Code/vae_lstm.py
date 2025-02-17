@@ -29,11 +29,8 @@ from scipy.optimize import brentq
 from scipy.stats import norm
 
 # Example placeholders (replace with your real paths)
-LOOKBACK_DAYS = 30
-SUFFIX = ""
-TEST_ASSET = "SPX"
-DATA_PATH = "data/sp500_stocks.csv"
-TRAIN_TEST_SPLIT = "2019-01-01"
+# improt paprameters from settings.py
+from settings import LOOKBACK_DAYS, TEST_ASSET, SUFFIX
 VERSION = 1
 
 MODEL_NAME = f"vae_lstm_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -166,12 +163,8 @@ vae.fit(
 # # 3) Get latent embeddings from VAE
 
 def get_embeddings_from_vae(encoder, X):
-    """
-    Returns mean (z_mean) for each input in X.
-    If you prefer sampling, change to return z (the third output).
-    """
     z_mean, z_log_var, z_sample = encoder.predict(X, batch_size=32)
-    return z_sample  # shape: (batch_size, latent_dim)
+    return z_mean  # shape: (batch_size, latent_dim)
 
 Z_train = get_embeddings_from_vae(encoder, X_train)
 Z_test = get_embeddings_from_vae(encoder, X_test)
@@ -179,6 +172,9 @@ Z_test = get_embeddings_from_vae(encoder, X_test)
 print("Latent embeddings shape:")
 print(f"  Z_train: {Z_train.shape}")
 print(f"  Z_test:  {Z_test.shape}")
+
+#% % [markdown]
+# TDDO? 
 
 
 # %% [markdown]
@@ -239,7 +235,7 @@ def sample_latent_posterior(encoder, x, n_samples=100):
     return z_samples
 
 
-def predict_distribution(encoder, predictor, X, n_samples=100):
+def predict_distribution(encoder, predictor, X, n_samples=1000):
     """
     For each sample X[i], sample the posterior 'n_samples' times,
     feed each sample into the LSTM -> distribution of predictions.
@@ -273,7 +269,6 @@ y_std_test  = y_dist_test.std(axis=1)
 # %% [markdown]
 # # 6) Save predictions in a DataFrame
 
-# In your real code, you'll have your actual test date index. 
 test_dates = pd.date_range(start="2020-01-01", periods=len(X_test), freq="B")
 df_test = pd.DataFrame(index=test_dates)
 
@@ -287,11 +282,132 @@ upper_q = 0.975
 df_test["Pred_LB_95"] = np.quantile(y_dist_test, lower_q, axis=1)
 df_test["Pred_UB_95"] = np.quantile(y_dist_test, upper_q, axis=1)
 
+
+# %% [markdown]
+# Calulacte loss function values for the total distribution sampled from output of the model
+# =================================================================================================
+# ============================= MUST BE MOVED TO loss.py FILE ===================================
+# =================================================================================================
+from scipy.stats import gaussian_kde
+
+from scipy.stats import gaussian_kde
+import numpy as np
+
+def compute_nll(y_true, y_samples, eps=1e-12):
+    """
+    Compute Negative Log Likelihood (NLL) for VAE + LSTM.
+    Uses Kernel Density Estimation (KDE) to approximate the probability density.
+    
+    Arguments:
+    - y_true: True values (shape: (batch,))
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+    
+    Returns:
+    - Mean NLL across all samples
+    """
+    B = y_true.shape[0]  # Batch size
+    nlls = np.zeros(B)
+
+    for i in range(B):
+        sample_var = np.var(y_samples[i])  # Check variance
+
+        # If variance is too low, assign a fallback probability
+        if sample_var < 1e-8:  # Threshold to detect near-identical samples
+            p_y = eps  # Assign a small probability to avoid log(0)
+        else:
+            try:
+                kde = gaussian_kde(y_samples[i])  # Estimate density from samples
+                p_y = kde(y_true[i])  # Evaluate density at the true value
+            except np.linalg.LinAlgError:
+                p_y = eps  # In case KDE still fails, use a fallback small probability
+
+        p_y = np.maximum(p_y, eps)  # Prevent log(0)
+        nlls[i] = -np.log(p_y)  # Compute NLL
+
+    return np.mean(nlls)  # Return mean NLL across batch
+
+
+def compute_crps(y_true, y_samples):
+    """
+    Compute CRPS (Continuous Ranked Probability Score) for VAE + LSTM.
+    
+    Arguments:
+    - y_true: True values (shape: (batch,))
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+    
+    Returns:
+    - CRPS values (shape: (batch,))
+    """
+    B = y_true.shape[0]  # Batch size
+    crps_values = np.zeros(B)
+
+    for i in range(B):
+        s = np.sort(y_samples[i])  # Sort the sample predictions
+        n = len(s)
+
+        # Compute empirical CDF of the samples
+        empirical_cdf = np.arange(1, n + 1) / n
+
+        # Find where the true value falls in the sorted sample set
+        indicator = (y_true[i] <= s).astype(float)
+
+        # Compute CRPS using the empirical formula
+        crps_values[i] = np.mean((empirical_cdf - indicator) ** 2)
+
+    return crps_values  # Returns array of shape (batch,)
+
+def compute_confidence_intervals(y_samples, confidence_levels):
+    """
+    Compute confidence intervals for different confidence levels from sampled predictions.
+
+    Arguments:
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+    - confidence_levels: List of confidence levels (e.g., [0.67, 0.95, 0.975, 0.99])
+
+    Returns:
+    - Array of shape (batch, len(confidence_levels), 2) containing lower and upper bounds.
+    """
+    num_levels = len(confidence_levels)
+    num_samples = y_samples.shape[0]
+
+    intervals = np.zeros((num_samples, num_levels, 2))
+
+    for i, cl in enumerate(confidence_levels):
+        lower_q = (1 - cl) / 2  # Lower bound quantile
+        upper_q = 1 - lower_q   # Upper bound quantile
+
+        # Compute lower and upper bound for each sample
+        intervals[:, i, 0] = np.quantile(y_samples, lower_q, axis=1)
+        intervals[:, i, 1] = np.quantile(y_samples, upper_q, axis=1)
+
+    return intervals
+
+
+
+# Compute NLL for the test set
+df_test["NLL"] = compute_nll(y_test, y_dist_test) 
+df_test["CRPS"] = compute_crps(y_test, y_dist_test)
+
+# Define confidence levels and compute confidence intervals from sampled predictions
+confidence_levels = [0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = compute_confidence_intervals(y_dist_test, confidence_levels)
+
+# Store in DataFrame
+for i, cl in enumerate(confidence_levels):
+    df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]  # Lower bound
+    df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]  # Upper bound
+
+
+# %% [markdown]
+# # 7) Save predictions to CSV and plot
 os.makedirs("predictions", exist_ok=True)
 csv_fname = f"predictions/vae_lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 df_test.to_csv(csv_fname)
 
 df_test.head()
+
+
+
 
 # %% [markdown]
 # # 7) Plot predictions vs. actual

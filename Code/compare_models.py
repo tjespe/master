@@ -417,6 +417,30 @@ for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
+# VAE + LSTM
+for version in ["v1"]:
+    try:
+        vae_lstm_preds = pd.read_csv(
+            f"predictions/vae_lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_{version}.csv"
+        )
+        preds_per_model.append(
+            {
+                "name": "VAE + LSTM",
+                "mean_pred": vae_lstm_preds["Pred_Mean"].values,
+                "volatility_pred": vae_lstm_preds["Pred_Std"].values,
+                "LB_95": vae_lstm_preds["LB_95"].values,
+                "UB_95": vae_lstm_preds["UB_95"].values,
+                "nll": vae_lstm_preds["NLL"].values.mean(),
+                "LB_99": vae_lstm_preds["LB_99"].values,
+                "UB_99": vae_lstm_preds["UB_99"].values,
+                "crps": vae_lstm_preds["CRPS"].values.mean(),
+            }
+        )
+    except FileNotFoundError:
+        print("VAE + LSTM predictions not found")
+
+
+
 # %%
 # Remove excluded models
 preds_per_model = [
