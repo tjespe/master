@@ -138,7 +138,7 @@ if os.path.exists(model_fname):
 # 5) Train
 # Start with one learning rate, then reduce
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
 
 # %%
 # Reduce learning rate again
