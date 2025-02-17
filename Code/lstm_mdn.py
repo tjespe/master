@@ -142,8 +142,10 @@ if os.path.exists(model_fname):
 
 # %%
 # Reduce learning rate again
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
+lstm_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
 
 # %%
 # 6) Save
