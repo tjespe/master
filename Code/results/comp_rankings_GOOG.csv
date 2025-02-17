@@ -1,0 +1,12 @@
+,LSTM MDN vbig-fng,LSTM FFNN MDN v2
+PICP,1,2
+Mean width (MPIW),2,1
+Interval Score,1,2
+Correlation (vol. vs. errors),1,2
+NLL,2,1
+QL,2,1
+CRPS,2,1
+Lopez Loss,1,2
+RMSE,2,1
+Sign accuracy,2,1
+Rank Sum,16,14
