@@ -6,7 +6,7 @@ from settings import (
     TEST_ASSET,
     DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT
+    VALIDATION_TEST_SPLIT,
 )
 from scipy.stats import ks_2samp
 
@@ -30,7 +30,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 from shared.loss import nll_loss_maf
 from tqdm import tqdm
 
@@ -40,7 +40,9 @@ import warnings
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(
+    include_log_returns=False
+)
 df
 
 

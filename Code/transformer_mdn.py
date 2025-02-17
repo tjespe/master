@@ -10,7 +10,7 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
@@ -49,7 +49,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_val, y_train, y_val = get_lstm_train_test(
+df, X_train, X_val, y_train, y_val = get_lstm_train_test_old(
     include_log_returns=True, include_fng=True
 )
 gc.collect()

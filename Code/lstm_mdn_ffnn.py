@@ -26,7 +26,7 @@ from shared.mdn import (
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 
 # %%
 # Library imports
@@ -53,7 +53,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=True)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(include_log_returns=True)
 
 
 # %%
