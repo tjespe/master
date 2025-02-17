@@ -380,8 +380,25 @@ try:
 except FileNotFoundError:
     print("LSTM with MAF non-linear flows predictions not found")
 
+    # LSTM with MAF and LSTM feature extractor model v3
+try:
+    mlp_with_maf_non_linear_preds = (
+        pd.read_csv(f"predictions/lstm_MAF_v3_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM with MAF non-linear flows v3",
+            "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
+            "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
+        }
+    )
+except FileNotFoundError:
+    print("LSTM with MAF non-linear flows predictions not found")
 
-# LSTM with MAF and LSTM v4
+
+# LSTM with MAF and LSTM v4 BAD
 try:
     mlp_with_maf_non_linear_preds_v4 = (
         pd.read_csv(f"predictions/lstm_MAF_v4_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
@@ -949,7 +966,7 @@ for metric in results_df.index:
     values = results_df.loc[metric, model_cols]
 
     # Skip PICP Miss because it is redundant with PICP.
-    if metric == "PICP Miss":
+    if metric == "PICP Miss" or metric == "Sign accuracy":
         continue
 
     # Determine ranking rule for each metric.
