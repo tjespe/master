@@ -4,16 +4,14 @@ from settings import (
     LOOKBACK_DAYS,
     SUFFIX,
     TEST_ASSET,
+    DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT,
+    VALIDATION_TEST_SPLIT
 )
 from scipy.stats import ks_2samp
 
 
-MODEL_NAME = f"LSTM_MAF_{LOOKBACK_DAYS}_days{SUFFIX}"
-RVOL_DATA_PATH = "data/RVOL.csv"
-VIX_DATA_PATH = "data/VIX.csv"
-SPX_DATA_PATH = "data/SPX.csv"
+MODEL_NAME = f"LSTM_MAF__v4{LOOKBACK_DAYS}_days{SUFFIX}"
 
 # %%
 # Import libraries
@@ -26,9 +24,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+
 
 from shared.processing import get_lstm_train_test
 from shared.loss import nll_loss_maf
+from tqdm import tqdm
 
 import os
 import warnings
@@ -42,11 +43,18 @@ df
 # %%
 # Define window size
 window_size = LOOKBACK_DAYS
+print(df.shape)
 
 # %%
 # Convert to tensors for model training
 X_train = torch.from_numpy(X_train).float()
 y_train = torch.from_numpy(y_train).float()
+
+# setup batch size
+batch_size = 32
+train_dataset = TensorDataset(X_train, y_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
 
 # print tensor shapes
 X_train.shape, y_train.shape
@@ -74,47 +82,97 @@ class LSTMFeatureExtractor(nn.Module):
 
 # %%
 # Define the Masked Autoregressive Network with Non-Linear Flows
-class NonLinearFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout_rate=0.2):
-        super(NonLinearFlow, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),  # Dropout Layer
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout_rate),  # Dropout Layer
-            nn.Linear(hidden_dim, y_dim * 2),  # Outputting both mu and log_sigma
-        )
 
-    def forward(self, y, x):
-        x = x.view(x.size(0), -1)
-        params = self.net(x)
+class AdaptiveDeepNonLinearFlow(nn.Module):
+    def __init__(self, cond_dim, hidden_dim, n_hidden_layers=4, dropout_rate=0.2):
+        """
+        Parameters:
+            cond_dim: Dimension of the conditioning vector (from LSTM).
+            hidden_dim: Hidden layer size used in the flow.
+            n_hidden_layers: Number of hidden layers in the deep flow block.
+            dropout_rate: Dropout rate applied after each layer.
+        """
+        super(AdaptiveDeepNonLinearFlow, self).__init__()
+        # Initial layer transforms the conditioning vector to a hidden representation.
+        self.input_layer = nn.Linear(cond_dim, hidden_dim)
+        self.activation = nn.ReLU()
+        self.dropout = nn.Dropout(dropout_rate)
+        
+        # For adaptive conditioning, we create a FiLM layer per hidden layer.
+        self.film_layers = nn.ModuleList([
+            nn.Linear(cond_dim, hidden_dim * 2) for _ in range(n_hidden_layers)
+        ])
+        # Hidden layers that perform the transformation.
+        self.hidden_layers = nn.ModuleList([
+            nn.Linear(hidden_dim, hidden_dim) for _ in range(n_hidden_layers)
+        ])
+        
+        # Final layer outputs parameters for both mu and log_sigma.
+        self.output_layer = nn.Linear(hidden_dim, y_dim * 2)
+
+    def forward(self, y, cond):
+        """
+        Forward pass: Computes the transformation and log-determinant of the Jacobian.
+        Inputs:
+            y: Target variable tensor.
+            cond: Conditioning vector (from LSTM).
+        """
+        # Compute an initial hidden representation from the conditioning vector.
+        h = self.input_layer(cond)
+        h = self.activation(h)
+        h = self.dropout(h)
+        
+        # Process through each hidden layer with FiLM conditioning.
+        for i, layer in enumerate(self.hidden_layers):
+            h_new = layer(h)
+            # Compute FiLM parameters (scale and shift) from the conditioning vector.
+            film_params = self.film_layers[i](cond)
+            gamma, beta = film_params.chunk(2, dim=-1)
+            # Apply FiLM modulation.
+            h_new = gamma * h_new + beta
+            h_new = self.activation(h_new)
+            h_new = self.dropout(h_new)
+            # Use a residual connection.
+            h = h + h_new
+        
+        # Obtain the transformation parameters.
+        params = self.output_layer(h)
         mu, log_sigma = params.chunk(2, dim=-1)
-
-        sigma = torch.exp(log_sigma)
-
-        # Non-linear transformation
-        y = y.reshape(-1, 1)  # Reshape y to match mu and sigma
-
-        # Non-linear transformation
+        sigma = torch.exp(log_sigma).clamp(min=1e-6)
+        
+        # Transform the target y.
+        y = y.reshape(-1, 1)
         z = (y - mu) / sigma
-        z = torch.tanh(z)  # Adding non-linearity
-
-        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z**2 + 1e-6).sum(
-            dim=-1
-        )
+        z = torch.tanh(z)  # Non-linear transformation
+        
+        # Compute the log-determinant of the Jacobian.
+        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z**2 + 1e-6).sum(dim=-1)
         return z, log_det_jacobian
 
-    def inverse(self, z, x):
-        x = x.view(x.size(0), -1)  # Flatten (30, 10) -> (1, 300)
-        params = self.net(x)
+    def inverse(self, z, cond):
+        """
+        Inverse pass: Recovers y given z and the conditioning vector.
+        """
+        h = self.input_layer(cond)
+        h = self.activation(h)
+        h = self.dropout(h)
+        
+        for i, layer in enumerate(self.hidden_layers):
+            h_new = layer(h)
+            film_params = self.film_layers[i](cond)
+            gamma, beta = film_params.chunk(2, dim=-1)
+            h_new = gamma * h_new + beta
+            h_new = self.activation(h_new)
+            h_new = self.dropout(h_new)
+            h = h + h_new
+        
+        params = self.output_layer(h)
         mu, log_sigma = params.chunk(2, dim=-1)
-
-        sigma = torch.exp(log_sigma)
+        sigma = torch.exp(log_sigma).clamp(min=1e-6)
+        
         z = torch.tanh(z)
+        # Inverse of tanh is atanh (implemented here as 0.5 * log((1+z)/(1-z))).
         z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
-
         y = z * sigma + mu
         return y
 
@@ -122,60 +180,64 @@ class NonLinearFlow(nn.Module):
 # %%
 # Define a new type of model
 class LSTMMAFModel(nn.Module):
-    def __init__(
-        self,
-        feature_dim,
-        input_dim,
-        lstm_hidden_dim,
-        maf_hidden_dim,
-        n_flows,
-        num_layers,
-        extractor_dropout,
-        flow_dropout,
-    ):
+    def __init__(self,
+                 feature_dim,
+                 lstm_hidden_dim,
+                 maf_hidden_dim,
+                 n_flows,
+                 num_layers,
+                 extractor_dropout,
+                 flow_dropout):
         super(LSTMMAFModel, self).__init__()
         self.lstm_feature_extractor = LSTMFeatureExtractor(
-            feature_dim, lstm_hidden_dim, num_layers, extractor_dropout
+            input_dim=feature_dim,
+            hidden_dim=lstm_hidden_dim,
+            num_layers=num_layers,
+            dropout_rate=extractor_dropout
         )
         self.maf = MaskedAutoregressiveFlow(
-            lstm_hidden_dim, maf_hidden_dim, n_flows, flow_dropout
+            cond_dim=lstm_hidden_dim,       # use LSTM hidden state as conditioning
+            hidden_dim=maf_hidden_dim,
+            n_flows=n_flows,
+            flow_dropout=flow_dropout
         )
 
     def log_prob(self, y, x):
-        feature_vector = self.lstm_feature_extractor(x)
-        return self.maf.log_prob(y, feature_vector)
+        # x is the input sequence; obtain its feature representation.
+        cond = self.lstm_feature_extractor(x)
+        return self.maf.log_prob(y, cond)
 
     def sample(self, x, num_samples=1000):
-        feature_vector = self.lstm_feature_extractor(x)
-        return self.maf.sample(feature_vector, num_samples)
+        cond = self.lstm_feature_extractor(x)
+        return self.maf.sample(cond, num_samples)
 
 
 # %%
 # Define the masked autoregressive flow network (MAF)
 class MaskedAutoregressiveFlow(nn.Module):
-    def __init__(self, input_dim, hidden_dim, n_flows, flow_dropout):
+    def __init__(self, cond_dim, hidden_dim, n_flows, flow_dropout):
         super(MaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList(
-            [NonLinearFlow(input_dim, hidden_dim, flow_dropout) for _ in range(n_flows)]
-        )
+        self.flows = nn.ModuleList([
+            AdaptiveDeepNonLinearFlow(cond_dim, hidden_dim, n_hidden_layers=4, dropout_rate=flow_dropout)
+            for _ in range(n_flows)
+        ])
         self.base_dist = Normal(0, 1)
 
-    def log_prob(self, y, x):
+    def log_prob(self, y, cond):
         log_det_jacobian = 0
-        # z = y.unsqueeze(1)
         z = y.clone().unsqueeze(1)
 
         for flow in self.flows:
-            z, log_det = flow(z, x)
+            z, log_det = flow(z, cond)
             log_det_jacobian += log_det
 
         log_prob = self.base_dist.log_prob(z).sum(dim=-1) + log_det_jacobian
         return log_prob
 
-    def sample(self, x, num_samples=1000):
+    def sample(self, cond, num_samples=1000):
         z = self.base_dist.sample((num_samples, 1))
         for flow in reversed(self.flows):
-            z = flow.inverse(z, x)
+            z = flow.inverse(z, cond)
         return z
 
 
@@ -197,7 +259,6 @@ print("Input dimension:", input_dim)
 # %%
 # Initialize the model
 model = LSTMMAFModel(
-    input_dim=input_dim,
     feature_dim=feature_dim,
     lstm_hidden_dim=lstm_hidden_dim,
     maf_hidden_dim=maf_hidden_dim,
@@ -214,23 +275,38 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 300
+epochs = 5
 for epoch in range(epochs):
     model.train()
-    optimizer.zero_grad()
-    log_prob = model.log_prob(y_train, X_train)
-    loss = -log_prob.mean()  # Negative log-likelihood
-    loss.backward()
-    optimizer.step()
+    epoch_loss = 0.0
 
-    # Adjust learning rate
-    scheduler.step(loss.item())
+    # Iterate over batches
+    for X_batch, y_batch in tqdm(
+        train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False
+    ):
+        optimizer.zero_grad()
+
+        # Compute the log probability for the current batch
+        log_prob = model.log_prob(y_batch, X_batch)
+
+        # Calculate the negative log-likelihood loss
+        loss = -log_prob.mean()
+
+        # Backpropagation
+        loss.backward()
+        optimizer.step()
+
+        # Accumulate loss (multiplied by batch size for averaging later)
+        epoch_loss += loss.item() * X_batch.size(0)
+
+    # Calculate average loss for the epoch
+    avg_loss = epoch_loss / len(train_dataset)
+
+    # Update the learning rate scheduler
+    scheduler.step(avg_loss)
 
     # Print the loss every 10 epochs
-    epoch += 1
-
-    if (epoch) % 10 == 0:
-        print(f"Epoch: {epoch}, Loss: {loss.item()}")
+    print(f"Epoch: {epoch + 1}, Loss: {avg_loss:.4f}")
 
 
 # %%
@@ -381,9 +457,10 @@ print("predicted stds lenght:", len(predicted_stds))
 
 # %%
 # 8) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
-    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
-]  # TEST_ASSET
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]# TEST_ASSET
+
+print(df_validation.shape)
+print(len(predicted_returns))
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
 df_validation["NLL"] = nll_loss_maf(model, X_test, y_test)
@@ -394,7 +471,7 @@ df_validation
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_validation.to_csv(
-    f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"  # TEST_ASSET
+    f"predictions/lstm_MAF_v4_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"  # TEST_ASSET
 )
 
 

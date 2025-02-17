@@ -9,15 +9,15 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-VERSION = "big-fng"
-MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
+VERSION = 2
+MODEL_NAME = f"lstm_ffnn_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Imports from code shared across models
 from shared.mdn import (
     calculate_intervals,
-    get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
+    get_mdn_bias_initializer,
     parse_mdn_output,
     plot_sample_days,
     predict_with_mc_dropout_mdn,
@@ -46,10 +46,7 @@ from tensorflow.keras.layers import (
     LSTM,
 )
 from tensorflow.keras.optimizers import Adam
-
-# External
-from scipy.optimize import brentq
-from scipy.stats import norm
+from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
 
@@ -60,12 +57,12 @@ df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=T
 
 
 # %%
-def build_lstm_mdn(
+N_MIXTURES = 30
+
+
+def build_model(
     lookback_days,
     num_features: int,
-    dropout=0.1,
-    n_mixtures=5,
-    hidden_units=10,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
@@ -75,19 +72,29 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    x = LSTM(
+        units=30,
+        activation="tanh",
+        kernel_regularizer=l2(1e-4),
+    )(inputs)
 
     # Add dropout
-    if dropout > 0:
-        x = Dropout(dropout)(x)
+    x = Dropout(0.1)(x)
+
+    # Add feed-forward layers
+    x = Dense(100, activation="relu", kernel_regularizer=l2(1e-4))(x)
+    x = Dropout(0.1)(x)
+
+    x = Dense(50, activation="relu", kernel_regularizer=l2(1e-4))(x)
+    x = Dropout(0.1)(x)
 
     # Create the custom kernel initializer for the Dense layer.
-    mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
-    mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
+    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
+    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
 
     # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
     mdn_output = Dense(
-        3 * n_mixtures,
+        3 * N_MIXTURES,
         activation=None,
         kernel_initializer=mdn_kernel_init,
         bias_initializer=mdn_bias_init,
@@ -105,13 +112,9 @@ print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 100
-lstm_mdn_model = build_lstm_mdn(
+lstm_mdn_model = build_model(
     lookback_days=LOOKBACK_DAYS,
     num_features=X_train.shape[2],  # 2 features in our example
-    dropout=0.1,
-    n_mixtures=N_MIXTURES,
-    hidden_units=20,
 )
 
 # %%
@@ -138,10 +141,10 @@ if os.path.exists(model_fname):
 # 5) Train
 # Start with one learning rate, then reduce
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=100, batch_size=32, verbose=1)
 
 # %%
-# Reduce learning rate again
+# Reduce learning rate
 lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
 history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
 
@@ -155,7 +158,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
-    commit_header = "Train LSTM w MDN model with FNG"
+    commit_header = f"Train {MODEL_NAME}"
     commit_body = f"Training history: {history.history}"
 
     subprocess.run(
@@ -172,7 +175,15 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-plot_sample_days(df, y_test, pi_pred, mu_pred, sigma_pred, N_MIXTURES)
+plot_sample_days(
+    df,
+    y_test,
+    pi_pred,
+    mu_pred,
+    sigma_pred,
+    N_MIXTURES,
+    f"results/{MODEL_NAME}_sample_days.svg",
+)
 
 # %%
 # 10) Plot weights over time to show how they change
@@ -273,91 +284,22 @@ for i, cl in enumerate(confidence_levels):
 
 os.makedirs("predictions", exist_ok=True)
 df_validation.to_csv(
-    f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
+    f"predictions/lstm_ffnn_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
 
 # %%
-# 9) MC Dropout predictions
-mc_results = predict_with_mc_dropout_mdn(
-    lstm_mdn_model, X_test, T=100, n_mixtures=N_MIXTURES
-)
-
-df_validation["Mean_MC"] = mc_results["expected_returns"]
-df_validation["Vol_MC"] = mc_results["volatility_estimates"]
-df_validation["Epistemic_Unc_Vol"] = mc_results[
-    "epistemic_uncertainty_volatility_estimates"
-]
-df_validation["Epistemic_Unc_Mean"] = mc_results[
-    "epistemic_uncertainty_expected_returns"
-]
-
-df_validation.to_csv(
-    f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
-)
+# Make predictions with Monte Carlo dropout
+mc_results = predict_with_mc_dropout_mdn(lstm_mdn_model, X_test, 1000, N_MIXTURES)
+mc_df = pd.DataFrame(mc_results)
+mc_df
 
 # %%
-# 10) (Optional) Compare coverage vs. GARCH predictions
-garch_path = f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-if os.path.exists(garch_path):
-    garch_vol_pred = pd.read_csv(garch_path, index_col="Date")["Volatility"]
-else:
-    garch_vol_pred = None
+# Set correct index for the dataframe
+mc_df.index = df_validation.index
+mc_df
 
 # %%
-# We'll do a short coverage example on the last 100 points
-lookback_days_plot = 100
-shift = 200
-idx_start = max(0, len(df_validation) - lookback_days_plot - shift)
-idx_end = idx_start + lookback_days_plot
-
-actual_returns = df_validation["LogReturn"].iloc[idx_start:idx_end]
-mc_means = df_validation["Mean_MC"].iloc[idx_start:idx_end]
-mc_vols = df_validation["Vol_MC"].iloc[idx_start:idx_end]
-
-# Chart with intervals
-plt.figure(figsize=(12, 6))
-plt.plot(actual_returns.index, actual_returns, label="Actual Returns", color="black")
-plt.plot(mc_means.index, mc_means, label="MC Dropout Mean", color="blue")
-plt.fill_between(
-    mc_means.index,
-    mc_means - mc_vols,
-    mc_means + mc_vols,
-    color="blue",
-    alpha=0.5,
-    label="±1 SD Interval (MC)",
+# Store MC dropout predictions
+mc_df.to_csv(
+    f"predictions/lstm_ffnn_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
 )
-plt.fill_between(
-    mc_means.index,
-    mc_means - 2 * mc_vols,
-    mc_means + 2 * mc_vols,
-    color="blue",
-    alpha=0.2,
-    label="±2 SD Interval (MC)",
-)
-# Plot epistemc uncertainty as a bar chart on a secondary y-axis
-plt.bar(
-    mc_means.index,
-    df_validation["Epistemic_Unc_Mean"].iloc[idx_start:idx_end],
-    alpha=0.3,
-    color="red",
-    label="Epistemic Uncertainty (MC)",
-)
-plt.title(f"lstm + MDN (MC Dropout) intervals, last {lookback_days_plot} points")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
-
-# %%
-# Coverage stats
-# 67% ~ 1 std
-cov_67 = np.mean(
-    (actual_returns >= mc_means - mc_vols) & (actual_returns <= mc_means + mc_vols)
-)
-# 95% ~ 2 std
-cov_95 = np.mean(
-    (actual_returns >= mc_means - 2 * mc_vols)
-    & (actual_returns <= mc_means + 2 * mc_vols)
-)
-
-cov_67, cov_95

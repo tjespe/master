@@ -4,8 +4,8 @@ from settings import (
     LOOKBACK_DAYS,
     SUFFIX,
     TEST_ASSET,
+    DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT,
 )
 from scipy.stats import ks_2samp
 
@@ -26,9 +26,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 import torch.nn.functional as F
+from torch.utils.data import TensorDataset, DataLoader
+
 
 from shared.processing import get_lstm_train_test
 from shared.loss import nll_loss_maf
+from tqdm import tqdm
 
 import os
 import warnings
@@ -47,6 +50,12 @@ window_size = LOOKBACK_DAYS
 # Convert to tensors for model training
 X_train = torch.from_numpy(X_train).float()
 y_train = torch.from_numpy(y_train).float()
+
+# setup batch size
+batch_size = 32
+train_dataset = TensorDataset(X_train, y_train)
+train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
 
 # print tensor shapes
 X_train.shape, y_train.shape
@@ -214,23 +223,38 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 300
+epochs = 5
 for epoch in range(epochs):
     model.train()
-    optimizer.zero_grad()
-    log_prob = model.log_prob(y_train, X_train)
-    loss = -log_prob.mean()  # Negative log-likelihood
-    loss.backward()
-    optimizer.step()
+    epoch_loss = 0.0
 
-    # Adjust learning rate
-    scheduler.step(loss.item())
+    # Iterate over batches
+    for X_batch, y_batch in tqdm(
+        train_loader, desc=f"Epoch {epoch+1}/{epochs}", leave=False
+    ):
+        optimizer.zero_grad()
+
+        # Compute the log probability for the current batch
+        log_prob = model.log_prob(y_batch, X_batch)
+
+        # Calculate the negative log-likelihood loss
+        loss = -log_prob.mean()
+
+        # Backpropagation
+        loss.backward()
+        optimizer.step()
+
+        # Accumulate loss (multiplied by batch size for averaging later)
+        epoch_loss += loss.item() * X_batch.size(0)
+
+    # Calculate average loss for the epoch
+    avg_loss = epoch_loss / len(train_dataset)
+
+    # Update the learning rate scheduler
+    scheduler.step(avg_loss)
 
     # Print the loss every 10 epochs
-    epoch += 1
-
-    if (epoch) % 10 == 0:
-        print(f"Epoch: {epoch}, Loss: {loss.item()}")
+    print(f"Epoch: {epoch + 1}, Loss: {avg_loss:.4f}")
 
 
 # %%
@@ -382,7 +406,7 @@ print("predicted stds lenght:", len(predicted_stds))
 # %%
 # 8) Store single-pass predictions
 df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
-    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+    TRAIN_VALIDATION_SPLIT:
 ]  # TEST_ASSET
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
