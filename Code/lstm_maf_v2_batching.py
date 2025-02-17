@@ -224,7 +224,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 5
+epochs = 25
 for epoch in range(epochs):
     model.train()
     epoch_loss = 0.0
