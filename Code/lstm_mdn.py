@@ -222,6 +222,26 @@ intervals = calculate_intervals_vectorized(
 )
 
 # %%
+# Manually calculate coverage for some tickers
+for ticker in example_tickers:
+    from_idx, to_idx = data.get_validation_range(ticker)
+    y = data.validation_sets[ticker].y
+    lb_95 = intervals[from_idx:to_idx, 0, 0]
+    ub_95 = intervals[from_idx:to_idx, 0, 1]
+    coverage = np.mean((y >= lb_95) & (y <= ub_95))
+    print(f"Coverage for {ticker} (vectorized): {coverage}")
+    unvectorized_intervals = calculate_intervals(
+        pi_pred[from_idx:to_idx],
+        mu_pred[from_idx:to_idx],
+        sigma_pred[from_idx:to_idx],
+        confidence_levels,
+    )
+    coverage = np.mean(
+        (y >= unvectorized_intervals[0, 0, 0]) & (y <= unvectorized_intervals[0, 0, 1])
+    )
+    print(f"Coverage for {ticker} (unvectorized): {coverage}")
+
+# %%
 # 12) Plot time series with mean, volatility and actual returns for last X days
 days = 150
 shift = 1
@@ -277,9 +297,10 @@ for ticker in example_tickers:
 # 13) Store single-pass predictions
 df_validation = pd.DataFrame(
     np.vstack([data.validation_dates, data.validation_tickers]).T,
-    columns=["Date", "Ticker"],
+    columns=["Date", "Symbol"],
 )
-# For reference, compute mixture means & variances
+# %%
+# For comparison to other models, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
     pi_pred, mu_pred, sigma_pred
 )
@@ -287,16 +308,36 @@ uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
+
+# %%
+# Calculate NLL
 df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(data.y_val_combined, y_pred_mdn)
+
+# %%
+# Calculate CRPS
 crps = crps_mdn_numpy(N_MIXTURES)
 df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
 
+# %%
+# Calculate CRPS
+df_validation["CRPS"] = crps_mixture_closedform(
+    data.y_val_combined,
+    np.array(pi_pred, dtype=np.float64),
+    np.array(mu_pred, dtype=np.float64),
+    np.array(sigma_pred, dtype=np.float64),
+)
+
+# %%
+# Add confidence intervals
 for i, cl in enumerate(confidence_levels):
     df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
     df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
-os.makedirs("predictions", exist_ok=True)
-df_validation.to_csv(f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}.csv")
+# %%
+# Save
+df_validation.set_index(["Date", "Symbol"]).to_csv(
+    f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}.csv"
+)
 
 # %%
 # 9) MC Dropout predictions
