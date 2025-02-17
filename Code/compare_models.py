@@ -379,6 +379,7 @@ try:
             "UB_95": lstm_with_maf_non_linear_preds["UB_95"].values,
             "LB_99": lstm_with_maf_non_linear_preds["LB_99"].values,
             "UB_99": lstm_with_maf_non_linear_preds["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
@@ -400,6 +401,7 @@ try:
             "UB_95": lstm_with_maf_non_linear_preds_v3["UB_95"].values,
             "LB_99": lstm_with_maf_non_linear_preds_v3["LB_99"].values,
             "UB_99": lstm_with_maf_non_linear_preds_v3["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds_v3["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
