@@ -43,6 +43,8 @@ import warnings
 df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
 df
 
+
+# remove the following features: 
 # %%
 # Define window size
 window_size = LOOKBACK_DAYS
@@ -193,14 +195,14 @@ class MaskedAutoregressiveFlow(nn.Module):
 # Define the model
 hidden_dim = 64
 lstm_hidden_dim = 128  # Adjust based on sequence length and features
-maf_hidden_dim = 128  # 64
-n_flows = 20  # 20
+maf_hidden_dim = 64  # 64
+n_flows = 5  # 20
 input_dim = 300  # 10 features * 30 lookback days
 # number of features
 feature_dim = X_train.shape[-1]
-extractor_num_layers = 1
-extractor_dropout = 0
-flow_dropout = 0
+extractor_num_layers = 2
+extractor_dropout = 0.15
+flow_dropout = 0.15
 print("Input dimension:", input_dim)
 
 
@@ -216,7 +218,9 @@ model = LSTMMAFModel(
     extractor_dropout=extractor_dropout,
     flow_dropout=flow_dropout,
 )
-optimizer = optim.Adam(model.parameters(), lr=1e-3)
+
+# %%
+optimizer = optim.Adam(model.parameters(), lr=1e-4) # weight_decay=1e-4
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=10, verbose=True
 )
@@ -224,7 +228,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 25
+epochs = 1
 for epoch in range(epochs):
     model.train()
     epoch_loss = 0.0
@@ -367,6 +371,13 @@ plt.ylabel("Return")
 plt.legend()
 plt.show()
 
+# %%
+# Check for nan values in the predicted returns
+nan_values = np.isnan(predicted_returns)
+# print the number of nan values
+print("Number of NaN values in predicted returns:", nan_values.sum())
+# print the last predicted return
+print("Last predicted return:", predicted_returns[-1])
 # %%
 # Plot only for the last 100 points
 plt.figure(figsize=(14, 6))
