@@ -6,12 +6,12 @@ from settings import (
     TEST_ASSET,
     DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT,
+    VALIDATION_TEST_SPLIT
 )
 from scipy.stats import ks_2samp
 
 
-MODEL_NAME = f"LSTM_MAF_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"LSTM_MAF_v3_{LOOKBACK_DAYS}_days{SUFFIX}"
 RVOL_DATA_PATH = "data/RVOL.csv"
 VIX_DATA_PATH = "data/VIX.csv"
 SPX_DATA_PATH = "data/SPX.csv"
@@ -30,7 +30,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 
-from shared.processing import get_lstm_train_test_old
+from shared.processing import get_lstm_train_test
 from shared.loss import nll_loss_maf
 from tqdm import tqdm
 
@@ -40,9 +40,7 @@ import warnings
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(
-    include_log_returns=False
-)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
 df
 
 
@@ -202,7 +200,7 @@ n_flows = 5  # 20
 input_dim = 300  # 10 features * 30 lookback days
 # number of features
 feature_dim = X_train.shape[-1]
-extractor_num_layers = 2
+extractor_num_layers = 1
 extractor_dropout = 0.15
 flow_dropout = 0.15
 print("Input dimension:", input_dim)
@@ -222,7 +220,7 @@ model = LSTMMAFModel(
 )
 
 # %%
-optimizer = optim.Adam(model.parameters(), lr=1e-4) 
+optimizer = optim.Adam(model.parameters(), lr=1e-4) # weight_decay=1e-4
 scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=10, verbose=True
 )
@@ -432,7 +430,7 @@ df_validation
 # Save the predictions to a CSV file
 os.makedirs("predictions", exist_ok=True)
 df_validation.to_csv(
-    f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"  # TEST_ASSET
+    f"predictions/lstm_MAF_v3_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"  # TEST_ASSET
 )
 
 
