@@ -1,21 +1,16 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
-from settings import (
-    LOOKBACK_DAYS,
-    SUFFIX,
-    TEST_ASSET,
-    TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT,
-)
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET
 
-VERSION = "relu"
+VERSION = "quick"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Imports from code shared across models
 from shared.mdn import (
     calculate_intervals,
+    calculate_intervals_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
@@ -26,7 +21,7 @@ from shared.mdn import (
 from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
-from shared.processing import get_lstm_train_test_old
+from shared.processing import get_lstm_train_test_new
 
 # %%
 # Library imports
@@ -56,7 +51,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(include_log_returns=True)
+data = get_lstm_train_test_new()
 
 
 # %%
@@ -75,7 +70,7 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="relu")(inputs)
+    x = LSTM(units=hidden_units, activation="tanh")(inputs)
 
     # Add dropout
     if dropout > 0:
@@ -100,15 +95,15 @@ def build_lstm_mdn(
 
 # %%
 # 1) Inspect shapes
-print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
+print(f"X_train.shape: {data.X_train.shape}, y_train.shape: {data.y_train.shape}")
+print(f"Validation set shape: {data.X_val_combined.shape}, {data.y_val_combined.shape}")
 
 # %%
 # 2) Build model
 N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
-    num_features=X_train.shape[2],  # 2 features in our example
+    num_features=data.X_train.shape[2],
     dropout=0.1,
     n_mixtures=N_MIXTURES,
     hidden_units=20,
@@ -145,7 +140,14 @@ if os.path.exists(model_fname):
 lstm_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
 )
-history = lstm_mdn_model.fit(X_train, y_train, epochs=3, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(
+    data.X_train,
+    data.y_train,
+    epochs=3,
+    batch_size=32,
+    verbose=1,
+    validation_data=(data.X_val_combined, data.y_val_combined),
+)
 
 # %%
 # 6) Save
@@ -169,94 +171,114 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
+y_pred_mdn = lstm_mdn_model.predict(data.X_val_combined)  # shape: (batch, 3*N_MIXTURES)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-plot_sample_days(df, y_test, pi_pred, mu_pred, sigma_pred, N_MIXTURES)
+example_tickers = ["GOOG", "AON", "WMT"]
+for ticker in example_tickers:
+    s = data.validation_sets[ticker]
+    from_idx, to_idx = data.get_validation_range(ticker)
+    plot_sample_days(
+        s.df,
+        s.y,
+        pi_pred[from_idx:to_idx],
+        mu_pred[from_idx:to_idx],
+        sigma_pred[from_idx:to_idx],
+        N_MIXTURES,
+        ticker=ticker,
+    )
 
 # %%
 # 10) Plot weights over time to show how they change
-plt.figure(figsize=(18, 8))
-dates = (
-    df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
-    .index.get_level_values("Date")
-)
-for j in range(N_MIXTURES):
-    mean_over_time = np.mean(pi_pred[:, j], axis=0)
-    if mean_over_time < 0.01:
-        continue
-    plt.plot(dates, pi_pred[:, j], label=f"$\pi_{{{j}}}$")
-plt.gca().set_yticklabels(["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"Evolution of Mixture Weights for {TEST_ASSET}")
-plt.xlabel("Time")
-plt.ylabel("Weight")
-plt.legend()
+plt.figure(figsize=(18, len(example_tickers) * 9))
+for i, ticker in enumerate(example_tickers):
+    plt.subplot(len(example_tickers), 1, i + 1)
+    s = data.validation_sets[ticker]
+    dates = s.df.index.get_level_values("Date")
+    from_idx, to_idx = data.get_validation_range(ticker)
+    pi_pred_ticker = pi_pred[from_idx:to_idx]
+    for j in range(N_MIXTURES):
+        mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
+        if mean_over_time < 0.01:
+            continue
+        plt.plot(dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+    plt.gca().set_yticklabels(
+        ["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()]
+    )
+    plt.title(f"Evolution of Mixture Weights for {ticker}")
+    plt.xlabel("Time")
+    plt.ylabel("Weight")
+    plt.legend()
 plt.show()
 
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
-intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
+confidence_levels = [0.95]
+intervals = calculate_intervals_vectorized(
+    pi_pred, mu_pred, sigma_pred, confidence_levels
+)
 
 # %%
 # 12) Plot time series with mean, volatility and actual returns for last X days
 days = 150
 shift = 1
-filtered_df = (
-    df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
-    .tail(days + shift)
-    .head(days)
-)
-filtered_intervals = intervals[-days - shift : -shift]
 mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-filtered_mean = mean[-days - shift : -shift]
+for ticker in example_tickers:
+    filtered_df = data.validation_sets[ticker].df.iloc[-days - shift : -shift]
+    from_idx, to_idx = data.get_validation_range(ticker)
+    ticker_mean = mean[from_idx:to_idx]
+    filtered_mean = ticker_mean[-days - shift : -shift]
+    ticker_intervals = intervals[from_idx:to_idx]
+    filtered_intervals = ticker_intervals[-days - shift : -shift]
+    dates = filtered_df.index.get_level_values("Date")
 
-plt.figure(figsize=(12, 6))
-plt.plot(
-    filtered_df.index,
-    filtered_df["LogReturn"],
-    label="Actual Returns",
-    color="black",
-    alpha=0.5,
-)
-plt.plot(filtered_df.index, filtered_mean, label="Predicted Mean", color="red")
-median = filtered_intervals[:, 0, 0]
-plt.plot(filtered_df.index, median, label="Median", color="blue")
-for i, cl in enumerate(confidence_levels):
-    if cl == 0:
-        continue
-    plt.fill_between(
-        filtered_df.index,
-        filtered_intervals[:, i, 0],
-        filtered_intervals[:, i, 1],
-        color="blue",
-        alpha=0.7 - i * 0.1,
-        label=f"{int(100*cl)}% Interval",
+    plt.figure(figsize=(12, 6))
+    plt.plot(
+        dates,
+        filtered_df["LogReturn"],
+        label="Actual Returns",
+        color="black",
+        alpha=0.5,
     )
-plt.axhline(
-    filtered_df["LogReturn"].mean(),
-    color="red",
-    linestyle="--",
-    label="True mean return across time",
-    alpha=0.5,
-)
-plt.gca().set_yticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"LSTM w MDN predictions for {TEST_ASSET}, {days} days")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
+    plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+    median = filtered_intervals[:, 0, 0]
+    plt.plot(dates, median, label="Median", color="blue")
+    for i, cl in enumerate(confidence_levels):
+        if cl == 0:
+            continue
+        plt.fill_between(
+            dates,
+            filtered_intervals[:, i, 0],
+            filtered_intervals[:, i, 1],
+            color="blue",
+            alpha=0.7 - i * 0.1,
+            label=f"{int(100*cl)}% Interval",
+        )
+    plt.axhline(
+        filtered_df["LogReturn"].mean(),
+        color="red",
+        linestyle="--",
+        label="True mean return across time",
+        alpha=0.5,
+    )
+    plt.gca().set_yticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
+    )
+    plt.title(f"LSTM w MDN predictions for {ticker}, {days} days")
+    plt.xlabel("Date")
+    plt.ylabel("LogReturn")
+    plt.legend()
+    plt.show()
 
 # %%
 # 13) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
-    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
-]
+df_validation = pd.DataFrame(
+    np.vstack([data.validation_dates, data.validation_tickers]).T,
+    columns=["Date", "Ticker"],
+)
 # For reference, compute mixture means & variances
 uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
     pi_pred, mu_pred, sigma_pred
@@ -265,23 +287,21 @@ uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
-df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(data.y_val_combined, y_pred_mdn)
 crps = crps_mdn_numpy(N_MIXTURES)
-df_validation["CRPS"] = crps(y_test, y_pred_mdn)
+df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
 
 for i, cl in enumerate(confidence_levels):
     df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
     df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
 os.makedirs("predictions", exist_ok=True)
-df_validation.to_csv(
-    f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
-)
+df_validation.to_csv(f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}.csv")
 
 # %%
 # 9) MC Dropout predictions
 mc_results = predict_with_mc_dropout_mdn(
-    lstm_mdn_model, X_test, T=100, n_mixtures=N_MIXTURES
+    lstm_mdn_model, data.y_val_combined, T=100, n_mixtures=N_MIXTURES
 )
 
 df_validation["Mean_MC"] = mc_results["expected_returns"]
@@ -293,73 +313,4 @@ df_validation["Epistemic_Unc_Mean"] = mc_results[
     "epistemic_uncertainty_expected_returns"
 ]
 
-df_validation.to_csv(
-    f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
-)
-
-# %%
-# 10) (Optional) Compare coverage vs. GARCH predictions
-garch_path = f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-if os.path.exists(garch_path):
-    garch_vol_pred = pd.read_csv(garch_path, index_col="Date")["Volatility"]
-else:
-    garch_vol_pred = None
-
-# %%
-# We'll do a short coverage example on the last 100 points
-lookback_days_plot = 100
-shift = 200
-idx_start = max(0, len(df_validation) - lookback_days_plot - shift)
-idx_end = idx_start + lookback_days_plot
-
-actual_returns = df_validation["LogReturn"].iloc[idx_start:idx_end]
-mc_means = df_validation["Mean_MC"].iloc[idx_start:idx_end]
-mc_vols = df_validation["Vol_MC"].iloc[idx_start:idx_end]
-
-# Chart with intervals
-plt.figure(figsize=(12, 6))
-plt.plot(actual_returns.index, actual_returns, label="Actual Returns", color="black")
-plt.plot(mc_means.index, mc_means, label="MC Dropout Mean", color="blue")
-plt.fill_between(
-    mc_means.index,
-    mc_means - mc_vols,
-    mc_means + mc_vols,
-    color="blue",
-    alpha=0.5,
-    label="±1 SD Interval (MC)",
-)
-plt.fill_between(
-    mc_means.index,
-    mc_means - 2 * mc_vols,
-    mc_means + 2 * mc_vols,
-    color="blue",
-    alpha=0.2,
-    label="±2 SD Interval (MC)",
-)
-# Plot epistemc uncertainty as a bar chart on a secondary y-axis
-plt.bar(
-    mc_means.index,
-    df_validation["Epistemic_Unc_Mean"].iloc[idx_start:idx_end],
-    alpha=0.3,
-    color="red",
-    label="Epistemic Uncertainty (MC)",
-)
-plt.title(f"lstm + MDN (MC Dropout) intervals, last {lookback_days_plot} points")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
-
-# %%
-# Coverage stats
-# 67% ~ 1 std
-cov_67 = np.mean(
-    (actual_returns >= mc_means - mc_vols) & (actual_returns <= mc_means + mc_vols)
-)
-# 95% ~ 2 std
-cov_95 = np.mean(
-    (actual_returns >= mc_means - 2 * mc_vols)
-    & (actual_returns <= mc_means + 2 * mc_vols)
-)
-
-cov_67, cov_95
+df_validation.to_csv(f"predictions/lstm_mdn_mc_predictions{SUFFIX}_days_v{VERSION}.csv")

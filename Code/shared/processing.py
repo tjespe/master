@@ -59,6 +59,29 @@ class ProcessedData:
     def y_val_combined(self) -> np.ndarray:
         return np.concatenate([val_set.y for val_set in self.validation_sets.values()])
 
+    @cached_property
+    def validation_tickers(self) -> list[str]:
+        return [t for s in self.validation_sets.values() for t in [s.ticker] * len(s.y)]
+
+    @cached_property
+    def validation_dates(self) -> list[pd.Timestamp]:
+        return [
+            d
+            for s in self.validation_sets.values()
+            for d in s.df.index.get_level_values("Date")[-len(s.y) :]
+        ]
+
+    def get_validation_range(self, ticker: str):
+        from_idx = self.validation_tickers.index(ticker)
+        to_idx = next(
+            (
+                i
+                for i in range(from_idx + 1, len(self.validation_tickers))
+                if self.validation_tickers[i] != ticker
+            ),
+        )
+        return from_idx, to_idx
+
 
 def get_lstm_train_test_new() -> ProcessedData:
     """
