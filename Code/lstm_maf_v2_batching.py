@@ -6,6 +6,7 @@ from settings import (
     TEST_ASSET,
     DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
+    VALIDATION_TEST_SPLIT
 )
 from scipy.stats import ks_2samp
 
@@ -406,7 +407,7 @@ print("predicted stds lenght:", len(predicted_stds))
 # %%
 # 8) Store single-pass predictions
 df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
-    TRAIN_VALIDATION_SPLIT:
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
 ]  # TEST_ASSET
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
