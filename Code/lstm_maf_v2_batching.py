@@ -21,6 +21,7 @@ SPX_DATA_PATH = "data/SPX.csv"
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 import torch
 import torch.nn as nn
@@ -279,7 +280,7 @@ for idx in random_indices:
     actual_return = y_test[idx].item()  # Actual next-day return
 
     # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=10000)
+    samples = model.sample(x=specific_sample, num_samples=25000)
     predicted_return = samples.mean().item()  # Mean of predicted distribution
 
     print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
@@ -310,49 +311,81 @@ for idx in random_indices:
     plt.legend()
     plt.show()
 
+
 # %%
-# Plot the predicted distribution for the last test sample
-specific_sample = X_test[-1].unsqueeze(0)  # Select the last test sample
-actual_return = y_test[-1].item()  # Actual next-day return
+# Smoothing the distributions
 
-# Generate predicted return distribution
-samples = model.sample(x=specific_sample, num_samples=5000)
-predicted_return = samples.mean().item()  # Mean of predicted distribution
+for idx in random_indices:
+    specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
+    actual_return = y_test[idx].item()  # Actual next-day return
 
-# Analyzing Results
-plt.figure(figsize=(8, 4))
-plt.hist(
-    samples.detach().numpy().flatten(),
-    bins=50,
-    density=True,
-    alpha=0.6,
-    label="Predicted Distribution",
-)
-plt.axvline(
-    predicted_return,
-    color="blue",
-    linestyle="dashed",
-    linewidth=2,
-    label="Predicted Mean",
-)
-plt.axvline(
-    actual_return, color="red", linestyle="solid", linewidth=2, label="Actual Return"
-)
-plt.title("Predicted Return Distribution for Last Test Point")
+    # Generate predicted return distribution
+    samples = model.sample(x=specific_sample, num_samples=25000).detach().numpy().flatten()
+    predicted_return = np.mean(samples)  # Mean of predicted distribution
+
+    print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
+
+    # Plot KDE with proper empirical representation
+    plt.figure(figsize=(8, 4))
+    sns.kdeplot(
+        samples,
+        bw_adjust=0.5,  # Adjust bandwidth for smoothing; lower values make it follow the data more closely
+        fill=True,
+        alpha=0.6,
+        label="Predicted Distribution",
+    )
+    
+    # Add vertical lines for actual and predicted return
+    plt.axvline(
+        predicted_return,
+        color="blue",
+        linestyle="dashed",
+        linewidth=2,
+        label="Predicted Mean",
+    )
+    plt.axvline(
+        actual_return,
+        color="red",
+        linestyle="solid",
+        linewidth=2,
+        label="Actual Return",
+    )
+
+    plt.title(f"Predicted Return Distribution for Test Point {idx}")
+    plt.legend()
+    plt.show()
+
 # %%
 # Predicting the Distribution for the Entire Test Period
-
+confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = np.zeros((len(X_test), len(confidence_levels), 2))
 predicted_returns = []
 predicted_stds = []
 actual_returns = y_test.numpy().flatten()
 
 for i in range(len(X_test)):
     specific_sample = X_test[i].unsqueeze(0)
-    samples = model.sample(x=specific_sample, num_samples=5000)
+    samples = model.sample(x=specific_sample, num_samples=25000)
+    samples_np = samples.detach().cpu().numpy().flatten()
     predicted_return = samples.mean().item()
     predicted_std = samples.std().item()
     predicted_stds.append(predicted_std)
     predicted_returns.append(predicted_return)
+
+    # For each confidence level, calculate the lower and upper quantiles.
+    for j, cl in enumerate(confidence_levels):
+        # For cl=0, you may simply take the median (50th percentile) for both bounds.
+        if cl == 0:
+            lower_q = 50
+            upper_q = 50
+        else:
+            lower_q = (1 - cl) / 2 * 100
+            upper_q = 100 - lower_q
+        
+        lower_bound = np.percentile(samples_np, lower_q)
+        upper_bound = np.percentile(samples_np, upper_q)
+        intervals[i, j, 0] = lower_bound
+        intervals[i, j, 1] = upper_bound
 
 # Plotting Predicted Returns vs Actual Returns
 plt.figure(figsize=(14, 6))
@@ -366,6 +399,15 @@ plt.fill_between(
     color="blue",
     alpha=0.2,
     label="Predicted Return Std",
+)
+# add the 95% confidence interval with label
+plt.fill_between(
+    range(len(predicted_returns)),
+    intervals[:, 4, 0],
+    intervals[:, 4, 1],
+    color="green",
+    alpha=0.2,
+    label="95% Confidence Interval",
 )
 plt.title("Predicted Returns vs Actual Returns (Test Period)")
 plt.xlabel("Time Step")
@@ -425,6 +467,11 @@ df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
 df_validation["NLL"] = nll_loss_maf(model, X_test, y_test)
+
+# Store the intervals in the DataFrame.
+for j, cl in enumerate(confidence_levels):
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, j, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, j, 1]
 
 df_validation
 

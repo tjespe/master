@@ -11,7 +11,7 @@ from settings import (
 from scipy.stats import ks_2samp
 
 
-MODEL_NAME = f"LSTM_MAF__v4{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"LSTM_MAF_v4{LOOKBACK_DAYS}_days{SUFFIX}"
 
 # %%
 # Import libraries
@@ -286,7 +286,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 5
+epochs = 1
 for epoch in range(epochs):
     model.train()
     epoch_loss = 0.0
@@ -397,7 +397,8 @@ plt.axvline(
 plt.title("Predicted Return Distribution for Last Test Point")
 # %%
 # Predicting the Distribution for the Entire Test Period
-
+confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = np.zeros((len(X_test), len(confidence_levels), 2))
 predicted_returns = []
 predicted_stds = []
 actual_returns = y_test.numpy().flatten()
@@ -405,10 +406,26 @@ actual_returns = y_test.numpy().flatten()
 for i in range(len(X_test)):
     specific_sample = X_test[i].unsqueeze(0)
     samples = model.sample(x=specific_sample, num_samples=5000)
+    samples_np = samples.detach().cpu().numpy().flatten()
     predicted_return = samples.mean().item()
     predicted_std = samples.std().item()
     predicted_stds.append(predicted_std)
     predicted_returns.append(predicted_return)
+
+    # For each confidence level, calculate the lower and upper quantiles.
+    for j, cl in enumerate(confidence_levels):
+        # For cl=0, you may simply take the median (50th percentile) for both bounds.
+        if cl == 0:
+            lower_q = 50
+            upper_q = 50
+        else:
+            lower_q = (1 - cl) / 2 * 100
+            upper_q = 100 - lower_q
+        
+        lower_bound = np.percentile(samples_np, lower_q)
+        upper_bound = np.percentile(samples_np, upper_q)
+        intervals[i, j, 0] = lower_bound
+        intervals[i, j, 1] = upper_bound
 
 # Plotting Predicted Returns vs Actual Returns
 plt.figure(figsize=(14, 6))
@@ -441,6 +458,15 @@ plt.fill_between(
     color="blue",
     alpha=0.2,
     label="Predicted Return Std",
+)
+# add the 95% confidence interval with label
+plt.fill_between(
+    range(len(predicted_returns)),
+    intervals[:, 4, 0],
+    intervals[:, 4, 1],
+    color="green",
+    alpha=0.2,
+    label="95% Confidence Interval",
 )
 plt.title("Predicted Returns vs Actual Returns (Last 100 Time Steps)")
 plt.xlabel("Time Step")
@@ -477,6 +503,12 @@ print(len(predicted_returns))
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
 df_validation["NLL"] = nll_loss_maf(model, X_test, y_test)
+
+# Store the intervals in the DataFrame.
+for j, cl in enumerate(confidence_levels):
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, j, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, j, 1]
+
 
 df_validation
 

@@ -365,7 +365,7 @@ except FileNotFoundError:
 
     # LSTM with MAF and LSTM feature extractor model
 try:
-    mlp_with_maf_non_linear_preds = (
+    lstm_with_maf_non_linear_preds = (
         pd.read_csv(f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
         .set_index("Date")
         .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
@@ -373,8 +373,13 @@ try:
     preds_per_model.append(
         {
             "name": "LSTM with MAF non-linear flows",
-            "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
-            "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
+            "mean_pred": lstm_with_maf_non_linear_preds["Mean_SP"].values,
+            "volatility_pred": lstm_with_maf_non_linear_preds["Vol_SP"].values,
+            "LB_95": lstm_with_maf_non_linear_preds["LB_95"].values,
+            "UB_95": lstm_with_maf_non_linear_preds["UB_95"].values,
+            "LB_99": lstm_with_maf_non_linear_preds["LB_99"].values,
+            "UB_99": lstm_with_maf_non_linear_preds["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
@@ -382,7 +387,7 @@ except FileNotFoundError:
 
     # LSTM with MAF and LSTM feature extractor model v3
 try:
-    mlp_with_maf_non_linear_preds = (
+    lstm_with_maf_non_linear_preds_v3 = (
         pd.read_csv(f"predictions/lstm_MAF_v3_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
         .set_index("Date")
         .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
@@ -390,8 +395,13 @@ try:
     preds_per_model.append(
         {
             "name": "LSTM with MAF non-linear flows v3",
-            "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
-            "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
+            "mean_pred": lstm_with_maf_non_linear_preds_v3["Mean_SP"].values,
+            "volatility_pred": lstm_with_maf_non_linear_preds_v3["Vol_SP"].values,
+            "LB_95": lstm_with_maf_non_linear_preds_v3["LB_95"].values,
+            "UB_95": lstm_with_maf_non_linear_preds_v3["UB_95"].values,
+            "LB_99": lstm_with_maf_non_linear_preds_v3["LB_99"].values,
+            "UB_99": lstm_with_maf_non_linear_preds_v3["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds_v3["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
