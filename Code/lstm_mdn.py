@@ -9,7 +9,7 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-VERSION = "quick"
+VERSION = "relu"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -75,7 +75,7 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    x = LSTM(units=hidden_units, activation="relu")(inputs)
 
     # Add dropout
     if dropout > 0:
