@@ -21,6 +21,7 @@ SPX_DATA_PATH = "data/SPX.csv"
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 import torch
 import torch.nn as nn
@@ -310,35 +311,50 @@ for idx in random_indices:
     plt.legend()
     plt.show()
 
+
 # %%
-# Plot the predicted distribution for the last test sample
-specific_sample = X_test[-1].unsqueeze(0)  # Select the last test sample
-actual_return = y_test[-1].item()  # Actual next-day return
+# Smoothing the distributions
 
-# Generate predicted return distribution
-samples = model.sample(x=specific_sample, num_samples=5000)
-predicted_return = samples.mean().item()  # Mean of predicted distribution
+for idx in random_indices:
+    specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
+    actual_return = y_test[idx].item()  # Actual next-day return
 
-# Analyzing Results
-plt.figure(figsize=(8, 4))
-plt.hist(
-    samples.detach().numpy().flatten(),
-    bins=50,
-    density=True,
-    alpha=0.6,
-    label="Predicted Distribution",
-)
-plt.axvline(
-    predicted_return,
-    color="blue",
-    linestyle="dashed",
-    linewidth=2,
-    label="Predicted Mean",
-)
-plt.axvline(
-    actual_return, color="red", linestyle="solid", linewidth=2, label="Actual Return"
-)
-plt.title("Predicted Return Distribution for Last Test Point")
+    # Generate predicted return distribution
+    samples = model.sample(x=specific_sample, num_samples=10000).detach().numpy().flatten()
+    predicted_return = np.mean(samples)  # Mean of predicted distribution
+
+    print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
+
+    # Plot KDE with proper empirical representation
+    plt.figure(figsize=(8, 4))
+    sns.kdeplot(
+        samples,
+        bw_adjust=0.5,  # Adjust bandwidth for smoothing; lower values make it follow the data more closely
+        fill=True,
+        alpha=0.6,
+        label="Predicted Distribution",
+    )
+    
+    # Add vertical lines for actual and predicted return
+    plt.axvline(
+        predicted_return,
+        color="blue",
+        linestyle="dashed",
+        linewidth=2,
+        label="Predicted Mean",
+    )
+    plt.axvline(
+        actual_return,
+        color="red",
+        linestyle="solid",
+        linewidth=2,
+        label="Actual Return",
+    )
+
+    plt.title(f"Predicted Return Distribution for Test Point {idx}")
+    plt.legend()
+    plt.show()
+    
 # %%
 # Predicting the Distribution for the Entire Test Period
 confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
