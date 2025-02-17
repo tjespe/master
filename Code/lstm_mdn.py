@@ -9,7 +9,7 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 
-VERSION = "big-fng"
+VERSION = "quick"
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -145,7 +145,7 @@ if os.path.exists(model_fname):
 lstm_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
 )
-history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+history = lstm_mdn_model.fit(X_train, y_train, epochs=3, batch_size=32, verbose=1)
 
 # %%
 # 6) Save

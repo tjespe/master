@@ -1,12 +1,12 @@
-,GARCH,GARCH-GJR,LSTM MDN vbig-fng
-PICP,2,1,3
-Mean width (MPIW),2,3,1
-Interval Score,2,1,3
-Correlation (vol. vs. errors),3,2,1
-NLL,2,1,3
-QL,2,3,1
-CRPS,1,2,3
-Lopez Loss,2,1,3
-RMSE,1,1,3
-Sign accuracy,1,1,3
-Rank Sum,18,16,24
+,GARCH,GARCH-GJR,LSTM MDN vbig-fng,LSTM MDN vquick
+PICP,3,2,4,1
+Mean width (MPIW),3,4,1,2
+Interval Score,3,2,4,1
+Correlation (vol. vs. errors),4,3,2,1
+NLL,3,2,4,1
+QL,3,4,1,2
+CRPS,2,3,4,1
+Lopez Loss,3,2,4,1
+RMSE,1,1,4,3
+Sign accuracy,1,1,4,3
+Rank Sum,26,24,32,16
