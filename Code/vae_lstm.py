@@ -20,7 +20,7 @@ from tensorflow.keras.optimizers import Adam
 import os
 import warnings
 
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 
 warnings.filterwarnings("ignore")
 
@@ -41,7 +41,7 @@ MODEL_NAME = f"vae_lstm_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # In practice, reuse your own code to produce:
 # X_train, X_test, y_train, y_test
 
-df, X_train, X_test, y_train, y_test = get_lstm_train_test()
+df, X_train, X_test, y_train, y_test = get_lstm_train_test_old()
 
 # %% [markdown]
 # # 2) Variational Autoencoder (VAE)
