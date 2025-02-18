@@ -255,6 +255,7 @@ def plot_sample_days(
     n_mixtures: int,
     save_to: Optional[str] = None,
     show=True,
+    ticker=TEST_ASSET,
 ):
     plt.figure(figsize=(10, 40))
     np.random.seed(0)
@@ -318,7 +319,7 @@ def plot_sample_days(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
         )
         plt.title(
-            f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
+            f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {ticker}"
         )
         plt.ylim(0, 50)
         plt.legend()
@@ -329,3 +330,142 @@ def plot_sample_days(
         plt.savefig(save_to)
     if show:
         plt.show()
+
+
+# %%
+import math
+import numpy as np
+from numba import njit
+
+
+@njit
+def rowwise_max_2d(arr):
+    """
+    Return the maximum of each row in a 2D array.
+    Equivalent to np.max(arr, axis=1) but JIT-friendly.
+    """
+    n_rows, n_cols = arr.shape
+    out = np.empty(n_rows, dtype=arr.dtype)
+    for i in range(n_rows):
+        m = arr[i, 0]
+        for j in range(1, n_cols):
+            if arr[i, j] > m:
+                m = arr[i, j]
+        out[i] = m
+    return out
+
+
+@njit
+def mixture_cdf(x, pis, mus, sigmas):
+    """
+    Compute mixture CDF at x for all samples (n_samples).
+    x: shape (n_samples,)
+    pis, mus, sigmas: shape (n_samples, n_mixtures)
+    """
+    n_samples, n_mixtures = pis.shape
+    out = np.zeros(n_samples, dtype=np.float64)
+    for i in range(n_samples):
+        cdf_val = 0.0
+        for m in range(n_mixtures):
+            z = (x[i] - mus[i, m]) / sigmas[i, m]
+            # Use an erf-based expression for normal CDF
+            cdf_val += pis[i, m] * 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
+        out[i] = cdf_val
+    return out
+
+
+@njit
+def bracket_and_bisect(pis, mus, sigmas, alpha, max_iter=50, tol=1e-8):
+    """
+    Vectorized bracket + bisection with Numba JIT.
+    Finds x_i s.t. mixture_cdf(x_i) = alpha for each sample i.
+    """
+    n_samples = pis.shape[0]
+
+    # Instead of np.max(sigmas, axis=1), use the helper:
+    s = rowwise_max_2d(sigmas)
+
+    low_vals = np.full(n_samples, -1.0, dtype=np.float64)
+    high_vals = np.full(n_samples, 1.0, dtype=np.float64)
+
+    f_low = mixture_cdf(low_vals, pis, mus, sigmas)
+    # Expand bracket on the left
+    done_mask = np.zeros(n_samples, dtype=np.bool)  # which ones are done expanding
+    while True:
+        still_too_high = (f_low > alpha) & (~done_mask)
+        if not np.any(still_too_high):
+            break
+        for i in range(n_samples):
+            if still_too_high[i]:
+                low_vals[i] -= 10.0 * s[i]
+                f_low[i] = mixture_cdf(
+                    np.array([low_vals[i]]),
+                    pis[i : i + 1],
+                    mus[i : i + 1],
+                    sigmas[i : i + 1],
+                )[0]
+                # If it's still not low enough, we'll catch it in next iteration
+            else:
+                done_mask[i] = True
+
+    f_high = mixture_cdf(high_vals, pis, mus, sigmas)
+    # Expand bracket on the right
+    done_mask[:] = False
+    while True:
+        still_too_low = (f_high < alpha) & (~done_mask)
+        if not np.any(still_too_low):
+            break
+        for i in range(n_samples):
+            if still_too_low[i]:
+                high_vals[i] += 10.0 * s[i]
+                f_high[i] = mixture_cdf(
+                    np.array([high_vals[i]]),
+                    pis[i : i + 1],
+                    mus[i : i + 1],
+                    sigmas[i : i + 1],
+                )[0]
+            else:
+                done_mask[i] = True
+
+    # Bisection
+    for _ in range(max_iter):
+        mid_vals = 0.5 * (low_vals + high_vals)
+        f_mid = mixture_cdf(mid_vals, pis, mus, sigmas)
+        for i in range(n_samples):
+            if f_mid[i] < alpha:
+                low_vals[i] = mid_vals[i]
+            else:
+                high_vals[i] = mid_vals[i]
+        # Early stop if intervals are tight
+        if (high_vals - low_vals).max() < tol:
+            break
+
+    return 0.5 * (low_vals + high_vals)
+
+
+def calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels):
+    """
+    Vectorized calculation of (lower, upper) quantiles for each sample and
+    each confidence level.
+    """
+    pis = np.asarray(pis)
+    mus = np.asarray(mus)
+    sigmas = np.asarray(sigmas)
+    conf_levels = np.asarray(confidence_levels)
+
+    n_samples = pis.shape[0]
+    n_conf = conf_levels.size
+    intervals = np.empty((n_samples, n_conf, 2))
+
+    for j, cl in enumerate(conf_levels):
+        alpha = (1 - cl) / 2
+        beta = 1 - alpha
+
+        # Solve mixture_cdf(x) = alpha and mixture_cdf(x) = beta in parallel
+        lower_bound = bracket_and_bisect(pis, mus, sigmas, alpha)
+        upper_bound = bracket_and_bisect(pis, mus, sigmas, beta)
+
+        intervals[:, j, 0] = lower_bound
+        intervals[:, j, 1] = upper_bound
+
+    return intervals
