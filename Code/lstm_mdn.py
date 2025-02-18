@@ -162,6 +162,7 @@ def find_worst_tickers():
     nll_per_ticker = (
         nll_df.groupby("Symbol")["NLL"].mean().sort_values("NLL", ascending=False)
     )
+    nll_per_ticker = nll_df.groupby("Symbol")["NLL"].mean().sort_values()
     try:
         display(nll_per_ticker)
     except:
