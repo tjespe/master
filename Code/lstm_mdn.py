@@ -3,8 +3,9 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "l2"
+VERSION = "pireg"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
+PI_PENALTY = True
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -120,14 +121,14 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "loss_fn": mdn_loss_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY)
     )
     print("Loaded pre-trained model from disk.")
 
@@ -146,7 +147,8 @@ early_stop = EarlyStopping(
 # %%
 # Reduce learning rate
 lstm_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+    loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
 )
 history = lstm_mdn_model.fit(
     data.X_train,

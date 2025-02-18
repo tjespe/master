@@ -95,7 +95,7 @@ def nll_loss_mean_and_vol(y_true, means, vols):
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
 
 
-def mdn_loss_tf(num_mixtures):
+def mdn_loss_tf(num_mixtures, add_pi_penalty=False):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).
     Output shape: (batch_size, 3*num_mixtures)
@@ -122,6 +122,12 @@ def mdn_loss_tf(num_mixtures):
         pdf_sum = tf.reduce_sum(weighted_pdf, axis=1) + 1e-12  # avoid log(0)
 
         nll = -tf.math.log(pdf_sum)
+        if add_pi_penalty:
+            # Add a penalty equal to the sum of the squares of the differences between
+            # the pi values and 1/num_mixtures
+            pi_penalty = tf.reduce_sum((pi - 1 / num_mixtures) ** 2, axis=1)
+            nll += pi_penalty
+
         return tf.reduce_mean(nll)
 
     return loss_fn
