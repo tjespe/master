@@ -15,7 +15,7 @@ CONFIDENCE_LEVEL = 0.05
 
 # %%
 # Exclude uninteresting models
-EXCLUDE_MODELS = []
+EXCLUDE_MODELS = ["LSTM MDN fe", "LSTM MDN quick"]
 
 # %%
 import numpy as np
@@ -628,7 +628,14 @@ for entry in preds_per_model:
     unique_sectors.update(passes.index)
 
 # Get the union of sectors from both datasets
-sectors = sorted(unique_sectors)
+sectors = sorted(
+    unique_sectors,
+    key=lambda sector: sum(
+        entry["sector_pass_pct"].get(sector, 0)
+        for entry in preds_per_model
+        if entry["name"] != "GARCH"
+    ),
+)
 y = np.arange(len(sectors))
 
 num_models = len(preds_per_model)
@@ -641,6 +648,8 @@ offsets = np.linspace(
 
 plt.figure(figsize=(10, len(sectors) * 0.7))
 
+plt.title("Pass Rate (all 3 Christoffersen's tests) by Sector")
+
 for i, entry in enumerate(preds_per_model):
     pass_pct = entry["sector_pass_pct"].reindex(sectors, fill_value=0)
     plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
@@ -651,5 +660,56 @@ plt.legend()
 plt.show()
 
 # %%
+# %%
+# Analyze coverage by sector
+sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+meta_df = meta_df.set_index("Symbol")
+unique_sectors = set()
+
+for entry in preds_per_model:
+    chr_results_df = entry["chr_results_df"]
+    chr_results_df = chr_results_df.join(meta_df, how="left")
+    chr_results_df = chr_results_df.dropna(subset="all_pass")
+    entry["sector_coverage"] = (
+        chr_results_df.groupby(sector_key)["Coverage"]
+        .mean()
+        .sort_values(ascending=False)
+    )
+    unique_sectors.update(passes.index)
+
+# Get the union of sectors from both datasets
+sectors = sorted(
+    unique_sectors,
+    key=lambda sector: sum(
+        entry["sector_coverage"].get(sector, 0)
+        for entry in preds_per_model
+        if entry["name"] != "GARCH"
+    ),
+)
+y = np.arange(len(sectors))
+
+num_models = len(preds_per_model)
+group_height = 0.8  # total vertical space for each sector's bars
+bar_height = group_height / num_models
+# create evenly spaced offsets that place bars side by side
+offsets = np.linspace(
+    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
+)
+
+plt.figure(figsize=(10, len(sectors) * 0.7))
+
+plt.title("PICP by Sector")
+
+for i, entry in enumerate(preds_per_model):
+    pass_pct = entry["sector_coverage"].reindex(sectors, fill_value=0)
+    plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+
+plt.xlim(1 - CONFIDENCE_LEVEL - 0.05, 1 - CONFIDENCE_LEVEL + 0.05)
+plt.axvline(1 - CONFIDENCE_LEVEL, color="black", linestyle="--", label="Target")
+plt.yticks(y, sectors)
+plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
+plt.legend()
+plt.show()
 
 # %%
