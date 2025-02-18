@@ -20,7 +20,7 @@ from shared.mdn import (
     univariate_mixture_mean_and_var_approx,
 )
 from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.loss import mdn_loss_numpy, mean_mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
 
@@ -31,6 +31,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
 import os
+import gc
 
 # TensorFlow / Keras
 import tensorflow as tf
@@ -50,10 +51,11 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new(
-    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
-    # raw_df_filter=lambda df: df[df["Symbol"] == "GS"],
-)
+data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
+
+# %%
+# Garbage collection
+gc.collect()
 
 
 # %%
@@ -101,15 +103,15 @@ def build_lstm_mdn(
 
 # %%
 # 1) Inspect shapes
-print(f"X_train.shape: {data.X_train.shape}, y_train.shape: {data.y_train.shape}")
-print(f"Validation set shape: {data.X_val_combined.shape}, {data.y_val_combined.shape}")
+print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
+print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shape}")
 
 # %%
 # 2) Build model
 N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
-    num_features=data.X_train.shape[2],
+    num_features=data.train.X.shape[2],
     dropout=0.1,
     n_mixtures=N_MIXTURES,
     hidden_units=20,
@@ -118,6 +120,7 @@ lstm_mdn_model = build_lstm_mdn(
 # %%
 # 4) Load existing model if it exists
 model_fname = f"models/{MODEL_NAME}.keras"
+already_trained = False
 if os.path.exists(model_fname):
     mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
     mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
@@ -134,34 +137,72 @@ if os.path.exists(model_fname):
         optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY)
     )
     print("Loaded pre-trained model from disk.")
+    already_trained = True
 
 # %%
 # 5) Train
-early_stop = EarlyStopping(
-    monitor="val_loss",
-    patience=5,  # number of epochs with no improvement to wait
-    restore_best_weights=True,
-)
+prev_val_loss = None
+val_loss = lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
+histories = []
+training_set = data.train
 
-# Start with one learning rate, then reduce
-# lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-# history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
 
 # %%
-# Reduce learning rate
-lstm_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-    loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
-)
-history = lstm_mdn_model.fit(
-    data.X_train,
-    data.y_train,
-    epochs=100,
-    batch_size=32,
-    verbose=1,
-    validation_data=(data.X_val_combined, data.y_val_combined),
-    callbacks=[early_stop],
-)
+def find_worst_tickers():
+    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
+    y_train_pred = lstm_mdn_model.predict(data.train.X)
+    nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
+    nll_df = pd.DataFrame(
+        {
+            "Date": data.train.dates,
+            "Symbol": data.train.tickers,
+            "NLL": nlls,
+        }
+    )
+    nll_per_ticker = (
+        nll_df.groupby("Symbol")["NLL"].mean().sort_values("NLL", ascending=False)
+    )
+    try:
+        display(nll_per_ticker)
+    except:
+        print(nll_per_ticker)
+    unique_tickers = np.unique(nll_per_ticker.index.values)
+    worst_tickers = nll_per_ticker.nlargest(len(unique_tickers) // 10).index
+    return worst_tickers
+
+
+# %%
+if already_trained:
+    worst_tickers = find_worst_tickers()
+    training_set = data.train.filter_by_tickers(worst_tickers)
+
+# %%
+while True:
+    early_stop = EarlyStopping(
+        monitor="val_loss",
+        patience=5,  # number of epochs with no improvement to wait
+        restore_best_weights=True,
+    )
+
+    prev_weights = lstm_mdn_model.get_weights()
+    history = lstm_mdn_model.fit(
+        training_set.X,
+        training_set.y,
+        epochs=1,
+        batch_size=32,
+        verbose=1,
+        validation_data=(data.validation.X, data.validation.y),
+    )
+    val_loss = history.history["val_loss"][-1]
+    if prev_val_loss is not None and val_loss >= prev_val_loss:
+        lstm_mdn_model.set_weights(prev_weights)
+        break
+    prev_val_loss = val_loss
+    histories.append(history)
+
+    worst_tickers = find_worst_tickers()
+    training_set = data.train.filter_by_tickers(worst_tickers)
+    gc.collect()
 
 # %%
 # 6) Save
@@ -174,7 +215,9 @@ try:
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
     commit_header = f"Train LSTM MDN {VERSION}"
-    commit_body = f"Training history: {history.history}"
+    commit_body = f"Training history:\n" + "\n".join(
+        [str(h.history) for h in histories]
+    )
 
     subprocess.run(
         ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
@@ -185,14 +228,14 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict(data.X_val_combined)  # shape: (batch, 3*N_MIXTURES)
+y_pred_mdn = lstm_mdn_model.predict(data.validation.X)  # shape: (batch, 3*N_MIXTURES)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
 example_tickers = ["GOOG", "AON", "WMT", "GS"]
 for ticker in example_tickers:
-    s = data.validation_sets[ticker]
+    s = data.validation.sets[ticker]
     from_idx, to_idx = data.get_validation_range(ticker)
     plot_sample_days(
         s.df,
@@ -214,7 +257,7 @@ fig, axes = plt.subplots(
 legend_dict = {}
 
 for ax, ticker in zip(axes, example_tickers):
-    s = data.validation_sets[ticker]
+    s = data.validation.sets[ticker]
     dates = s.df.index.get_level_values("Date")
     from_idx, to_idx = data.get_validation_range(ticker)
     pi_pred_ticker = pi_pred[from_idx:to_idx]
@@ -252,7 +295,7 @@ days = 150
 shift = 1
 mean = (pi_pred * mu_pred).numpy().sum(axis=1)
 for ticker in example_tickers:
-    filtered_df = data.validation_sets[ticker].df.iloc[-days - shift : -shift]
+    filtered_df = data.validation.sets[ticker].df.iloc[-days - shift : -shift]
     from_idx, to_idx = data.get_validation_range(ticker)
     ticker_mean = mean[from_idx:to_idx]
     filtered_mean = ticker_mean[-days - shift : -shift]
@@ -316,12 +359,12 @@ df_validation["Vol_SP"] = uni_mixture_std_sp
 
 # %%
 # Calculate NLL
-df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(data.y_val_combined, y_pred_mdn)
+df_validation["NLL"] = mean_mdn_loss_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 
 # %%
 # Calculate CRPS (slow!)
 # crps = crps_mdn_numpy(N_MIXTURES)
-# df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
+# df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 
 # %%
 # Add confidence intervals
@@ -338,7 +381,7 @@ df_validation.set_index(["Date", "Symbol"]).to_csv(
 # %%
 # 9) MC Dropout predictions
 mc_results = predict_with_mc_dropout_mdn(
-    lstm_mdn_model, data.y_val_combined, T=100, n_mixtures=N_MIXTURES
+    lstm_mdn_model, data.validation.y, T=100, n_mixtures=N_MIXTURES
 )
 
 df_validation["Mean_MC"] = mc_results["expected_returns"]

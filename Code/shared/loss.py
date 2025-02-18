@@ -31,6 +31,21 @@ def mdn_loss_numpy(num_mixtures):
         pdf_sum = np.sum(weighted_pdf, axis=1) + 1e-12  # avoid log(0)
 
         nll = -np.log(pdf_sum)
+        return nll
+
+    return loss_fn
+
+
+def mean_mdn_loss_numpy(num_mixtures):
+    """
+    Negative log-likelihood for a mixture of Gaussians (univariate) using NumPy.
+    Output shape: (batch_size, 3*num_mixtures)
+      => we parse [logits_pi, mu, log_var].
+    """
+    unagged_loss_fn = mdn_loss_numpy(num_mixtures)
+
+    def loss_fn(y_true, y_pred):
+        nll = unagged_loss_fn(y_true, y_pred)
         return np.mean(nll)
 
     return loss_fn
@@ -78,7 +93,7 @@ def nll_loss_mean_and_log_var(y_true, means, log_vars):
     """
     weights = np.ones_like(y_true)
     y_pred_combined = np.vstack([weights, means, log_vars]).T
-    return mdn_loss_numpy(1)(y_true, y_pred_combined)
+    return mean_mdn_loss_numpy(1)(y_true, y_pred_combined)
 
 
 def nll_loss_mean_and_vol(y_true, means, vols):

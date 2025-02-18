@@ -24,7 +24,7 @@ from shared.mdn import (
     univariate_mixture_mean_and_var_approx,
 )
 from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.loss import mean_mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_old
 
@@ -274,7 +274,7 @@ uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
-df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
+df_validation["NLL"] = mean_mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
 crps = crps_mdn_numpy(N_MIXTURES)
 df_validation["CRPS"] = crps(y_test, y_pred_mdn)
 
