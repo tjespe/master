@@ -3,8 +3,8 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "fe"
-MULTIPLY_MARKET_FEATURES_BY_BETA = True
+VERSION = "quick"
+MULTIPLY_MARKET_FEATURES_BY_BETA = False
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -41,6 +41,7 @@ from tensorflow.keras.layers import (
     LSTM,
 )
 from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping
 
 warnings.filterwarnings("ignore")
 
@@ -127,6 +128,12 @@ if os.path.exists(model_fname):
 
 # %%
 # 5) Train
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=5,  # number of epochs with no improvement to wait
+    restore_best_weights=True,
+)
+
 # Start with one learning rate, then reduce
 # lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
 # history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
@@ -139,10 +146,11 @@ lstm_mdn_model.compile(
 history = lstm_mdn_model.fit(
     data.X_train,
     data.y_train,
-    epochs=1,
+    epochs=100,
     batch_size=32,
     verbose=1,
     validation_data=(data.X_val_combined, data.y_val_combined),
+    callbacks=[early_stop],
 )
 
 # %%
