@@ -180,40 +180,41 @@ def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     return correlation
 
 
-def christoffersen_test(exceedances, alpha):
+def christoffersen_test(exceedances, alpha, reset_indices=None):
     N = len(exceedances)
     x = np.sum(exceedances)
     pi_hat = x / N
 
     # Unconditional Coverage Test
-    LR_uc = -2 * np.log(
-        ((1 - alpha) ** (N - x) * alpha**x) / ((1 - pi_hat) ** (N - x) * pi_hat**x)
-    )
-    p_value_uc = 1 - chi2.cdf(LR_uc, df=1)
-
-    # Handle cases where pi_hat is 0 or 1 to avoid division by zero
-    if pi_hat == 0 or pi_hat == 1:
+    if pi_hat in [0, 1]:
         LR_uc = np.nan
         p_value_uc = np.nan
+    else:
+        LR_uc = -2 * np.log(
+            ((1 - alpha) ** (N - x) * alpha**x) / ((1 - pi_hat) ** (N - x) * pi_hat**x)
+        )
+        p_value_uc = 1 - chi2.cdf(LR_uc, df=1)
 
     # Independence Test
     exceedances_shifted = np.roll(exceedances, 1)
-    exceedances_shifted[0] = 0  # Set the first element to 0 (no prior observation)
+    # Reset the first observation and any boundary starts to 0
+    exceedances_shifted[0] = 0
+    if reset_indices is not None:
+        for idx in reset_indices:
+            exceedances_shifted[idx] = 0
 
     N_00 = np.sum((exceedances_shifted == 0) & (exceedances == 0))
     N_01 = np.sum((exceedances_shifted == 0) & (exceedances == 1))
     N_10 = np.sum((exceedances_shifted == 1) & (exceedances == 0))
     N_11 = np.sum((exceedances_shifted == 1) & (exceedances == 1))
 
-    # Handle divisions by zero
     denom_0 = N_00 + N_01
     denom_1 = N_10 + N_11
 
     pi_0 = N_01 / denom_0 if denom_0 > 0 else 0
     pi_1 = N_11 / denom_1 if denom_1 > 0 else 0
 
-    # Handle cases where pi_0 or pi_1 are 0 or 1
-    if pi_0 == 0 or pi_0 == 1 or pi_1 == 0 or pi_1 == 1:
+    if pi_0 in [0, 1] or pi_1 in [0, 1]:
         LR_ind = np.nan
         p_value_ind = np.nan
         LR_cc = np.nan
@@ -231,7 +232,6 @@ def christoffersen_test(exceedances, alpha):
             LR_ind = -2 * np.log(L_null / L_alt)
             p_value_ind = 1 - chi2.cdf(LR_ind, df=1)
 
-        # Conditional Coverage Test
         if np.isnan(LR_uc) or np.isnan(LR_ind):
             LR_cc = np.nan
             p_value_cc = np.nan
@@ -347,15 +347,44 @@ for entry in preds_per_model:
     sign_accuracy = np.nanmean(np.sign(y_test_actual) == np.sign(entry["mean_pred"]))
     entry["sign_accuracy"] = sign_accuracy
 
-    # Christoffersen's Test
     exceedance_df = pd.DataFrame(
         {
             "Symbol": entry["symbols"],
             "Within Bounds": entry["within_bounds"],
         }
     )
+    # Drop rows with missing values
+    exceedance_df = exceedance_df.dropna(subset=["Within Bounds"])
+
+    # Build pooled exceedances while recording reset indices for each asset's first observation.
+    pooled_exceedances_list = []
+    reset_indices = []
+    start_index = 0
+
+    # Use groupby without reordering if possible (set sort=False)
+    for symbol, group in exceedance_df.groupby("Symbol", sort=False):
+        # Convert "Within Bounds" (True means within, i.e. no exceedance) to exceedance indicator
+        asset_exceedances = ~group["Within Bounds"].astype(bool).values
+        pooled_exceedances_list.append(asset_exceedances)
+        reset_indices.append(start_index)  # mark start of this asset's series
+        start_index += len(asset_exceedances)
+
+    pooled_exceedances = np.concatenate(pooled_exceedances_list)
+
+    # Run the pooled Christoffersen test with boundary resets
+    pooled_result = christoffersen_test(
+        pooled_exceedances, CONFIDENCE_LEVEL, reset_indices=reset_indices
+    )
+    entry["christoffersen_test"] = interpret_christoffersen_test(pooled_result)
+    # Check if we are in a Jupyter notebook and can use display
+    print(f"\n{entry['name']} Combined Christoffersen's Test Results:")
+    try:
+        display(entry["christoffersen_test"])
+    except NameError:
+        print(entry["christoffersen_test"])
+
     chr_results = []
-    print(f"\nRunning Christoffersen's Test for {entry['name']}")
+    print(f"\nRunning Christoffersen's Tests for {entry['name']}")
     for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
         if within_bounds.isna().any():
             print(f"Skipping {symbol} due to NaN values")
@@ -366,13 +395,25 @@ for entry in preds_per_model:
             {**result, "Symbol": symbol, "Coverage": within_bounds.mean()}
         )
     chr_results_df = pd.DataFrame(chr_results).set_index("Symbol")
-    chr_results_df["uc_pass"] = chr_results_df["p_value_uc"] > 0.05
-    chr_results_df["ind_pass"] = chr_results_df["p_value_ind"] > 0.05
-    chr_results_df["cc_pass"] = chr_results_df["p_value_cc"] > 0.05
-    chr_results_df["all_pass"] = (
-        chr_results_df["uc_pass"]
-        & chr_results_df["ind_pass"]
-        & chr_results_df["cc_pass"]
+    chr_results_df["uc_pass"] = np.where(
+        chr_results_df["p_value_uc"].isna(), np.nan, chr_results_df["p_value_uc"] > 0.05
+    )
+    chr_results_df["ind_pass"] = np.where(
+        chr_results_df["p_value_ind"].isna(),
+        np.nan,
+        chr_results_df["p_value_ind"] > 0.05,
+    )
+    chr_results_df["cc_pass"] = np.where(
+        chr_results_df["p_value_cc"].isna(), np.nan, chr_results_df["p_value_cc"] > 0.05
+    )
+    chr_results_df["all_pass"] = np.where(
+        np.isnan(chr_results_df["uc_pass"])
+        | np.isnan(chr_results_df["ind_pass"])
+        | np.isnan(chr_results_df["cc_pass"]),
+        np.nan,
+        chr_results_df["uc_pass"].astype(bool)
+        & chr_results_df["ind_pass"].astype(bool)
+        & chr_results_df["cc_pass"].astype(bool),
     )
     entry["christoffersen_test"] = interpret_christoffersen_test(
         chr_results_df.replace([np.inf, -np.inf], np.nan).mean()
@@ -380,11 +421,6 @@ for entry in preds_per_model:
 
     # Print Christoffersen's Test Results
     print(f"\n{entry['name']} Average Christoffersen's Test Results:")
-    # Check if we are in a Jupyter notebook and can use display
-    try:
-        display(entry["christoffersen_test"])
-    except NameError:
-        print(entry["christoffersen_test"])
 
     entry["chr_results_df"] = chr_results_df
     entry["uc_pass_pct"] = chr_results_df["uc_pass"].mean() * 100
