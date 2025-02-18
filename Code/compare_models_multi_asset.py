@@ -92,10 +92,10 @@ except FileNotFoundError:
     print("GARCH predictions not found")
 
 # LSTM MDN
-for version in ["vquick", "vfe"]:
+for version in ["quick", "fe", "pireg"]:
     try:
         lstm_mdn_df = pd.read_csv(
-            f"predictions/lstm_mdn_predictions{SUFFIX}_{version}.csv"
+            f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
         )
         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
@@ -598,4 +598,58 @@ rankings_df
 # %%
 # Save rankings to CSV
 rankings_df.to_csv(f"results/comp_rankings{SUFFIX}.csv")
+
+# %%
+# Analyze which sectors each model passes/fails for
+sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+meta_df = meta_df.set_index("Symbol")
+unique_sectors = set()
+
+for entry in preds_per_model:
+    chr_results_df = entry["chr_results_df"]
+    chr_results_df = chr_results_df.join(meta_df, how="left")
+    chr_results_df = chr_results_df.dropna(subset="all_pass")
+    passes = (
+        chr_results_df[chr_results_df["all_pass"].astype(bool)]
+        .groupby(sector_key)["all_pass"]
+        .count()
+        .sort_values(ascending=False)
+    )
+    fails = (
+        chr_results_df[~chr_results_df["all_pass"].astype(bool)]
+        .groupby(sector_key)["all_pass"]
+        .count()
+        .sort_values(ascending=False)
+    )
+    pass_pct = passes / (passes + fails)
+    pass_pct = pass_pct.sort_values()
+    entry["sector_pass_pct"] = pass_pct
+    unique_sectors.update(passes.index)
+
+# Get the union of sectors from both datasets
+sectors = sorted(unique_sectors)
+y = np.arange(len(sectors))
+
+num_models = len(preds_per_model)
+group_height = 0.8  # total vertical space for each sector's bars
+bar_height = group_height / num_models
+# create evenly spaced offsets that place bars side by side
+offsets = np.linspace(
+    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
+)
+
+plt.figure(figsize=(10, len(sectors) * 0.7))
+
+for i, entry in enumerate(preds_per_model):
+    pass_pct = entry["sector_pass_pct"].reindex(sectors, fill_value=0)
+    plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+
+plt.yticks(y, sectors)
+plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
+plt.legend()
+plt.show()
+
+# %%
+
 # %%
