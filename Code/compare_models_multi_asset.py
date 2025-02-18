@@ -2,7 +2,6 @@
 # Define parameters
 from shared.loss import nll_loss_mean_and_vol
 from settings import (
-    LOOKBACK_DAYS,
     DATA_PATH,
     SUFFIX,
     TRAIN_VALIDATION_SPLIT,
@@ -86,6 +85,9 @@ try:
             "symbols": combined_df.index.get_level_values("Symbol"),
         }
     )
+    nans = np.isnan(garch_vol_pred).sum()
+    if nans > 0:
+        print(f"GARCH has {nans} NaN predictions")
 except FileNotFoundError:
     print("GARCH predictions not found")
 
@@ -115,6 +117,9 @@ for version in ["vquick"]:
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
         )
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"LSTM MDN {version} has {nans} NaN predictions")
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
@@ -139,7 +144,13 @@ def calculate_prediction_intervals(model, alpha):
 
 
 def calculate_picp(y_true, lower_bounds, upper_bounds):
-    within_bounds = np.logical_and(y_true >= lower_bounds, y_true <= upper_bounds)
+    invalid = np.isnan(lower_bounds) | np.isnan(upper_bounds)
+    # Mark entries with any NaN bounds as NaN so they don't contribute to the average.
+    within_bounds = np.where(
+        invalid,
+        np.nan,
+        np.logical_and(y_true >= lower_bounds, y_true <= upper_bounds),
+    )
     picp = np.nanmean(within_bounds)
     return picp, within_bounds
 
@@ -150,17 +161,15 @@ def calculate_mpiw(lower_bounds, upper_bounds):
 
 
 def calculate_interval_score(y_true, lower_bounds, upper_bounds, alpha):
-    """
-    Calculates the Winkler Score for prediction intervals.
-    Penalizes for both the width of the interval and the distance of the true value
-    from the interval if the interval does not contain the true value.
-    """
+    valid = ~np.isnan(lower_bounds) & ~np.isnan(upper_bounds)
     interval_width = upper_bounds - lower_bounds
     penalties = (2 / alpha) * (
         (lower_bounds - y_true) * (y_true < lower_bounds)
         + (y_true - upper_bounds) * (y_true > upper_bounds)
     )
     interval_scores = interval_width + penalties
+    # Exclude scores where any bound is NaN
+    interval_scores = np.where(valid, interval_scores, np.nan)
     mean_interval_score = np.nanmean(interval_scores)
     return mean_interval_score
 
@@ -346,17 +355,24 @@ for entry in preds_per_model:
         }
     )
     chr_results = []
+    print(f"\nRunning Christoffersen's Test for {entry['name']}")
     for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
-        exceedances = ~within_bounds
+        if within_bounds.isna().any():
+            print(f"Skipping {symbol} due to NaN values")
+            continue
+        exceedances = ~within_bounds.astype(bool)
         result = christoffersen_test(exceedances, CONFIDENCE_LEVEL)
         chr_results.append(
             {**result, "Symbol": symbol, "Coverage": within_bounds.mean()}
         )
     chr_results_df = pd.DataFrame(chr_results).set_index("Symbol")
-    chr_results_df["Passed"] = (
-        (chr_results_df["p_value_cc"] > 0.05)
-        & (chr_results_df["p_value_uc"] > 0.05)
-        & (chr_results_df["p_value_ind"] > 0.05)
+    chr_results_df["uc_pass"] = chr_results_df["p_value_uc"] > 0.05
+    chr_results_df["ind_pass"] = chr_results_df["p_value_ind"] > 0.05
+    chr_results_df["cc_pass"] = chr_results_df["p_value_cc"] > 0.05
+    chr_results_df["all_pass"] = (
+        chr_results_df["uc_pass"]
+        & chr_results_df["ind_pass"]
+        & chr_results_df["cc_pass"]
     )
     entry["christoffersen_test"] = interpret_christoffersen_test(
         chr_results_df.replace([np.inf, -np.inf], np.nan).mean()
@@ -371,8 +387,16 @@ for entry in preds_per_model:
         print(entry["christoffersen_test"])
 
     entry["chr_results_df"] = chr_results_df
-    entry["chr_pass_pct"] = chr_results_df["Passed"].mean() * 100
-    print("Pass pct:", entry["chr_pass_pct"], "%")
+    entry["uc_pass_pct"] = chr_results_df["uc_pass"].mean() * 100
+    entry["ind_pass_pct"] = chr_results_df["ind_pass"].mean() * 100
+    entry["cc_pass_pct"] = chr_results_df["cc_pass"].mean() * 100
+    entry["chr_pass_pct"] = chr_results_df["all_pass"].mean() * 100
+    print(
+        f"Unconditional Coverage Pass Rate: {entry['uc_pass_pct']:.2f}%\n"
+        f"Independence Pass Rate: {entry['ind_pass_pct']:.2f}%\n"
+        f"Conditional Coverage Pass Rate: {entry['cc_pass_pct']:.2f}%\n"
+        f"All Pass Rate: {entry['chr_pass_pct']:.2f}%"
+    )
 
     # # Calculate CRPS
     # if "crps" not in entry:
@@ -397,6 +421,9 @@ results = {
     "Lopez Loss": [],
     "RMSE": [],
     "Sign accuracy": [],
+    "UC Pass %": [],
+    "Ind Pass %": [],
+    "CC Pass %": [],
     "CHR Pass %": [],
 }
 
@@ -417,6 +444,9 @@ for entry in preds_per_model:
     results["Lopez Loss"].append(entry["lopez_loss"])
     results["RMSE"].append(entry["rmse"])
     results["Sign accuracy"].append(entry["sign_accuracy"])
+    results["UC Pass %"].append(entry["uc_pass_pct"])
+    results["Ind Pass %"].append(entry["ind_pass_pct"])
+    results["CC Pass %"].append(entry["cc_pass_pct"])
     results["CHR Pass %"].append(entry["chr_pass_pct"])
 
 results_df = pd.DataFrame(results)
@@ -437,6 +467,9 @@ results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
 results_df.loc["Winner", "Sign accuracy"] = results_df["Sign accuracy"].idxmax()
+results_df.loc["Winner", "UC Pass %"] = results_df["UC Pass %"].idxmax()
+results_df.loc["Winner", "Ind Pass %"] = results_df["Ind Pass %"].idxmax()
+results_df.loc["Winner", "CC Pass %"] = results_df["CC Pass %"].idxmax()
 results_df.loc["Winner", "CHR Pass %"] = results_df["CHR Pass %"].idxmax()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
