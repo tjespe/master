@@ -187,7 +187,7 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-example_tickers = ["GOOG", "AON", "WMT"]
+example_tickers = ["GOOG", "AON", "WMT", "GS"]
 for ticker in example_tickers:
     s = data.validation_sets[ticker]
     from_idx, to_idx = data.get_validation_range(ticker)
