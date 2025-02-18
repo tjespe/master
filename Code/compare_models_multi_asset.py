@@ -95,6 +95,11 @@ try:
             "mean_pred": np.zeros_like(garch_vol_pred),
             "volatility_pred": garch_vol_pred,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                combined_df["LogReturn"].values,
+                np.zeros_like(garch_vol_pred),
+                garch_vol_pred,
+            ),
         }
     )
     nans = np.isnan(garch_vol_pred).sum()
@@ -163,6 +168,30 @@ try:
         print(f"LSTM MAF v2 has {nans} NaN predictions")
 except FileNotFoundError:
     print("LSTM MAF v2 predictions not found")
+
+try:
+    maf_entry = next(
+        entry for entry in preds_per_model if entry["name"] == "LSTM MAF V2"
+    )
+    mdn_entry = next(
+        entry for entry in preds_per_model if entry["name"] == "LSTM MDN pireg"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM MDN MAF Ensemble",
+            "mean_pred": (maf_entry["mean_pred"] + mdn_entry["mean_pred"]) / 2,
+            "volatility_pred": (
+                maf_entry["volatility_pred"] + mdn_entry["volatility_pred"]
+            )
+            / 2,
+            "LB_95": (maf_entry["LB_95"] + mdn_entry["LB_95"]) / 2,
+            "UB_95": (maf_entry["UB_95"] + mdn_entry["UB_95"]) / 2,
+            "nll": (maf_entry["nll"] + mdn_entry["nll"]) / 2,
+            "symbols": maf_entry["symbols"],
+        }
+    )
+except ValueError:
+    print("Could not create ensemble: LSTM MAF V2 or LSTM MDN pireg not found")
 
 # %%
 # Remove excluded models

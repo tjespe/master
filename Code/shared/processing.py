@@ -83,15 +83,12 @@ class ProcessedData:
         return f"ProcessedData(X_train.shape={self.X_train.shape}, y_train.shape={self.y_train.shape}, X_val_combined.shape={self.X_val_combined.shape}, y_val_combined.shape={self.y_val_combined.shape}, validation_sets={len(self.validation_sets)}, test_sets={len(self.test_sets)})"
 
 
-def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
+def get_lstm_train_test_new(multiply_by_beta=False, df_filter: callable) -> ProcessedData:
     """
     Prepare data for LSTM
     """
     # %%
     df = pd.read_csv(DATA_PATH)
-
-    if not "Symbol" in df.columns:
-        df["Symbol"] = TEST_ASSET
 
     # Ensure the Date column is in datetime format
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
