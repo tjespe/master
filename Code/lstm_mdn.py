@@ -50,7 +50,10 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
+data = get_lstm_train_test_new(
+    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+    # raw_df_filter=lambda df: df[df["Symbol"] == "GS"],
+)
 
 
 # %%
