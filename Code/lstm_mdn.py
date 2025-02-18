@@ -1,15 +1,16 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET
+from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "quick"
+VERSION = "pireg"
+MULTIPLY_MARKET_FEATURES_BY_BETA = False
+PI_PENALTY = True
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Imports from code shared across models
 from shared.mdn import (
-    calculate_intervals,
     calculate_intervals_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
@@ -41,17 +42,15 @@ from tensorflow.keras.layers import (
     LSTM,
 )
 from tensorflow.keras.optimizers import Adam
-
-# External
-from scipy.optimize import brentq
-from scipy.stats import norm
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
 
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new()
+data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
 
 
 # %%
@@ -70,7 +69,11 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    x = LSTM(
+        units=hidden_units,
+        activation="tanh",
+        kernel_regularizer=l2(1e-4),
+    )(inputs)
 
     # Add dropout
     if dropout > 0:
@@ -118,35 +121,43 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "loss_fn": mdn_loss_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY)
     )
     print("Loaded pre-trained model from disk.")
 
 # %%
 # 5) Train
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=5,  # number of epochs with no improvement to wait
+    restore_best_weights=True,
+)
+
 # Start with one learning rate, then reduce
 # lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
 # history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
 
 # %%
-# Reduce learning rate again
+# Reduce learning rate
 lstm_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+    loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
 )
 history = lstm_mdn_model.fit(
     data.X_train,
     data.y_train,
-    epochs=3,
+    epochs=100,
     batch_size=32,
     verbose=1,
     validation_data=(data.X_val_combined, data.y_val_combined),
+    callbacks=[early_stop],
 )
 
 # %%
@@ -159,7 +170,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
-    commit_header = "Train LSTM w MDN model with FNG"
+    commit_header = f"Train LSTM MDN {VERSION}"
     commit_body = f"Training history: {history.history}"
 
     subprocess.run(
@@ -192,9 +203,14 @@ for ticker in example_tickers:
 
 # %%
 # 10) Plot weights over time to show how they change
-plt.figure(figsize=(18, len(example_tickers) * 9))
-for i, ticker in enumerate(example_tickers):
-    plt.subplot(len(example_tickers), 1, i + 1)
+fig, axes = plt.subplots(
+    nrows=len(example_tickers), figsize=(18, len(example_tickers) * 9)
+)
+
+# Dictionary to store union of legend entries
+legend_dict = {}
+
+for ax, ticker in zip(axes, example_tickers):
     s = data.validation_sets[ticker]
     dates = s.df.index.get_level_values("Date")
     from_idx, to_idx = data.get_validation_range(ticker)
@@ -203,43 +219,29 @@ for i, ticker in enumerate(example_tickers):
         mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
         if mean_over_time < 0.01:
             continue
-        plt.plot(dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
-    plt.gca().set_yticklabels(
-        ["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()]
-    )
-    plt.title(f"Evolution of Mixture Weights for {ticker}")
-    plt.xlabel("Time")
-    plt.ylabel("Weight")
-    plt.legend()
+        (line,) = ax.plot(dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+        # Only add new labels
+        if f"$\pi_{{{j}}}$" not in legend_dict:
+            legend_dict[f"$\pi_{{{j}}}$"] = line
+    ax.set_yticklabels(["{:.0f}%".format(x * 100) for x in ax.get_yticks()])
+    ax.set_title(f"Evolution of Mixture Weights for {ticker}")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Weight")
+
+# Create a combined legend using the union of entries
+handles = list(legend_dict.values())
+labels = list(legend_dict.keys())
+fig.legend(handles, labels, loc="center left")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
 plt.show()
 
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.95]
+confidence_levels = [0.67, 0.95, 0.99]
 intervals = calculate_intervals_vectorized(
     pi_pred, mu_pred, sigma_pred, confidence_levels
 )
-
-# %%
-# Manually calculate coverage for some tickers
-for ticker in example_tickers:
-    from_idx, to_idx = data.get_validation_range(ticker)
-    y = data.validation_sets[ticker].y
-    lb_95 = intervals[from_idx:to_idx, 0, 0]
-    ub_95 = intervals[from_idx:to_idx, 0, 1]
-    coverage = np.mean((y >= lb_95) & (y <= ub_95))
-    print(f"Coverage for {ticker} (vectorized): {coverage}")
-    unvectorized_intervals = calculate_intervals(
-        pi_pred[from_idx:to_idx],
-        mu_pred[from_idx:to_idx],
-        sigma_pred[from_idx:to_idx],
-        confidence_levels,
-    )
-    coverage = np.mean(
-        (y >= unvectorized_intervals[0, 0, 0]) & (y <= unvectorized_intervals[0, 0, 1])
-    )
-    print(f"Coverage for {ticker} (unvectorized): {coverage}")
 
 # %%
 # 12) Plot time series with mean, volatility and actual returns for last X days
@@ -294,7 +296,7 @@ for ticker in example_tickers:
     plt.show()
 
 # %%
-# 13) Store single-pass predictions
+# 13) Make data frame for signle pass predictions
 df_validation = pd.DataFrame(
     np.vstack([data.validation_dates, data.validation_tickers]).T,
     columns=["Date", "Symbol"],
@@ -314,18 +316,9 @@ df_validation["Vol_SP"] = uni_mixture_std_sp
 df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(data.y_val_combined, y_pred_mdn)
 
 # %%
-# Calculate CRPS
-crps = crps_mdn_numpy(N_MIXTURES)
-df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
-
-# %%
-# Calculate CRPS
-df_validation["CRPS"] = crps_mixture_closedform(
-    data.y_val_combined,
-    np.array(pi_pred, dtype=np.float64),
-    np.array(mu_pred, dtype=np.float64),
-    np.array(sigma_pred, dtype=np.float64),
-)
+# Calculate CRPS (slow!)
+# crps = crps_mdn_numpy(N_MIXTURES)
+# df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
 
 # %%
 # Add confidence intervals

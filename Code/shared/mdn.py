@@ -1,3 +1,6 @@
+import math
+import numpy as np
+from numba import njit
 from typing import Optional
 import numpy as np
 import pandas as pd
@@ -332,12 +335,6 @@ def plot_sample_days(
         plt.show()
 
 
-# %%
-import math
-import numpy as np
-from numba import njit
-
-
 @njit
 def rowwise_max_2d(arr):
     """
@@ -428,7 +425,7 @@ def bracket_and_bisect(pis, mus, sigmas, alpha, max_iter=50, tol=1e-8):
                 done_mask[i] = True
 
     # Bisection
-    for _ in range(max_iter):
+    for it in range(max_iter):
         mid_vals = 0.5 * (low_vals + high_vals)
         f_mid = mixture_cdf(mid_vals, pis, mus, sigmas)
         for i in range(n_samples):
@@ -438,7 +435,11 @@ def bracket_and_bisect(pis, mus, sigmas, alpha, max_iter=50, tol=1e-8):
                 high_vals[i] = mid_vals[i]
         # Early stop if intervals are tight
         if (high_vals - low_vals).max() < tol:
+            print("Converged after", it + 1, "iterations")
             break
+    else:
+        print("Warning: Bisection did not converge after", max_iter, "iterations")
+        print("Max high low diff:", (high_vals - low_vals).max())
 
     return 0.5 * (low_vals + high_vals)
 
@@ -462,7 +463,9 @@ def calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels):
         beta = 1 - alpha
 
         # Solve mixture_cdf(x) = alpha and mixture_cdf(x) = beta in parallel
+        print("Calculating lower bounds for", cl, "i.e. q =", alpha)
         lower_bound = bracket_and_bisect(pis, mus, sigmas, alpha)
+        print("Calculating upper bounds for", cl, "i.e. q =", beta)
         upper_bound = bracket_and_bisect(pis, mus, sigmas, beta)
 
         intervals[:, j, 0] = lower_bound
