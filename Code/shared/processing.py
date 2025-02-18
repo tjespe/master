@@ -41,6 +41,7 @@ class LabelledTestSet:
     df: pd.DataFrame
     X: np.ndarray
     y: np.ndarray
+    y_dates: list[str]
 
 
 @dataclass
@@ -65,11 +66,7 @@ class ProcessedData:
 
     @cached_property
     def validation_dates(self) -> list[pd.Timestamp]:
-        return [
-            d
-            for s in self.validation_sets.values()
-            for d in s.df.index.get_level_values("Date")[-len(s.y) :]
-        ]
+        return [d for s in self.validation_sets.values() for d in s.y_dates]
 
     def get_validation_range(self, ticker: str):
         from_idx = self.validation_tickers.index(ticker)
@@ -455,33 +452,40 @@ def get_lstm_train_test_new() -> ProcessedData:
         # Add test and validation data
         X_val = []
         y_val = []
+        y_val_dates = []
         for i in range(TRAIN_VALIDATION_SPLIT_index, VALIDATION_TEST_SPLIT_index):
             point = data[i - LOOKBACK_DAYS : i]
             if len(point) != LOOKBACK_DAYS:
                 continue
             X_val.append(point)
             y_val.append(returns[i, 0])
+            y_val_dates.append(dates[i])
         if len(X_val) > 0:
             validation_sets[symbol] = LabelledTestSet(
                 symbol,
                 group.loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT],
                 np.array(X_val).astype(np.float32),
                 np.array(y_val).astype(np.float32),
+                y_val_dates,
             )
 
         X_test = []
         y_test = []
+        y_test_dates = []
         for i in range(VALIDATION_TEST_SPLIT_index, len(data)):
             point = data[i - LOOKBACK_DAYS : i]
             if len(point) != LOOKBACK_DAYS:
                 continue
+            X_test.append(point)
             y_test.append(returns[i, 0])
+            y_test_dates.append(dates[i])
         if len(X_test) > 0:
             test_sets[symbol] = LabelledTestSet(
                 symbol,
                 group.loc[VALIDATION_TEST_SPLIT:],
                 np.array(X_test).astype(np.float32),
                 np.array(y_test).astype(np.float32),
+                y_test_dates,
             )
 
     # %%
