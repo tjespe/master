@@ -109,7 +109,7 @@ except FileNotFoundError:
     print("GARCH predictions not found")
 
 # LSTM MDN
-for version in ["quick", "fe", "pireg"]:
+for version in ["quick", "fe", "pireg", "dynamic"]:
     try:
         lstm_mdn_df = pd.read_csv(
             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"

@@ -301,18 +301,19 @@ days = 150
 shift = 1
 mean = (pi_pred * mu_pred).numpy().sum(axis=1)
 for ticker in example_tickers:
-    filtered_df = data.validation.sets[ticker].df.iloc[-days - shift : -shift]
     from_idx, to_idx = data.validation.get_range(ticker)
     ticker_mean = mean[from_idx:to_idx]
     filtered_mean = ticker_mean[-days - shift : -shift]
     ticker_intervals = intervals[from_idx:to_idx]
     filtered_intervals = ticker_intervals[-days - shift : -shift]
-    dates = filtered_df.index.get_level_values("Date")
+    s = data.validation.sets[ticker]
+    dates = s.y_dates[-days - shift : -shift]
+    actual_return = s.y[-days - shift : -shift]
 
     plt.figure(figsize=(12, 6))
     plt.plot(
         dates,
-        filtered_df["LogReturn"],
+        actual_return,
         label="Actual Returns",
         color="black",
         alpha=0.5,
@@ -332,7 +333,7 @@ for ticker in example_tickers:
             label=f"{int(100*cl)}% Interval",
         )
     plt.axhline(
-        filtered_df["LogReturn"].mean(),
+        actual_return.mean(),
         color="red",
         linestyle="--",
         label="True mean return across time",
@@ -350,7 +351,7 @@ for ticker in example_tickers:
 # %%
 # 13) Make data frame for signle pass predictions
 df_validation = pd.DataFrame(
-    np.vstack([data.validation_dates, data.validation_tickers]).T,
+    np.vstack([data.validation.dates, data.validation.tickers]).T,
     columns=["Date", "Symbol"],
 )
 # %%
