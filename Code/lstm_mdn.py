@@ -3,7 +3,7 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "quick"
+VERSION = "l2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
@@ -42,6 +42,7 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
 
@@ -67,7 +68,11 @@ def build_lstm_mdn(
     inputs = Input(shape=(lookback_days, num_features))
 
     # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    x = LSTM(
+        units=hidden_units,
+        activation="tanh",
+        kernel_regularizer=l2(1e-4),
+    )(inputs)
 
     # Add dropout
     if dropout > 0:
