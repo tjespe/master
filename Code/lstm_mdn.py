@@ -6,6 +6,9 @@ from settings import LOOKBACK_DAYS, SUFFIX
 VERSION = "pireg"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
+HIDDEN_UNITS = 20
+N_MIXTURES = 100
+DROPOUT = 0.1
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -62,9 +65,9 @@ gc.collect()
 def build_lstm_mdn(
     lookback_days,
     num_features: int,
-    dropout=0.1,
-    n_mixtures=5,
-    hidden_units=10,
+    dropout: float,
+    n_mixtures: int,
+    hidden_units: int,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
@@ -108,13 +111,12 @@ print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shap
 
 # %%
 # 2) Build model
-N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
     num_features=data.train.X.shape[2],
-    dropout=0.1,
+    dropout=DROPOUT,
     n_mixtures=N_MIXTURES,
-    hidden_units=20,
+    hidden_units=HIDDEN_UNITS,
 )
 
 # %%
@@ -158,9 +160,6 @@ def find_worst_tickers():
             "Symbol": data.train.tickers,
             "NLL": nlls,
         }
-    )
-    nll_per_ticker = (
-        nll_df.groupby("Symbol")["NLL"].mean().sort_values("NLL", ascending=False)
     )
     nll_per_ticker = nll_df.groupby("Symbol")["NLL"].mean().sort_values()
     try:
