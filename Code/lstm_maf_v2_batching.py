@@ -31,7 +31,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 
-from shared.processing import get_lstm_train_test_old
+from shared.processing import get_lstm_train_test_new
 from shared.loss import nll_loss_maf
 from tqdm import tqdm
 
@@ -41,17 +41,23 @@ import warnings
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(
-    include_log_returns=False
-)
-df
+data = get_lstm_train_test_new()
+data
 
 
 # remove the following features: 
 # %%
 # Define window size
-window_size = LOOKBACK_DAYS
+X_train = data.X_train
+y_train = data.y_train
+X_test = data.X_val_combined
+y_test = data.y_val_combined
 
+print("X_train shape:", X_train.shape)
+print("y_train shape:", y_train.shape)
+print("X_test shape:", X_test.shape)
+print("y_test shape:", y_test.shape)
+window_size = LOOKBACK_DAYS
 # %%
 # Convert to tensors for model training
 X_train = torch.from_numpy(X_train).float()
@@ -62,9 +68,6 @@ batch_size = 32
 train_dataset = TensorDataset(X_train, y_train)
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
-
-# print tensor shapes
-X_train.shape, y_train.shape
 
 y_dim = 1  # Dimension of the target variable
 
@@ -269,91 +272,58 @@ for epoch in range(epochs):
 # Predicting the Distribution for 10 Random Test Samples
 model.eval()
 np.random.seed(42)
-random_indices = np.random.choice(len(X_test), 10, replace=False)
 
 # make test set tensors
 X_test = torch.from_numpy(X_test).float()
 y_test = torch.from_numpy(y_test).float()
-
-for idx in random_indices:
-    specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
-    actual_return = y_test[idx].item()  # Actual next-day return
-
-    # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=25000)
-    predicted_return = samples.mean().item()  # Mean of predicted distribution
-
-    print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
-    # Analyzing Results
-    plt.figure(figsize=(8, 4))
-    plt.hist(
-        samples.detach().numpy().flatten(),
-        bins=50,
-        density=True,
-        alpha=0.6,
-        label="Predicted Distribution",
-    )
-    plt.axvline(
-        predicted_return,
-        color="blue",
-        linestyle="dashed",
-        linewidth=2,
-        label="Predicted Mean",
-    )
-    plt.axvline(
-        actual_return,
-        color="red",
-        linestyle="solid",
-        linewidth=2,
-        label="Actual Return",
-    )
-    plt.title(f"Predicted Return Distribution for Test Point {idx}")
-    plt.legend()
-    plt.show()
-
+example_tickers = ["GOOG", "AON", "WMT"]
 
 # %%
 # Smoothing the distributions
+for ticker in example_tickers:
+    s = data.validation_sets[ticker]
+    from_idx, to_idx = data.get_validation_range(ticker)
+    random_indices = np.random.choice(range(from_idx, to_idx), 10)
 
-for idx in random_indices:
-    specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
-    actual_return = y_test[idx].item()  # Actual next-day return
+    for idx in random_indices:
+        specific_sample = X_test[idx].unsqueeze(0)  # Select a random test sample
+        actual_return = y_test[idx].item()  # Actual next-day return
 
-    # Generate predicted return distribution
-    samples = model.sample(x=specific_sample, num_samples=25000).detach().numpy().flatten()
-    predicted_return = np.mean(samples)  # Mean of predicted distribution
+        # Generate predicted return distribution
+        samples = model.sample(x=specific_sample, num_samples=25000).detach().numpy().flatten()
+        predicted_return = np.mean(samples)  # Mean of predicted distribution
 
-    print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
+        print("Predicted Return:", predicted_return, "Actual Return:", actual_return)
 
-    # Plot KDE with proper empirical representation
-    plt.figure(figsize=(8, 4))
-    sns.kdeplot(
-        samples,
-        bw_adjust=0.5,  # Adjust bandwidth for smoothing; lower values make it follow the data more closely
-        fill=True,
-        alpha=0.6,
-        label="Predicted Distribution",
-    )
-    
-    # Add vertical lines for actual and predicted return
-    plt.axvline(
-        predicted_return,
-        color="blue",
-        linestyle="dashed",
-        linewidth=2,
-        label="Predicted Mean",
-    )
-    plt.axvline(
-        actual_return,
-        color="red",
-        linestyle="solid",
-        linewidth=2,
-        label="Actual Return",
-    )
+        # Plot KDE with proper empirical representation
+        plt.figure(figsize=(8, 4))
+        sns.kdeplot(
+            samples,
+            bw_adjust=0.5,  # Adjust bandwidth for smoothing; lower values make it follow the data more closely
+            fill=True,
+            alpha=0.6,
+            label="Predicted Distribution",
+        )
+        
+        # Add vertical lines for actual and predicted return
+        plt.axvline(
+            predicted_return,
+            color="blue",
+            linestyle="dashed",
+            linewidth=2,
+            label="Predicted Mean",
+        )
+        plt.axvline(
+            actual_return,
+            color="red",
+            linestyle="solid",
+            linewidth=2,
+            label="Actual Return",
+        )
 
-    plt.title(f"Predicted Return Distribution for Test Point {idx}")
-    plt.legend()
-    plt.show()
+        plt.title(f"Predicted Return Distribution for {ticker} Test Point {idx}")
+        plt.legend()
+        plt.show()
 
 # %%
 # Predicting the Distribution for the Entire Test Period
@@ -361,9 +331,10 @@ confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
 intervals = np.zeros((len(X_test), len(confidence_levels), 2))
 predicted_returns = []
 predicted_stds = []
+nll_loss = []
 actual_returns = y_test.numpy().flatten()
 
-for i in range(len(X_test)):
+for i in tqdm(range(len(X_test)), desc="Processing samples", unit="sample"):
     specific_sample = X_test[i].unsqueeze(0)
     samples = model.sample(x=specific_sample, num_samples=25000)
     samples_np = samples.detach().cpu().numpy().flatten()
@@ -371,6 +342,7 @@ for i in range(len(X_test)):
     predicted_std = samples.std().item()
     predicted_stds.append(predicted_std)
     predicted_returns.append(predicted_return)
+    nll_loss.append(model.log_prob(y_test[i], specific_sample).item())
 
     # For each confidence level, calculate the lower and upper quantiles.
     for j, cl in enumerate(confidence_levels):
@@ -387,33 +359,35 @@ for i in range(len(X_test)):
         intervals[i, j, 0] = lower_bound
         intervals[i, j, 1] = upper_bound
 
-# Plotting Predicted Returns vs Actual Returns
-plt.figure(figsize=(14, 6))
-plt.plot(predicted_returns, label="Predicted Returns", color="blue")
-plt.plot(actual_returns, label="Actual Returns", color="red", alpha=0.7)
-# add the standard deviation with label
-plt.fill_between(
-    range(len(predicted_returns)),
-    np.array(predicted_returns) - np.array(predicted_stds),
-    np.array(predicted_returns) + np.array(predicted_stds),
-    color="blue",
-    alpha=0.2,
-    label="Predicted Return Std",
-)
-# add the 95% confidence interval with label
-plt.fill_between(
-    range(len(predicted_returns)),
-    intervals[:, 4, 0],
-    intervals[:, 4, 1],
-    color="green",
-    alpha=0.2,
-    label="95% Confidence Interval",
-)
-plt.title("Predicted Returns vs Actual Returns (Test Period)")
-plt.xlabel("Time Step")
-plt.ylabel("Return")
-plt.legend()
-plt.show()
+# %%
+# Plotting Predicted Returns vs Actual Returns for the Entire Test Period only for the example asset 
+# make this able to work with multiple assets
+# plt.figure(figsize=(14, 6))
+# plt.plot(predicted_returns, label="Predicted Returns", color="blue")
+# plt.plot(actual_returns, label="Actual Returns", color="red", alpha=0.7)
+# # add the standard deviation with label
+# plt.fill_between(
+#     range(len(predicted_returns)),
+#     np.array(predicted_returns) - np.array(predicted_stds),
+#     np.array(predicted_returns) + np.array(predicted_stds),
+#     color="blue",
+#     alpha=0.2,
+#     label="Predicted Return Std",
+# )
+# # add the 95% confidence interval with label
+# plt.fill_between(
+#     range(len(predicted_returns)),
+#     intervals[:, 4, 0],
+#     intervals[:, 4, 1],
+#     color="green",
+#     alpha=0.2,
+#     label="95% Confidence Interval",
+# )
+# plt.title("Predicted Returns vs Actual Returns (Test Period)")
+# plt.xlabel("Time Step")
+# plt.ylabel("Return")
+# plt.legend()
+# plt.show()
 
 # %%
 # Check for nan values in the predicted returns
@@ -422,36 +396,27 @@ nan_values = np.isnan(predicted_returns)
 print("Number of NaN values in predicted returns:", nan_values.sum())
 # print the last predicted return
 print("Last predicted return:", predicted_returns[-1])
-# %%
+# %% - make this able to work with multiple assets
 # Plot only for the last 100 points
-plt.figure(figsize=(14, 6))
-plt.plot(predicted_returns[-100:], label="Predicted Returns", color="blue")
-plt.plot(actual_returns[-100:], label="Actual Returns", color="red", alpha=0.7)
-plt.fill_between(
-    range(len(predicted_returns[-100:])),
-    np.array(predicted_returns[-100:]) - np.array(predicted_stds[-100:]),
-    np.array(predicted_returns[-100:]) + np.array(predicted_stds[-100:]),
-    color="blue",
-    alpha=0.2,
-    label="Predicted Return Std",
-)
-plt.title("Predicted Returns vs Actual Returns (Last 100 Time Steps)")
-plt.xlabel("Time Step")
-plt.ylabel("Return")
-plt.legend()
-plt.show()
+# plt.figure(figsize=(14, 6))
+# plt.plot(predicted_returns[-100:], label="Predicted Returns", color="blue")
+# plt.plot(actual_returns[-100:], label="Actual Returns", color="red", alpha=0.7)
+# plt.fill_between(
+#     range(len(predicted_returns[-100:])),
+#     np.array(predicted_returns[-100:]) - np.array(predicted_stds[-100:]),
+#     np.array(predicted_returns[-100:]) + np.array(predicted_stds[-100:]),
+#     color="blue",
+#     alpha=0.2,
+#     label="Predicted Return Std",
+# )
+# plt.title("Predicted Returns vs Actual Returns (Last 100 Time Steps)")
+# plt.xlabel("Time Step")
+# plt.ylabel("Return")
+# plt.legend()
+# plt.show()
 
 # %%
-# Calculate the KS statistic between the predicted returns and actual returns, add check for p-value
-ks_statistic, p_value = ks_2samp(predicted_returns, actual_returns)
-# print the KS statistic and p-value + add checkmark if passed and X if failed
-print("KS Statistic:", ks_statistic, "P-Value:", p_value)
-if p_value > 0.05:
-    print("Passed")
-else:
-    print("Failed")
-
-
+# Calculate NLL
 print("NLL Loss:", nll_loss_maf(model, X_test, y_test))
 
 # %%
@@ -461,12 +426,13 @@ print("predicted stds lenght:", len(predicted_stds))
 
 # %%
 # 8) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
-    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
-]  # TEST_ASSET
+df_validation = pd.DataFrame(
+    np.vstack([data.validation_dates, data.validation_tickers]).T,
+    columns=["Date", "Symbol"],
+) 
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
-df_validation["NLL"] = nll_loss_maf(model, X_test, y_test)
+df_validation["NLL"] = nll_loss_maf(model, X_test, y_test) # should calculate per point and not average, thats better
 
 # Store the intervals in the DataFrame.
 for j, cl in enumerate(confidence_levels):
@@ -477,9 +443,8 @@ df_validation
 
 # %%
 # Save the predictions to a CSV file
-os.makedirs("predictions", exist_ok=True)
-df_validation.to_csv(
-    f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"  # TEST_ASSET
+df_validation.set_index(["Date", "Symbol"]).to_csv(
+    f"predictions/lstm_MAF_v2{SUFFIX}.csv"
 )
 
 
