@@ -3,7 +3,8 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "quick"
+VERSION = "fe"
+MULTIPLY_MARKET_FEATURES_BY_BETA = True
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -41,16 +42,12 @@ from tensorflow.keras.layers import (
 )
 from tensorflow.keras.optimizers import Adam
 
-# External
-from scipy.optimize import brentq
-from scipy.stats import norm
-
 warnings.filterwarnings("ignore")
 
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new()
+data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
 
 
 # %%
@@ -135,14 +132,14 @@ if os.path.exists(model_fname):
 # history = lstm_mdn_model.fit(X_train, y_train, epochs=30, batch_size=32, verbose=1)
 
 # %%
-# Reduce learning rate again
+# Reduce learning rate
 lstm_mdn_model.compile(
     optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2), loss=mdn_loss_tf(N_MIXTURES)
 )
 history = lstm_mdn_model.fit(
     data.X_train,
     data.y_train,
-    epochs=3,
+    epochs=1,
     batch_size=32,
     verbose=1,
     validation_data=(data.X_val_combined, data.y_val_combined),
@@ -158,7 +155,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
-    commit_header = "Train LSTM w MDN model with FNG"
+    commit_header = f"Train LSTM MDN {VERSION}"
     commit_body = f"Training history: {history.history}"
 
     subprocess.run(
@@ -305,8 +302,8 @@ df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(data.y_val_combined, y_pred_md
 
 # %%
 # Calculate CRPS (slow!)
-crps = crps_mdn_numpy(N_MIXTURES)
-df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
+# crps = crps_mdn_numpy(N_MIXTURES)
+# df_validation["CRPS"] = crps(data.y_val_combined, y_pred_mdn)
 
 # %%
 # Add confidence intervals

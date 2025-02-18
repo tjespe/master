@@ -1,15 +1,15 @@
-,GARCH,LSTM MDN vquick
-PICP,1,2
-Mean width (MPIW),2,1
-Interval Score,2,1
-Correlation (vol. vs. errors),2,1
-NLL,2,1
-QL,2,1
-CRPS,,
-Lopez Loss,1,2
-RMSE,1,2
-UC Pass %,2,1
-Ind Pass %,2,1
-CC Pass %,2,1
-CHR Pass %,2,1
-Rank Sum,21,15
+,GARCH,LSTM MDN vquick,LSTM MDN vfe
+PICP,1,3,2
+Mean width (MPIW),3,1,2
+Interval Score,3,2,1
+Correlation (vol. vs. errors),3,1,2
+NLL,3,2,1
+QL,3,1,2
+CRPS,,,
+Lopez Loss,1,3,2
+RMSE,1,3,2
+UC Pass %,3,1,2
+Ind Pass %,3,1,2
+CC Pass %,3,1,2
+CHR Pass %,3,1,2
+Rank Sum,30,20,22

@@ -83,7 +83,7 @@ class ProcessedData:
         return f"ProcessedData(X_train.shape={self.X_train.shape}, y_train.shape={self.y_train.shape}, X_val_combined.shape={self.X_val_combined.shape}, y_val_combined.shape={self.y_val_combined.shape}, validation_sets={len(self.validation_sets)}, test_sets={len(self.test_sets)})"
 
 
-def get_lstm_train_test_new() -> ProcessedData:
+def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
     """
     Prepare data for LSTM
     """
@@ -393,32 +393,29 @@ def get_lstm_train_test_new() -> ProcessedData:
         VALIDATION_TEST_SPLIT_index = len(group[dates < VALIDATION_TEST_SPLIT])
 
         # Stack returns and squared returns together
+        market_feature_factor = beta if multiply_by_beta else 1
         data = np.hstack(
             (
                 log_sq_returns,
                 sign_return,
-                rvol,
-                rvol_change_1d,
-                rvol_change_2d,
-                rvol_change_7d,
-                vix_change_1d,
-                vix_change_2d,
-                vix_change_7d,
-                next_day_trading_day,
-                rvol_std,
+                rvol * market_feature_factor,
+                rvol_change_1d * market_feature_factor,
+                rvol_change_2d * market_feature_factor,
+                rvol_change_7d * market_feature_factor,
+                vix_change_1d * market_feature_factor,
+                vix_change_2d * market_feature_factor,
+                vix_change_7d * market_feature_factor,
+                next_day_trading_day * market_feature_factor,
+                rvol_std * market_feature_factor,
                 downside_log_var,
-                vix_rvol_diff,
+                vix_rvol_diff * market_feature_factor,
                 returns,
-                fear_greed,
-                fear_greed_1d * 10,
-                fear_greed_7d * 10,
+                fear_greed * market_feature_factor,
+                fear_greed_1d * 10 * market_feature_factor,
+                fear_greed_7d * 10 * market_feature_factor,
+                beta,
             )
         )
-
-        if not (beta == 1).all():
-            # If beta is not 1, add it as a feature
-            # (It might be 1 if we are looking at the S&P 500 index)
-            data = np.hstack((data, beta))
 
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
