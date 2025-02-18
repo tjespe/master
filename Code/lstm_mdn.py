@@ -3,7 +3,7 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "pireg"
+VERSION = "dynamic"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
 HIDDEN_UNITS = 20
@@ -178,6 +178,7 @@ if already_trained:
 
 # %%
 while True:
+    prev_val_loss = val_loss
     early_stop = EarlyStopping(
         monitor="val_loss",
         patience=5,  # number of epochs with no improvement to wait
@@ -194,10 +195,16 @@ while True:
         validation_data=(data.validation.X, data.validation.y),
     )
     val_loss = history.history["val_loss"][-1]
-    if prev_val_loss is not None and val_loss >= prev_val_loss:
+    if val_loss >= prev_val_loss:
         lstm_mdn_model.set_weights(prev_weights)
+        print(
+            "Previous val_loss",
+            prev_val_loss,
+            "was lower than current",
+            val_loss,
+            ". Restoring weights.",
+        )
         break
-    prev_val_loss = val_loss
     histories.append(history)
 
     worst_tickers = find_worst_tickers()
@@ -236,9 +243,9 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 example_tickers = ["GOOG", "AON", "WMT", "GS"]
 for ticker in example_tickers:
     s = data.validation.sets[ticker]
-    from_idx, to_idx = data.get_validation_range(ticker)
+    from_idx, to_idx = data.validation.get_range(ticker)
     plot_sample_days(
-        s.df,
+        s.y_dates,
         s.y,
         pi_pred[from_idx:to_idx],
         mu_pred[from_idx:to_idx],
@@ -258,18 +265,17 @@ legend_dict = {}
 
 for ax, ticker in zip(axes, example_tickers):
     s = data.validation.sets[ticker]
-    dates = s.df.index.get_level_values("Date")
-    from_idx, to_idx = data.get_validation_range(ticker)
+    from_idx, to_idx = data.validation.get_range(ticker)
     pi_pred_ticker = pi_pred[from_idx:to_idx]
     for j in range(N_MIXTURES):
         mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
         if mean_over_time < 0.01:
             continue
-        (line,) = ax.plot(dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+        (line,) = ax.plot(s.y_dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
         # Only add new labels
         if f"$\pi_{{{j}}}$" not in legend_dict:
             legend_dict[f"$\pi_{{{j}}}$"] = line
-    ax.set_yticklabels(["{:.0f}%".format(x * 100) for x in ax.get_yticks()])
+    ax.set_yticklabels(["{:.2f}%".format(x * 100) for x in ax.get_yticks()])
     ax.set_title(f"Evolution of Mixture Weights for {ticker}")
     ax.set_xlabel("Time")
     ax.set_ylabel("Weight")
@@ -296,7 +302,7 @@ shift = 1
 mean = (pi_pred * mu_pred).numpy().sum(axis=1)
 for ticker in example_tickers:
     filtered_df = data.validation.sets[ticker].df.iloc[-days - shift : -shift]
-    from_idx, to_idx = data.get_validation_range(ticker)
+    from_idx, to_idx = data.validation.get_range(ticker)
     ticker_mean = mean[from_idx:to_idx]
     filtered_mean = ticker_mean[-days - shift : -shift]
     ticker_intervals = intervals[from_idx:to_idx]

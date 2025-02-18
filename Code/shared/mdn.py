@@ -250,7 +250,7 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
 
 
 def plot_sample_days(
-    df: pd.DataFrame,
+    y_dates: list[str],
     y_test: np.ndarray,
     pi_pred: np.ndarray,
     mu_pred: np.ndarray,
@@ -266,7 +266,7 @@ def plot_sample_days(
     days = np.sort(days)[::-1]
     for i, day in enumerate(days):
         plt.subplot(10, 1, i + 1)
-        timestamp = df.index[-day][0]
+        timestamp = y_dates[-day]
         x_min = -0.1
         x_max = 0.1
         x_vals = np.linspace(x_min, x_max, 1000)
