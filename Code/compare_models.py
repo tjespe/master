@@ -408,7 +408,7 @@ except FileNotFoundError:
     print("LSTM with MAF non-linear flows predictions not found")
 
 
-# LSTM with MAF and LSTM v4 BAD
+# LSTM with MAF and LSTM v4
 try:
     mlp_with_maf_non_linear_preds_v4 = (
         pd.read_csv(f"predictions/lstm_MAF_v4_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
@@ -420,6 +420,11 @@ try:
             "name": "LSTM with MAF non-linear flows v4",
             "mean_pred": mlp_with_maf_non_linear_preds_v4["Mean_SP"].values,
             "volatility_pred": mlp_with_maf_non_linear_preds_v4["Vol_SP"].values,
+            "LB_95": mlp_with_maf_non_linear_preds_v4["LB_95"].values,
+            "UB_95": mlp_with_maf_non_linear_preds_v4["UB_95"].values,
+            "LB_99": mlp_with_maf_non_linear_preds_v4["LB_99"].values,
+            "UB_99": mlp_with_maf_non_linear_preds_v4["UB_99"].values,
+            "nll": mlp_with_maf_non_linear_preds_v4["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
