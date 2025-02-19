@@ -95,17 +95,7 @@ def build_lstm_mdn(
     x = LSTM(
         units=hidden_units,
         activation="tanh",
-        kernel_regularizer=l2(1e-4),
-        name="lstm_layer",
-    )(seq_input)
-    if dropout > 0:
-        x = Dropout(dropout, name="dropout_layer")(x)
-
-    # Process the sequence with LSTM
-    x = LSTM(
-        units=hidden_units,
-        activation="tanh",
-        kernel_regularizer=l2(1e-4),
+        kernel_regularizer=l2(1e-3),
         name="lstm_layer",
     )(seq_input)
     if dropout > 0:
@@ -308,7 +298,7 @@ while True:
     history = lstm_mdn_model.fit(
         [data.train.X, data.train_ticker_ids],
         data.train.y,
-        epochs=1,
+        epochs=50,
         batch_size=32,
         verbose=1,
         validation_data=(
