@@ -509,6 +509,20 @@ df_validation.set_index(["Date", "Symbol"]).to_csv(
 )
 
 # %%
+# Commit predictions
+try:
+    subprocess.run(["git", "pull"], check=True)
+    subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
+    commit_header = f"Add predictions for LSTM MDN {VERSION}"
+    commit_body = f"Validation loss: {val_loss}"
+    subprocess.run(
+        ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+    )
+    subprocess.run(["git", "push"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Git command failed: {e}")
+
+# %%
 # 9) MC Dropout predictions
 mc_results = predict_with_mc_dropout_mdn(
     lstm_mdn_model, data.validation.y, T=100, n_mixtures=N_MIXTURES
