@@ -116,6 +116,7 @@ for version in [
     "dynamic",
     # "dynamic-weighted",
     "embedded",
+    "l2",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -830,7 +831,6 @@ plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xtic
 plt.legend()
 plt.show()
 
-# %%
 # %%
 # Analyze coverage by sector
 sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
