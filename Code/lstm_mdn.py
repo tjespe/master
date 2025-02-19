@@ -143,7 +143,6 @@ if os.path.exists(model_fname):
 
 # %%
 # 5) Train
-prev_val_loss = None
 val_loss = lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
 histories = []
 weight_per_ticker = pd.DataFrame(index=data.train.tickers, columns=["Weight"]).fillna(1)
@@ -274,8 +273,8 @@ if already_trained:
 subsequent_increases = 0
 max_subsequent_increases = 5
 best_model_weights = lstm_mdn_model.get_weights()
+best_val_loss = val_loss
 while True:
-    prev_val_loss = val_loss
     early_stop = EarlyStopping(
         monitor="val_loss",
         patience=5,  # number of epochs with no improvement to wait
@@ -296,7 +295,7 @@ while True:
         sample_weight=ticker_weights,
     )
     val_loss = np.array(history.history["val_loss"]).min()
-    if val_loss >= prev_val_loss:
+    if val_loss >= best_val_loss:
         subsequent_increases += 1
         if subsequent_increases >= max_subsequent_increases:
             print(
@@ -308,6 +307,7 @@ while True:
             break
     else:
         best_model_weights = lstm_mdn_model.get_weights()
+        best_val_loss = val_loss
         subsequent_increases = 0
     histories.append(history)
     weight_per_ticker = calculate_weight_per_ticker()

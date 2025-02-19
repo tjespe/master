@@ -109,7 +109,13 @@ except FileNotFoundError:
     print("GARCH predictions not found")
 
 # LSTM MDN
-for version in ["quick", "fe", "pireg", "dynamic"]:
+for version in [
+    # "quick",
+    # "fe",
+    "pireg",
+    "dynamic",
+    # "dynamic-weighted",
+]:
     try:
         lstm_mdn_df = pd.read_csv(
             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
@@ -172,9 +178,7 @@ except FileNotFoundError:
 
 # LSTM MAF V3
 try:
-    lstm_maf_v3 = pd.read_csv(
-        f"predictions/lstm_MAF_v3{SUFFIX}.csv"
-    )
+    lstm_maf_v3 = pd.read_csv(f"predictions/lstm_MAF_v3{SUFFIX}.csv")
     lstm_maf_v3["Date"] = pd.to_datetime(lstm_maf_v3["Date"])
     lstm_maf_v3 = lstm_maf_v3.set_index(["Date", "Symbol"])
     lstm_maf_v3_dates = lstm_maf_v3.index.get_level_values("Date")
@@ -204,9 +208,7 @@ except FileNotFoundError:
 
 # LSTM MAF V4
 try:
-    lstm_maf_v4 = pd.read_csv(
-        f"predictions/lstm_MAF_v4{SUFFIX}.csv"
-    )
+    lstm_maf_v4 = pd.read_csv(f"predictions/lstm_MAF_v4{SUFFIX}.csv")
     lstm_maf_v4["Date"] = pd.to_datetime(lstm_maf_v4["Date"])
     lstm_maf_v4 = lstm_maf_v4.set_index(["Date", "Symbol"])
     lstm_maf_v4_dates = lstm_maf_v4.index.get_level_values("Date")
@@ -263,7 +265,42 @@ preds_per_model = [
     model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
 ]
 
+# %%
+# Add ensemble of every included model
+try:
+    filtered = [
+        model
+        for model in preds_per_model
+        if all(
+            prop in model
+            for prop in ["mean_pred", "volatility_pred", "LB_95", "UB_95", "nll"]
+        )
+    ]
+    print("Ensembling", [model["name"] for model in filtered])
+    ensemble_mean_pred = np.mean([model["mean_pred"] for model in filtered], axis=0)
+    ensemble_vol_pred = np.mean(
+        [model["volatility_pred"] for model in filtered], axis=0
+    )
+    ensemble_lb_95 = np.mean([model["LB_95"] for model in filtered], axis=0)
+    ensemble_ub_95 = np.mean([model["UB_95"] for model in filtered], axis=0)
+    ensemble_nll = np.mean([model["nll"] for model in filtered])
+    ensemble_symbols = filtered[0]["symbols"]
+    preds_per_model.append(
+        {
+            "name": "Ensemble of everything",
+            "mean_pred": ensemble_mean_pred,
+            "volatility_pred": ensemble_vol_pred,
+            "LB_95": ensemble_lb_95,
+            "UB_95": ensemble_ub_95,
+            "nll": ensemble_nll,
+            "symbols": ensemble_symbols,
+        }
+    )
+except ValueError as e:
+    print(f"Could not create ensemble: {str(e)}")
 
+
+# %%
 def calculate_prediction_intervals(model, alpha):
     cl = int((1 - alpha) * 100)
     if f"LB_{cl}" in model and f"UB_{cl}" in model:
