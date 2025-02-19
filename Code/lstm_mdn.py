@@ -3,11 +3,11 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "dynamic"
+VERSION = "dynamic-weighted"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
-HIDDEN_UNITS = 20
-N_MIXTURES = 100
+HIDDEN_UNITS = 40
+N_MIXTURES = 40
 DROPOUT = 0.1
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
@@ -146,11 +146,11 @@ if os.path.exists(model_fname):
 prev_val_loss = None
 val_loss = lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
 histories = []
-training_set = data.train
+weight_per_ticker = pd.DataFrame(index=data.train.tickers, columns=["Weight"]).fillna(1)
 
 
 # %%
-def find_worst_tickers():
+def calculate_training_nll_per_ticker():
     gc.collect()  # We need a lot of memory to make a prediction on the entire training set
     y_train_pred = lstm_mdn_model.predict(data.train.X)
     nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
@@ -166,17 +166,114 @@ def find_worst_tickers():
         display(nll_per_ticker)
     except:
         print(nll_per_ticker)
-    unique_tickers = np.unique(nll_per_ticker.index.values)
-    worst_tickers = nll_per_ticker.nlargest(len(unique_tickers) // 10).index
-    return worst_tickers
+    return nll_per_ticker
+
+
+def calculate_weight_per_ticker():
+    """
+    Use the training NLL of each ticker to give more weights to series with poor NLL.
+    Also calculate quantiles for some of the stocks with the worst NLL and give even
+    higher weight to samples where the coverage does not match the confidence level.
+    """
+    ## Calculate NLL per ticker
+    print("Calculating NLL per ticker...")
+    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
+    y_train_pred = lstm_mdn_model.predict(data.train.X)
+    nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
+    train_dates = np.array(data.train.dates)
+    train_tickers = np.array(data.train.tickers)
+    nll_df = pd.DataFrame(
+        {
+            "Date": train_dates,
+            "Symbol": train_tickers,
+            "NLL": nlls,
+        }
+    )
+    nll_per_ticker = nll_df.groupby("Symbol")["NLL"].mean().sort_values()
+    try:
+        display(nll_per_ticker)
+    except:
+        print(nll_per_ticker)
+
+    ## Calculate weights based on NLL
+    print("Calculating weights based on NLL...")
+    weight_best_nll = 0.1
+    weight_worst_nll = 1
+    best_nll = nll_per_ticker.min()
+    underperformance_per_ticker = nll_per_ticker - best_nll
+    underperformance_per_ticker = (
+        underperformance_per_ticker / underperformance_per_ticker.max()
+    )
+    weight_per_ticker = (
+        weight_best_nll
+        + (weight_worst_nll - weight_best_nll) * underperformance_per_ticker
+    )
+    weight_per_ticker = weight_per_ticker.clip(0, 1)
+    n_tickers = len(weight_per_ticker)
+
+    ## Add extra weight to the worst performing tickers with the worst coverage
+    print("Calculating coverage for worst tickers...")
+    worst_tickers = nll_per_ticker.tail(int(n_tickers / 10)).index
+    worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
+    filtered_y_train_pred = y_train_pred[worst_ticker_mask]
+    pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
+    confidence_levels = [0.95, 0.99]
+    intervals = calculate_intervals_vectorized(
+        pi_pred, mu_pred, sigma_pred, confidence_levels
+    )
+    actuals = data.train.y[worst_ticker_mask]
+    within_bounds = {
+        cl: np.logical_and(
+            actuals > intervals[:, i, 0],
+            actuals < intervals[:, i, 1],
+        )
+        for i, cl in enumerate(confidence_levels)
+    }
+    within_bounds_df = pd.DataFrame(
+        {
+            "Date": train_dates[worst_ticker_mask],
+            "Symbol": train_tickers[worst_ticker_mask],
+            "WithinBounds-0.95": within_bounds[0.95],
+            "WithinBounds-0.99": within_bounds[0.99],
+        }
+    ).set_index(["Date", "Symbol"])
+    coverage = within_bounds_df.groupby("Symbol").mean()
+    coverage_miss = pd.DataFrame(
+        {
+            "CoverageMiss-0.95": np.abs(0.95 - coverage["WithinBounds-0.95"]),
+            "CoverageMiss-0.99": np.abs(0.99 - coverage["WithinBounds-0.99"]),
+        },
+        index=coverage.index,
+    )
+    mean_miss = coverage_miss.mean(axis=1)
+    worst_miss = mean_miss.max()
+    extra_weight_worst_miss = 1
+    picp_based_weight = extra_weight_worst_miss * mean_miss / worst_miss
+
+    ## Combine weights
+    weight_per_ticker.loc[worst_tickers] += picp_based_weight
+
+    ## Plot weights for inspection if we are running in a notebook
+    try:
+        display(weight_per_ticker)
+        weight_per_ticker.hist(bins=50)
+        plt.title("Distribution of weights per ticker")
+        plt.show()
+    except:
+        print(weight_per_ticker)
+
+    return weight_per_ticker
 
 
 # %%
 if already_trained:
-    worst_tickers = find_worst_tickers()
-    training_set = data.train.filter_by_tickers(worst_tickers)
+    weight_per_ticker = calculate_weight_per_ticker()
 
 # %%
+# Train until validation loss stops decreasing
+subsequent_increases = 0
+max_subsequent_increases = 5
+best_model_weights = lstm_mdn_model.get_weights()
 while True:
     prev_val_loss = val_loss
     early_stop = EarlyStopping(
@@ -185,31 +282,35 @@ while True:
         restore_best_weights=True,
     )
 
-    prev_weights = lstm_mdn_model.get_weights()
+    print("Aligning ticker weights...")
+    ticker_weights = weight_per_ticker.loc[data.train.tickers].values
+    print("Fitting model...")
     history = lstm_mdn_model.fit(
-        training_set.X,
-        training_set.y,
+        data.train.X,
+        data.train.y,
         epochs=1,
         batch_size=32,
         verbose=1,
         validation_data=(data.validation.X, data.validation.y),
+        callbacks=[early_stop],
+        sample_weight=ticker_weights,
     )
-    val_loss = history.history["val_loss"][-1]
+    val_loss = np.array(history.history["val_loss"]).min()
     if val_loss >= prev_val_loss:
-        lstm_mdn_model.set_weights(prev_weights)
-        print(
-            "Previous val_loss",
-            prev_val_loss,
-            "was lower than current",
-            val_loss,
-            ". Restoring weights.",
-        )
-        break
+        subsequent_increases += 1
+        if subsequent_increases >= max_subsequent_increases:
+            print(
+                f"Validation loss has not decreased for {max_subsequent_increases} iterations. "
+                "Stopping training. \n"
+                "If you want to restore the best model, type:\n"
+                "lstm_mdn_model.set_weights(best_model_weights)"
+            )
+            break
+    else:
+        best_model_weights = lstm_mdn_model.get_weights()
+        subsequent_increases = 0
     histories.append(history)
-
-    worst_tickers = find_worst_tickers()
-    training_set = data.train.filter_by_tickers(worst_tickers)
-    gc.collect()
+    weight_per_ticker = calculate_weight_per_ticker()
 
 # %%
 # 6) Save
