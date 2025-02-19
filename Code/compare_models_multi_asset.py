@@ -8,10 +8,15 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 from shared.crps import crps_loss_mean_and_vol
+from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
 CONFIDENCE_LEVEL = 0.05
+
+# %%
+# Select whether to only filter on important tickers
+FILTER_ON_IMPORTANT_TICKERS = False
 
 # %%
 # Exclude uninteresting models
@@ -23,7 +28,6 @@ from scipy.stats import chi2, norm
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
-import matplotlib.ticker as ticker
 
 warnings.filterwarnings("ignore")
 
@@ -61,6 +65,14 @@ dates = df.index.get_level_values("Date")
 df_validation = df[(dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)]
 df_validation
 
+# %%
+# Filter on important tickers
+if FILTER_ON_IMPORTANT_TICKERS:
+    df_validation = df_validation[
+        df_validation.index.get_level_values("Symbol").isin(IMPORTANT_TICKERS)
+    ]
+    df_validation
+
 
 # %%
 # Collect models and their predictions (in order of model complexity)
@@ -83,6 +95,11 @@ try:
             "mean_pred": np.zeros_like(garch_vol_pred),
             "volatility_pred": garch_vol_pred,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                combined_df["LogReturn"].values,
+                np.zeros_like(garch_vol_pred),
+                garch_vol_pred,
+            ),
         }
     )
     nans = np.isnan(garch_vol_pred).sum()
@@ -125,9 +142,7 @@ for version in ["quick", "fe", "pireg"]:
 
 # LSTM MAF V2
 try:
-    lstm_maf_v2 = pd.read_csv(
-        f"predictions/lstm_MAF_v2{SUFFIX}.csv"
-    )
+    lstm_maf_v2 = pd.read_csv(f"predictions/lstm_MAF_v2{SUFFIX}.csv")
     lstm_maf_v2["Date"] = pd.to_datetime(lstm_maf_v2["Date"])
     lstm_maf_v2 = lstm_maf_v2.set_index(["Date", "Symbol"])
     lstm_maf_v2_dates = lstm_maf_v2.index.get_level_values("Date")
@@ -217,6 +232,30 @@ try:
         print(f"LSTM MAF v4 has {nans} NaN predictions")
 except FileNotFoundError:
     print("LSTM MAF v4 predictions not found")
+
+try:
+    maf_entry = next(
+        entry for entry in preds_per_model if entry["name"] == "LSTM MAF V2"
+    )
+    mdn_entry = next(
+        entry for entry in preds_per_model if entry["name"] == "LSTM MDN pireg"
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM MDN MAF Ensemble",
+            "mean_pred": (maf_entry["mean_pred"] + mdn_entry["mean_pred"]) / 2,
+            "volatility_pred": (
+                maf_entry["volatility_pred"] + mdn_entry["volatility_pred"]
+            )
+            / 2,
+            "LB_95": (maf_entry["LB_95"] + mdn_entry["LB_95"]) / 2,
+            "UB_95": (maf_entry["UB_95"] + mdn_entry["UB_95"]) / 2,
+            "nll": (maf_entry["nll"] + mdn_entry["nll"]) / 2,
+            "symbols": maf_entry["symbols"],
+        }
+    )
+except ValueError:
+    print("Could not create ensemble: LSTM MAF V2 or LSTM MDN pireg not found")
 
 # %%
 # Remove excluded models
@@ -802,6 +841,45 @@ for i, entry in enumerate(preds_per_model):
 plt.xlim(1 - CONFIDENCE_LEVEL - 0.05, 1 - CONFIDENCE_LEVEL + 0.05)
 plt.axvline(1 - CONFIDENCE_LEVEL, color="black", linestyle="--", label="Target")
 plt.yticks(y, sectors)
+plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
+plt.legend()
+plt.show()
+
+# %%
+# Plot PICP for all the important tickers
+existing_tickers = sorted(
+    set(df_validation.index.get_level_values("Symbol")).intersection(IMPORTANT_TICKERS)
+)
+y = np.arange(len(existing_tickers))
+
+plt.figure(figsize=(10, len(existing_tickers) * 0.5))
+plt.title("PICP by ticker")
+
+num_models = len(preds_per_model)
+offsets = np.linspace(
+    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
+)
+
+for i, entry in enumerate(preds_per_model):
+    results_df = entry["chr_results_df"]
+    results_df = results_df.loc[np.isin(results_df.index.values, IMPORTANT_TICKERS)]
+    results_df = results_df.reindex(IMPORTANT_TICKERS, fill_value=0)
+    plt.barh(
+        y + offsets[i], results_df["Coverage"], height=bar_height, label=entry["name"]
+    )
+    # Add a check mark or cross to indicate if the model passes or fails
+    for idx, row in results_df.iterrows():
+        plt.text(
+            row["Coverage"] - 0.002,
+            y[existing_tickers.index(idx)] + offsets[i],
+            "✓" if row["all_pass"] else "✗",
+            verticalalignment="center",
+            color="white",
+        )
+
+plt.xlim(1 - CONFIDENCE_LEVEL - 0.05, 1 - CONFIDENCE_LEVEL + 0.05)
+plt.axvline(1 - CONFIDENCE_LEVEL, color="black", linestyle="--", label="Target")
+plt.yticks(y, existing_tickers)
 plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
 plt.legend()
 plt.show()
