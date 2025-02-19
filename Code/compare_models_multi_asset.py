@@ -169,6 +169,70 @@ try:
 except FileNotFoundError:
     print("LSTM MAF v2 predictions not found")
 
+
+# LSTM MAF V3
+try:
+    lstm_maf_v3 = pd.read_csv(
+        f"predictions/lstm_MAF_v3{SUFFIX}.csv"
+    )
+    lstm_maf_v3["Date"] = pd.to_datetime(lstm_maf_v3["Date"])
+    lstm_maf_v3 = lstm_maf_v3.set_index(["Date", "Symbol"])
+    lstm_maf_v3_dates = lstm_maf_v3.index.get_level_values("Date")
+    lstm_maf_v3 = lstm_maf_v3[
+        (lstm_maf_v3_dates >= TRAIN_VALIDATION_SPLIT)
+        & (lstm_maf_v3_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(lstm_maf_v3, how="left", rsuffix="_LSTM_MAF_V3")
+    preds_per_model.append(
+        {
+            "name": "LSTM MAF V3",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "LB_95": combined_df["LB_95"].values,
+            "UB_95": combined_df["UB_95"].values,
+            "nll": np.nanmean(combined_df["NLL"].values),
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+        }
+    )
+    nans = combined_df["Mean_SP"].isnull().sum()
+    if nans > 0:
+        print(f"LSTM MAF v3 has {nans} NaN predictions")
+except FileNotFoundError:
+    print("LSTM MAF v3 predictions not found")
+
+
+# LSTM MAF V4
+try:
+    lstm_maf_v4 = pd.read_csv(
+        f"predictions/lstm_MAF_v4{SUFFIX}.csv"
+    )
+    lstm_maf_v4["Date"] = pd.to_datetime(lstm_maf_v4["Date"])
+    lstm_maf_v4 = lstm_maf_v4.set_index(["Date", "Symbol"])
+    lstm_maf_v4_dates = lstm_maf_v4.index.get_level_values("Date")
+    lstm_maf_v4 = lstm_maf_v4[
+        (lstm_maf_v4_dates >= TRAIN_VALIDATION_SPLIT)
+        & (lstm_maf_v4_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(lstm_maf_v4, how="left", rsuffix="_LSTM_MAF_V4")
+    preds_per_model.append(
+        {
+            "name": "LSTM MAF V4",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "LB_95": combined_df["LB_95"].values,
+            "UB_95": combined_df["UB_95"].values,
+            "nll": np.nanmean(combined_df["NLL"].values),
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+        }
+    )
+    nans = combined_df["Mean_SP"].isnull().sum()
+    if nans > 0:
+        print(f"LSTM MAF v4 has {nans} NaN predictions")
+except FileNotFoundError:
+    print("LSTM MAF v4 predictions not found")
+
 try:
     maf_entry = next(
         entry for entry in preds_per_model if entry["name"] == "LSTM MAF V2"
