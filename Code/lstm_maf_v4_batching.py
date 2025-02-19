@@ -48,10 +48,10 @@ data
 # remove the following features: 
 # %%
 # Define window size
-X_train = data.X_train
-y_train = data.y_train
-X_val = data.X_val_combined
-y_val = data.y_val_combined
+X_train = data.train.X
+y_train = data.train.y
+X_val = data.validation.X
+y_val = data.validation.y
 
 print("X_train shape:", X_train.shape)
 print("y_train shape:", y_train.shape)
@@ -279,10 +279,9 @@ y_val = torch.from_numpy(y_val).float()
 example_tickers = ["GOOG", "AON", "WMT"]
 
 # %%
-# Smoothing the distributions
+# Print smooted distributions
 for ticker in example_tickers:
-    s = data.validation_sets[ticker]
-    from_idx, to_idx = data.get_validation_range(ticker)
+    from_idx, to_idx = data.validation.get_range(ticker)
     random_indices = np.random.choice(range(from_idx, to_idx), 10)
 
     for idx in random_indices:
@@ -380,8 +379,7 @@ with torch.no_grad():
 # %%
 # Plotting the Predicted Returns and Confidence Intervals for example tickers
 for ticker in example_tickers:
-    s = data.validation_sets[ticker]
-    from_idx, to_idx = data.get_validation_range(ticker)
+    from_idx, to_idx = data.validation.get_range(ticker)
 
     plt.figure(figsize=(12, 5))
     
