@@ -3,7 +3,9 @@
 from dataclasses import dataclass
 from functools import cached_property
 from collections import OrderedDict
-from typing import Optional
+from typing import Iterable
+
+import tensorflow as tf
 from settings import (
     LOOKBACK_DAYS,
     TEST_ASSET,
@@ -41,7 +43,7 @@ class LabelledDataSet:
     ticker: str
     X: np.ndarray
     y: np.ndarray
-    y_dates: list[str]
+    y_dates: list[pd.Timestamp]
 
     def __str__(self):
         return f"LabelledDataSet(ticker={self.ticker}, X.shape={self.X.shape}, y.shape={self.y.shape})"
@@ -64,21 +66,15 @@ class DataSetCollection:
 
     @cached_property
     def tickers(self) -> list[str]:
-        return [t for s in self.sets.values() for t in [s.ticker] * len(s.y)]
+        return np.array([t for s in self.sets.values() for t in [s.ticker] * len(s.y)])
 
     @cached_property
-    def dates(self) -> list[pd.Timestamp]:
-        return [d for s in self.sets.values() for d in s.y_dates]
+    def dates(self) -> np.ndarray[pd.Timestamp]:
+        return np.array([d for s in self.sets.values() for d in s.y_dates])
 
     def get_range(self, ticker: str):
-        from_idx = self.tickers.index(ticker)
-        to_idx = next(
-            (
-                i
-                for i in range(from_idx + 1, len(self.tickers))
-                if self.tickers[i] != ticker
-            ),
-        )
+        from_idx = np.where(self.tickers == ticker)[0][0]
+        to_idx = np.where(self.tickers == ticker)[0][-1] + 1
         return from_idx, to_idx
 
     def __str__(self):
@@ -87,7 +83,7 @@ class DataSetCollection:
     def __repr__(self):
         return str(self)
 
-    def filter_by_tickers(self, tickers: list[str]) -> "DataSetCollection":
+    def filter_by_tickers(self, tickers: Iterable[str]) -> "DataSetCollection":
         return DataSetCollection(
             OrderedDict((k, v) for k, v in self.sets.items() if k in tickers)
         )
@@ -98,6 +94,35 @@ class ProcessedData:
     train: DataSetCollection
     validation: DataSetCollection
     test: DataSetCollection
+
+    _ticker_lookup = None
+
+    def _initialize_ticker_lookup(self):
+        if self._ticker_lookup is None:
+            self._ticker_lookup = tf.keras.layers.StringLookup(
+                vocabulary=sorted(set(self.train.tickers)), num_oov_indices=1
+            )
+
+    def encode_tickers(self, tickers: Iterable[str]) -> tf.Tensor:
+        self._initialize_ticker_lookup()
+        return self._ticker_lookup(tickers)
+
+    @cached_property
+    def train_ticker_ids(self):
+        return self.encode_tickers(self.train.tickers)
+
+    @cached_property
+    def validation_ticker_ids(self):
+        return self.encode_tickers(self.validation.tickers)
+
+    @cached_property
+    def test_ticker_ids(self):
+        return self.encode_tickers(self.test.tickers)
+
+    @cached_property
+    def ticker_ids_dim(self):
+        self._initialize_ticker_lookup()
+        return self._ticker_lookup.vocabulary_size()
 
 
 def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:

@@ -115,6 +115,7 @@ for version in [
     "pireg",
     "dynamic",
     # "dynamic-weighted",
+    "embedded",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(

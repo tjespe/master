@@ -3,12 +3,13 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "dynamic-weighted"
+VERSION = "embedded"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
-HIDDEN_UNITS = 20
-N_MIXTURES = 100
+HIDDEN_UNITS = 50
+N_MIXTURES = 50
 DROPOUT = 0.1
+EMBEDDING_DIMENSIONS = 8
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -22,7 +23,6 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.numerical_mixture_moments import numerical_mixture_moments
 from shared.loss import mdn_loss_numpy, mean_mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
@@ -44,6 +44,11 @@ from tensorflow.keras.layers import (
     Dense,
     Dropout,
     LSTM,
+    Embedding,
+    StringLookup,
+    concatenate,
+    Flatten,
+    Lambda,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -68,30 +73,50 @@ def build_lstm_mdn(
     dropout: float,
     n_mixtures: int,
     hidden_units: int,
+    embed_dim: int,
+    ticker_ids_dim: int,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
       (lookback_days, num_features)
     Then outputs 3*n_mixtures for MDN (univariate).
     """
-    inputs = Input(shape=(lookback_days, num_features))
+    # Sequence input (time series)
+    seq_input = Input(shape=(lookback_days, num_features), name="seq_input")
 
-    # Add LSTM layer
+    # Ticker input (integer-encoded)
+    ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
+    ticker_embed = Embedding(
+        input_dim=ticker_ids_dim, output_dim=embed_dim, name="ticker_embedding"
+    )(ticker_input)
+    ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
+
+    # Process the sequence with LSTM
     x = LSTM(
         units=hidden_units,
         activation="tanh",
         kernel_regularizer=l2(1e-4),
-    )(inputs)
-
-    # Add dropout
+        name="lstm_layer",
+    )(seq_input)
     if dropout > 0:
-        x = Dropout(dropout)(x)
+        x = Dropout(dropout, name="dropout_layer")(x)
 
-    # Create the custom kernel initializer for the Dense layer.
+    # Process the sequence with LSTM
+    x = LSTM(
+        units=hidden_units,
+        activation="tanh",
+        kernel_regularizer=l2(1e-4),
+        name="lstm_layer",
+    )(seq_input)
+    if dropout > 0:
+        x = Dropout(dropout, name="dropout_layer")(x)
+
+    # Combine LSTM output and ticker embedding
+    x = concatenate([x, ticker_embed], name="concat_layer")
+
+    # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_sigma])
     mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
     mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
-
-    # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
     mdn_output = Dense(
         3 * n_mixtures,
         activation=None,
@@ -100,7 +125,7 @@ def build_lstm_mdn(
         name="mdn_output",
     )(x)
 
-    model = Model(inputs=inputs, outputs=mdn_output)
+    model = Model(inputs=[seq_input, ticker_input], outputs=mdn_output)
     return model
 
 
@@ -117,6 +142,8 @@ lstm_mdn_model = build_lstm_mdn(
     dropout=DROPOUT,
     n_mixtures=N_MIXTURES,
     hidden_units=HIDDEN_UNITS,
+    embed_dim=EMBEDDING_DIMENSIONS,
+    ticker_ids_dim=data.ticker_ids_dim,
 )
 
 # %%
@@ -136,48 +163,35 @@ if os.path.exists(model_fname):
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY)
+        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
     already_trained = True
 
 # %%
 # 5) Train
-val_loss = lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
+val_loss = (
+    lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
+    if already_trained
+    else np.inf
+)
 histories = []
-weight_per_ticker = pd.DataFrame(index=data.train.tickers, columns=["Weight"]).fillna(1)
+weight_per_ticker = pd.Series(index=np.unique(data.train.tickers)).fillna(1)
 
 
 # %%
-def calculate_training_nll_per_ticker():
-    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
-    y_train_pred = lstm_mdn_model.predict(data.train.X)
-    nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
-    nll_df = pd.DataFrame(
-        {
-            "Date": data.train.dates,
-            "Symbol": data.train.tickers,
-            "NLL": nlls,
-        }
-    )
-    nll_per_ticker = nll_df.groupby("Symbol")["NLL"].mean().sort_values()
-    try:
-        display(nll_per_ticker)
-    except:
-        print(nll_per_ticker)
-    return nll_per_ticker
-
-
-def calculate_weight_per_ticker():
+def calculate_weight_per_ticker() -> pd.Series:
     """
     Use the training NLL of each ticker to give more weights to series with poor NLL.
     Also calculate quantiles for some of the stocks with the worst NLL and give even
     higher weight to samples where the coverage does not match the confidence level.
     """
+    print("Collecting garbage...")
+    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
     ## Calculate NLL per ticker
     print("Calculating NLL per ticker...")
-    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
-    y_train_pred = lstm_mdn_model.predict(data.train.X)
+    y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
     nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
     train_dates = np.array(data.train.dates)
     train_tickers = np.array(data.train.tickers)
@@ -270,8 +284,8 @@ if already_trained:
 
 # %%
 # Train until validation loss stops decreasing
-subsequent_increases = 0
-max_subsequent_increases = 5
+increases_since_best = 0
+max_increases_since_best = 5
 best_model_weights = lstm_mdn_model.get_weights()
 best_val_loss = val_loss
 while True:
@@ -283,23 +297,31 @@ while True:
 
     print("Aligning ticker weights...")
     ticker_weights = weight_per_ticker.loc[data.train.tickers].values
-    print("Fitting model...")
+    print("Compiling model...", flush=True)
+    lstm_mdn_model.compile(
+        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
+    )
+    print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
-        data.train.X,
+        [data.train.X, data.train_ticker_ids],
         data.train.y,
         epochs=1,
         batch_size=32,
         verbose=1,
-        validation_data=(data.validation.X, data.validation.y),
+        validation_data=(
+            [data.validation.X, data.validation_ticker_ids],
+            data.validation.y,
+        ),
         callbacks=[early_stop],
         sample_weight=ticker_weights,
     )
     val_loss = np.array(history.history["val_loss"]).min()
     if val_loss >= best_val_loss:
-        subsequent_increases += 1
-        if subsequent_increases >= max_subsequent_increases:
+        increases_since_best += 1
+        if increases_since_best >= max_increases_since_best:
             print(
-                f"Validation loss has not decreased for {max_subsequent_increases} iterations. "
+                f"Validation loss has not decreased for {max_increases_since_best} iterations. "
                 "Stopping training. \n"
                 "If you want to restore the best model, type:\n"
                 "lstm_mdn_model.set_weights(best_model_weights)"
@@ -308,7 +330,7 @@ while True:
     else:
         best_model_weights = lstm_mdn_model.get_weights()
         best_val_loss = val_loss
-        subsequent_increases = 0
+        increases_since_best = 0
     histories.append(history)
     weight_per_ticker = calculate_weight_per_ticker()
 
@@ -336,7 +358,7 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict(data.validation.X)  # shape: (batch, 3*N_MIXTURES)
+y_pred_mdn = lstm_mdn_model.predict([data.validation.X, data.validation_ticker_ids])
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
