@@ -3,6 +3,9 @@
 from dataclasses import dataclass
 from functools import cached_property
 from collections import OrderedDict
+from typing import Iterable
+
+import tensorflow as tf
 from settings import (
     LOOKBACK_DAYS,
     TEST_ASSET,
@@ -36,51 +39,90 @@ GICS_SECTOR_MAPPING = {
 
 
 @dataclass
-class LabelledTestSet:
+class LabelledDataSet:
     ticker: str
-    df: pd.DataFrame
     X: np.ndarray
     y: np.ndarray
-    y_dates: list[str]
+    y_dates: list[pd.Timestamp]
+
+    def __str__(self):
+        return f"LabelledDataSet(ticker={self.ticker}, X.shape={self.X.shape}, y.shape={self.y.shape})"
+
+    def __repr__(self):
+        return str(self)
+
+
+@dataclass
+class DataSetCollection:
+    sets: OrderedDict[str, LabelledDataSet]
+
+    @cached_property
+    def X(self) -> np.ndarray:
+        return np.concatenate([s.X for s in self.sets.values()])
+
+    @cached_property
+    def y(self) -> np.ndarray:
+        return np.concatenate([s.y for s in self.sets.values()])
+
+    @cached_property
+    def tickers(self) -> list[str]:
+        return np.array([t for s in self.sets.values() for t in [s.ticker] * len(s.y)])
+
+    @cached_property
+    def dates(self) -> np.ndarray[pd.Timestamp]:
+        return np.array([d for s in self.sets.values() for d in s.y_dates])
+
+    def get_range(self, ticker: str):
+        from_idx = np.where(self.tickers == ticker)[0][0]
+        to_idx = np.where(self.tickers == ticker)[0][-1] + 1
+        return from_idx, to_idx
+
+    def __str__(self):
+        return f"DataSetCollection(X.shape={self.X.shape}, y.shape={self.y.shape}, sets={len(self.sets)})"
+
+    def __repr__(self):
+        return str(self)
+
+    def filter_by_tickers(self, tickers: Iterable[str]) -> "DataSetCollection":
+        return DataSetCollection(
+            OrderedDict((k, v) for k, v in self.sets.items() if k in tickers)
+        )
 
 
 @dataclass
 class ProcessedData:
-    df: pd.DataFrame
-    X_train: np.ndarray
-    y_train: np.ndarray
-    validation_sets: OrderedDict[str, LabelledTestSet]
-    test_sets: OrderedDict[str, LabelledTestSet]
+    train: DataSetCollection
+    validation: DataSetCollection
+    test: DataSetCollection
+
+    _ticker_lookup = None
+
+    def _initialize_ticker_lookup(self):
+        if self._ticker_lookup is None:
+            self._ticker_lookup = tf.keras.layers.StringLookup(
+                vocabulary=sorted(set(self.train.tickers)), num_oov_indices=1
+            )
+
+    def encode_tickers(self, tickers: Iterable[str]) -> tf.Tensor:
+        self._initialize_ticker_lookup()
+        return self._ticker_lookup(tickers)
 
     @cached_property
-    def X_val_combined(self) -> np.ndarray:
-        return np.concatenate([val_set.X for val_set in self.validation_sets.values()])
+    def train_ticker_ids(self):
+        return self.encode_tickers(self.train.tickers)
 
     @cached_property
-    def y_val_combined(self) -> np.ndarray:
-        return np.concatenate([val_set.y for val_set in self.validation_sets.values()])
+    def validation_ticker_ids(self):
+        return self.encode_tickers(self.validation.tickers)
 
     @cached_property
-    def validation_tickers(self) -> list[str]:
-        return [t for s in self.validation_sets.values() for t in [s.ticker] * len(s.y)]
+    def test_ticker_ids(self):
+        return self.encode_tickers(self.test.tickers)
 
     @cached_property
-    def validation_dates(self) -> list[pd.Timestamp]:
-        return [d for s in self.validation_sets.values() for d in s.y_dates]
-
-    def get_validation_range(self, ticker: str):
-        from_idx = self.validation_tickers.index(ticker)
-        to_idx = next(
-            (
-                i
-                for i in range(from_idx + 1, len(self.validation_tickers))
-                if self.validation_tickers[i] != ticker
-            ),
-        )
-        return from_idx, to_idx
-
-    def __str__(self):
-        return f"ProcessedData(X_train.shape={self.X_train.shape}, y_train.shape={self.y_train.shape}, X_val_combined.shape={self.X_val_combined.shape}, y_val_combined.shape={self.y_val_combined.shape}, validation_sets={len(self.validation_sets)}, test_sets={len(self.test_sets)})"
+    def ticker_ids_dim(self):
+        self._initialize_ticker_lookup()
+        return self._ticker_lookup.vocabulary_size()
 
 
 def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
@@ -89,9 +131,6 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
     """
     # %%
     df = pd.read_csv(DATA_PATH)
-
-    if not "Symbol" in df.columns:
-        df["Symbol"] = TEST_ASSET
 
     # Ensure the Date column is in datetime format
     df["Date"] = pd.to_datetime(df["Date"]).dt.date
@@ -328,8 +367,7 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # Prepare data for LSTM
-    X_train = []
-    y_train = []
+    train_sets = OrderedDict()
     validation_sets = OrderedDict()
     test_sets = OrderedDict()
 
@@ -445,9 +483,23 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
             data = np.hstack((data, high_low_diff))
 
         # Create training sequences of length 'sequence_length'
+        X_train = []
+        y_train = []
+        y_train_dates = []
         for i in range(LOOKBACK_DAYS, TRAIN_VALIDATION_SPLIT_index):
-            X_train.append(data[i - LOOKBACK_DAYS : i])
+            point = data[i - LOOKBACK_DAYS : i]
+            if len(point) != LOOKBACK_DAYS:
+                continue
+            X_train.append(point)
             y_train.append(returns[i, 0])
+            y_train_dates.append(dates[i])
+        if len(X_train) > 0:
+            train_sets[symbol] = LabelledDataSet(
+                symbol,
+                np.array(X_train).astype(np.float32),
+                np.array(y_train).astype(np.float32),
+                y_train_dates,
+            )
 
         # Add test and validation data
         X_val = []
@@ -461,9 +513,8 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
             y_val.append(returns[i, 0])
             y_val_dates.append(dates[i])
         if len(X_val) > 0:
-            validation_sets[symbol] = LabelledTestSet(
+            validation_sets[symbol] = LabelledDataSet(
                 symbol,
-                group.loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT],
                 np.array(X_val).astype(np.float32),
                 np.array(y_val).astype(np.float32),
                 y_val_dates,
@@ -480,26 +531,12 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
             y_test.append(returns[i, 0])
             y_test_dates.append(dates[i])
         if len(X_test) > 0:
-            test_sets[symbol] = LabelledTestSet(
+            test_sets[symbol] = LabelledDataSet(
                 symbol,
-                group.loc[VALIDATION_TEST_SPLIT:],
                 np.array(X_test).astype(np.float32),
                 np.array(y_test).astype(np.float32),
                 y_test_dates,
             )
-
-    # %%
-    # Convert X and y to numpy arrays
-    X_train = np.array(X_train)
-    y_train = np.array(y_train)
-
-    # Ensure float32 for X and y
-    X_train = X_train.astype(np.float32)
-    y_train = y_train.astype(np.float32)
-
-    # Print shapes
-    print(f"X_train.shape: {X_train.shape}")
-    print(f"y_train.shape: {y_train.shape}")
 
     if False:
         """
@@ -514,7 +551,11 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # Create return object
-    return ProcessedData(df, X_train, y_train, validation_sets, test_sets)
+    return ProcessedData(
+        DataSetCollection(train_sets),
+        DataSetCollection(validation_sets),
+        DataSetCollection(test_sets),
+    )
 
 
 def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
