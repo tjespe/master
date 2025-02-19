@@ -172,7 +172,9 @@ if os.path.exists(model_fname):
 # %%
 # 5) Train
 val_loss = (
-    lstm_mdn_model.evaluate(data.validation.X, data.validation.y, verbose=0)
+    lstm_mdn_model.evaluate(
+        [data.validation.X, data.validation_ticker_ids], data.validation.y, verbose=0
+    )
     if already_trained
     else np.inf
 )
