@@ -396,6 +396,30 @@ for ticker in example_tickers:
     plt.legend()
     plt.show()
 
+    # plot only the last 100 points
+    plt.figure(figsize=(12, 5))
+    plt.plot(range(to_idx-100, to_idx), actual_returns[to_idx-100:to_idx], label="Actual Returns", color="red", linestyle="solid")
+    plt.plot(range(to_idx-100, to_idx), predicted_returns[to_idx-100:to_idx], label="Predicted Mean Returns", color="blue", linestyle="dashed")
+    plt.fill_between(
+        range(to_idx-100, to_idx),
+        np.array(predicted_returns[to_idx-100:to_idx]) - np.array(predicted_stds[to_idx-100:to_idx]),
+        np.array(predicted_returns[to_idx-100:to_idx]) + np.array(predicted_stds[to_idx-100:to_idx]),
+        color="blue",
+        alpha=0.2,
+        label="Predicted Return Std",
+    )
+    plt.fill_between(
+        range(to_idx-100, to_idx),
+        intervals[to_idx-100:to_idx, 4, 0],  # Lower bound (95% confidence)
+        intervals[to_idx-100:to_idx, 4, 1],  # Upper bound (95% confidence)
+        color="blue",
+        alpha=0.2,
+        label="95% Confidence Interval"
+    )
+    plt.title(f"Predicted Return Series for {ticker} (Last 100 Time Steps)")
+    plt.legend()
+    plt.show()
+
 # %%
 # Check for nan values in the predicted returns
 nan_values = np.isnan(predicted_returns)
@@ -403,24 +427,6 @@ nan_values = np.isnan(predicted_returns)
 print("Number of NaN values in predicted returns:", nan_values.sum())
 # print the last predicted return
 print("Last predicted return:", predicted_returns[-1])
-# %% - make this able to work with multiple assets
-# Plot only for the last 100 points
-# plt.figure(figsize=(14, 6))
-# plt.plot(predicted_returns[-100:], label="Predicted Returns", color="blue")
-# plt.plot(actual_returns[-100:], label="Actual Returns", color="red", alpha=0.7)
-# plt.fill_between(
-#     range(len(predicted_returns[-100:])),
-#     np.array(predicted_returns[-100:]) - np.array(predicted_stds[-100:]),
-#     np.array(predicted_returns[-100:]) + np.array(predicted_stds[-100:]),
-#     color="blue",
-#     alpha=0.2,
-#     label="Predicted Return Std",
-# )
-# plt.title("Predicted Returns vs Actual Returns (Last 100 Time Steps)")
-# plt.xlabel("Time Step")
-# plt.ylabel("Return")
-# plt.legend()
-# plt.show()
 
 # %%
 # Calculate NLL

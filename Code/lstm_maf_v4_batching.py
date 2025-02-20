@@ -29,10 +29,9 @@ import torch.optim as optim
 from torch.distributions import Normal
 import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
-
-
 from shared.processing import get_lstm_train_test_new
 from shared.loss import nll_loss_maf
+from shared.n_flows import compute_confidence_intervals
 from tqdm import tqdm
 
 import os
@@ -189,10 +188,26 @@ class MaskedAutoregressiveFlow(nn.Module):
         return log_prob
 
     def sample(self, x, num_samples=1000):
-        z = self.base_dist.sample((num_samples, 1))
+        """
+        Generates samples from the flow-based distribution given input features x.
+        
+        Args:
+            x: Tensor of shape (batch_size, feature_dim)
+            num_samples: Number of Monte Carlo samples per test sample.
+
+        Returns:
+            - Shape (batch_size, num_samples) for inference
+        """
+        batch_size = x.shape[0]
+        
+        # Sample from base distribution (Standard Normal)
+        z = self.base_dist.sample((batch_size, num_samples, 1)).squeeze(-1)  # Shape: (batch_size, num_samples)
+        
+        # Pass through the normalizing flows
         for flow in reversed(self.flows):
             z = flow.inverse(z, x)
-        return z
+
+        return z  # Shape: (batch_size, num_samples)
 
 
 # %%
@@ -200,7 +215,7 @@ class MaskedAutoregressiveFlow(nn.Module):
 hidden_dim = 64
 lstm_hidden_dim = 128  # Adjust based on sequence length and features
 maf_hidden_dim = 64  # 64
-n_flows = 3  # 20
+n_flows = 5  # 20
 input_dim = 300  # 10 features * 30 lookback days
 # number of features
 feature_dim = X_train.shape[-1]
@@ -229,6 +244,15 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode="min", factor=0.5, patience=10, verbose=True
 )
 
+# Convert validation set to tensors
+X_val = torch.from_numpy(X_val).float()
+y_val = torch.from_numpy(y_val).float()
+
+# Create DataLoader for validation set
+val_dataset = TensorDataset(X_val, y_val)
+val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+train_losses = []
+val_losses = []
 
 # %%
 # Train the model
@@ -236,7 +260,7 @@ epochs = 3
 l2_lambda = 1e-4  # Regularization strength
 for epoch in range(epochs):
     model.train()
-    epoch_loss = 0.0
+    epoch_train_loss = 0.0
 
     # Iterate over batches
     for X_batch, y_batch in tqdm(
@@ -256,16 +280,35 @@ for epoch in range(epochs):
         optimizer.step()
 
         # Accumulate loss (multiplied by batch size for averaging later)
-        epoch_loss += loss.item() * X_batch.size(0)
+        epoch_train_loss += loss.item() * X_batch.size(0)
 
 
-    avg_loss = epoch_loss / len(train_dataset)
+    avg_train_loss = epoch_train_loss / len(train_dataset)
 
     # Update the learning rate scheduler
-    scheduler.step(avg_loss)
+    scheduler.step(avg_train_loss)
 
-    # Print the loss every 10 epochs
-    print(f"Epoch: {epoch + 1}, Loss: {avg_loss:.4f}")
+    # ====== VALIDATION PHASE ======
+    model.eval()
+    epoch_val_loss = 0.0
+
+    with torch.no_grad():  # No gradient computation for validation
+        for X_batch, y_batch in val_loader:
+            log_prob = model.log_prob(y_batch, X_batch)
+            base_loss = -log_prob.mean()
+            l2_norm = sum(p.pow(2.0).sum() for p in model.parameters())
+            val_loss = base_loss + l2_lambda * l2_norm
+
+            epoch_val_loss += val_loss.item() * X_batch.size(0)
+
+    avg_val_loss = epoch_val_loss / len(val_dataset)
+    val_losses.append(avg_val_loss)
+
+    # Update the learning rate scheduler based on validation loss
+    scheduler.step(avg_val_loss)
+
+    # Print loss per epoch
+    print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
 
 
 # %%
@@ -326,11 +369,16 @@ for ticker in example_tickers:
 
 # %%
 # Predicting the Distribution for the Entire Validation Period
-batch_size = 32
+batch_size = 64
+# Move tensors to device (GPU if available)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+X_val = X_val.to(device)
+y_val = y_val.to(device)
+model.to(device)
 X_val_dataset = TensorDataset(X_val)
 X_val_loader = DataLoader(X_val_dataset, batch_size=batch_size, shuffle=False)
 
-confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+confidence_levels = np.array([0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99], dtype=np.float64)
 num_test_samples = len(X_val)
 num_conf_levels = len(confidence_levels)
 
@@ -338,7 +386,7 @@ intervals = np.zeros((len(X_val), len(confidence_levels), 2))
 predicted_returns = np.zeros(num_test_samples)
 predicted_stds = np.zeros(num_test_samples)
 nll_loss = np.zeros(num_test_samples)
-actual_returns = y_val.numpy().flatten()
+actual_returns = y_val.cpu().numpy().flatten()
 
 # batched prediction
 with torch.no_grad():
@@ -348,7 +396,7 @@ with torch.no_grad():
         batch_size = X_batch.size(0)
 
         # generate samples
-        samples = model.sample(x=X_batch, num_samples=25000)
+        samples = model.sample(x=X_batch, num_samples=10000)
         samples_np = samples.detach().cpu().numpy()
 
         # calculate predicted return and std
@@ -362,16 +410,8 @@ with torch.no_grad():
         predicted_returns[batch_start:batch_start + batch_size] = predicted_return
         predicted_stds[batch_start:batch_start + batch_size] = predicted_std
 
-        # store NLL loss
-        nll_loss[batch_start:batch_start + batch_size] = model.log_prob(y_val[batch_start:batch_start + batch_size], X_batch).numpy()
-
-        # calculate confidence intervals
-        for i, cl in enumerate(confidence_levels):
-            lower_q = (1 - cl) / 2 * 100
-            upper_q = 100 - lower_q
-
-            intervals[batch_start:batch_start + batch_size, i, 0] = np.percentile(samples_np, lower_q, axis=1)
-            intervals[batch_start:batch_start + batch_size, i, 1] = np.percentile(samples_np, upper_q, axis=1)
+        # 🚀 **Numba-Optimized Confidence Intervals**
+        intervals[batch_start:batch_start + batch_size] = compute_confidence_intervals(samples_np, confidence_levels)
 
         # update batch start
         batch_start += batch_size
@@ -444,19 +484,19 @@ print("Last predicted return:", predicted_returns[-1])
 
 # %%
 # Calculate NLL - this value should be the same as in the on in compare models
-print("NLL Loss:", nll_loss_maf(model, X_val, y_val))
+# print("NLL Loss:", nll_loss_maf(model, X_val, y_val))
 
 # %%
-# Store predicted returns and standard deviations in a csv
+# Check lenghts of the predicted returns and stds
 print("predicted returns lenght:", len(predicted_returns))
 print("predicted stds lenght:", len(predicted_stds))
 
 # %%
 # 8) Store single-pass predictions
 df_validation = pd.DataFrame(
-    np.vstack([data.validation_dates, data.validation_tickers]).T,
+    np.vstack([data.validation.dates, data.validation.tickers]).T,
     columns=["Date", "Symbol"],
-) 
+)
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
 df_validation["NLL"] = nll_loss
@@ -476,7 +516,7 @@ df_validation.set_index(["Date", "Symbol"]).to_csv(
 
 
 # %%
-# Define MC-dropout for uncertainty estimation
+# Define MC-dropout for uncertainty estimation (NOT WORKING CURRENTLY)
 def mc_dropout_sample(model, X, num_samples=1000):
     """Perform MC-Dropout for uncertainty estimation."""
     model.train()  # Keep dropout active during test-time sampling
