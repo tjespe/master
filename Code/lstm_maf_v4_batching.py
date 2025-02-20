@@ -219,9 +219,9 @@ n_flows = 5  # 20
 input_dim = 300  # 10 features * 30 lookback days
 # number of features
 feature_dim = X_train.shape[-1]
-extractor_num_layers = 2
-extractor_dropout = 0.15
-flow_dropout = 0.15
+extractor_num_layers = 1
+extractor_dropout = 0.5
+flow_dropout = 0.3
 print("Input dimension:", input_dim)
 
 
@@ -256,7 +256,7 @@ val_losses = []
 
 # %%
 # Train the model
-epochs = 3
+epochs = 2
 l2_lambda = 1e-4  # Regularization strength
 for epoch in range(epochs):
     model.train()
@@ -316,9 +316,7 @@ for epoch in range(epochs):
 model.eval()
 np.random.seed(42)
 
-# make test set tensors
-X_val = torch.from_numpy(X_val).float()
-y_val = torch.from_numpy(y_val).float()
+
 example_tickers = ["GOOG", "AON", "WMT"]
 
 # %%
@@ -404,7 +402,7 @@ with torch.no_grad():
         predicted_std = samples.std(dim=1).numpy().flatten()
 
         # calculate nll loss
-        nll_loss[batch_start:batch_start + batch_size] = model.log_prob(y_val[batch_start:batch_start + batch_size], X_batch).numpy()
+        nll_loss[batch_start:batch_start + batch_size] = - model.log_prob(y_val[batch_start:batch_start + batch_size], X_batch).numpy()
 
         # store predicted return and std
         predicted_returns[batch_start:batch_start + batch_size] = predicted_return
