@@ -3,11 +3,11 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "embedded-2"
+VERSION = "embedded-small"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
 HIDDEN_UNITS = 20
-N_MIXTURES = 50
+N_MIXTURES = 5
 DROPOUT = 0.4
 EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
