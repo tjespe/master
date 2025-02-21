@@ -148,30 +148,87 @@ def mdn_nll_tf(num_mixtures, add_pi_penalty=False):
     return loss_fn
 
 
-################################################################################
-# 1) Gauss-Legendre utility
-################################################################################
+import tensorflow as tf
+import numpy as np
+
+
+##############################################################################
+# 1) Utility: Gauss–Legendre quadrature on [a,b]
+##############################################################################
 def gauss_legendre(npts, a, b):
     """
-    Returns the 1D Gauss-Legendre sample points (x) and weights (w)
-    for integrating on [a, b] with npts nodes.
-    We use np.polynomial.legendre.leggauss and transform from [-1,1] to [a,b].
+    Return xg, wg for Gauss-Legendre integration on [a,b], using
+    NumPy's leggauss on [-1,1] and transforming to [a,b].
     """
-    # xg, wg for the standard interval [-1, 1]
-    xg, wg = np.polynomial.legendre.leggauss(npts)
-    # Transform to [a, b]
-    # x in [a,b], weight = (b-a)/2 * wg
+    xg, wg = np.polynomial.legendre.leggauss(npts)  # on [-1, 1]
     xp = 0.5 * (b - a) * (xg + 1.0) + a
     wp = 0.5 * (b - a) * wg
-    return xp.astype(np.float32), wp.astype(np.float32)
+    return xp.astype("float32"), wp.astype("float32")
 
 
-################################################################################
-# 2) CRPS for a single Normal(μ,σ) via known closed form
-#    CRPS(N(μ,σ), y) = σ * [ z(2Φ(z) - 1) + 2φ(z) - 1/√π ],
-#    where z = (y - μ) / (√2 σ).
-################################################################################
+##############################################################################
+# 2) Normal CDF with broadcast
+##############################################################################
+def normal_cdf(x, mu, sigma):
+    """
+    Compute Φ((x - mu)/(√2 * sigma)) with shapes broadcast as needed.
+    - x: [..., npts]
+    - mu, sigma: the same leading dims, plus possibly a trailing dim of 1
+    """
+    sigma = tf.maximum(sigma, 1e-12)
+    z = (x - mu) / (sigma * tf.sqrt(2.0))
+    return 0.5 * (1.0 + tf.math.erf(z))
+
+
+##############################################################################
+# 3) The main routine: pairwise cdf L1 distance
+#    Input:
+#      mu, sigma: shape [batch, M]
+#      xg, wg: shape [npts]
+#    Output shape: [batch, M, M]
+##############################################################################
+def l1_cdf_distance(mu, sigma, xg, wg):
+    """
+    Numerically approximate ∫|Φ_k(x) - Φ_j(x)| dx for each pair (k,j).
+    Return shape [batch, M, M].
+    """
+    # 1) Expand mu, sigma from [B, M] to [B, M, 1, 1] and [B, 1, M, 1]
+    #    so we get a final shape of [B, M, M, npts].
+    B = tf.shape(mu)[0]
+    M = tf.shape(mu)[1]
+
+    # Reshape each to 4D
+    mu1 = tf.reshape(mu, [B, M, 1, 1])  # shape (B,M,1,1)
+    mu2 = tf.reshape(mu, [B, 1, M, 1])  # shape (B,1,M,1)
+    s1 = tf.reshape(sigma, [B, M, 1, 1])
+    s2 = tf.reshape(sigma, [B, 1, M, 1])
+
+    # 2) Expand xg, wg to shape [1,1,1,npts]
+    x_expanded = tf.reshape(xg, [1, 1, 1, -1])  # => (1,1,1,npts)
+    w_expanded = tf.reshape(wg, [1, 1, 1, -1])  # => (1,1,1,npts)
+
+    # 3) Evaluate CDF for each pair k,j over the grid
+    cdf1 = normal_cdf(x_expanded, mu1, s1)  # => shape [B,M,M,npts]
+    cdf2 = normal_cdf(x_expanded, mu2, s2)
+
+    # 4) Integrate the absolute difference
+    diff = tf.abs(cdf1 - cdf2)  # [B,M,M,npts]
+    integrand = diff * w_expanded  # multiply by Gauss-Legendre weights
+
+    # 5) Sum over npts
+    return tf.reduce_sum(integrand, axis=-1)  # => shape [B,M,M]
+
+
+##############################################################################
+# 4) Single-component CRPS formula for Normal(μ,σ)
+##############################################################################
 def crps_normal(y, mu, sigma):
+    """
+    CRPS for a single Normal(μ,σ) vs. scalar y:
+      CRPS(N(μ,σ), y) = σ * [ z(2Φ(z) - 1) + 2φ(z) - 1/√π ],
+      where z = (y - μ)/(σ √2).
+    Shapes broadcast as [B, M] if y is [B,1].
+    """
     sigma = tf.maximum(sigma, 1e-12)
     z = (y - mu) / (sigma * tf.sqrt(2.0))
 
@@ -181,87 +238,46 @@ def crps_normal(y, mu, sigma):
     return sigma * (z * (2.0 * cdf_z - 1.0) + 2.0 * pdf_z - 1.0 / tf.sqrt(np.pi))
 
 
-################################################################################
-# 3) Numeric approximation of the L1 distance ∫ |Φk - Φj|.
-#    We'll do Gauss-Legendre quadrature over [tmin, tmax].
-################################################################################
-def normal_cdf(x, mu, sigma):
-    z = (x - mu) / (tf.maximum(sigma, 1e-12) * tf.sqrt(2.0))
-    return 0.5 * (1.0 + tf.math.erf(z))
-
-
-def l1_cdf_distance(mu1, sig1, mu2, sig2, xg, wg):
+##############################################################################
+# 5) Final MDN-CRPS loss
+##############################################################################
+def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.06, tmax=0.06):
     """
-    mu1, sig1, mu2, sig2: shape [batch, mix, mix]
-    xg, wg: Gauss-Legendre points and weights, shape [npts]
-    Returns ∫ |F1(x) - F2(x)| dx as [batch, mix, mix].
+    Mixture of Gaussians CRPS:
+      y_pred -> [batch, 3*num_mixtures], with
+        logits_pi = y_pred[:, :num_mixtures]
+        mu        = y_pred[:, num_mixtures:2*num_mixtures]
+        log_var   = y_pred[:, 2*num_mixtures:]
     """
-    # Expand xg to broadcast: shape (1,1,1,npts)
-    x_expanded = tf.reshape(xg, [1, 1, 1, -1])
-
-    # Evaluate cdfs at all pairs in one shot
-    cdf1 = normal_cdf(x_expanded, mu1, sig1)  # [batch, mix, mix, npts]
-    cdf2 = normal_cdf(x_expanded, mu2, sig2)
-
-    diff = tf.abs(cdf1 - cdf2)  # [batch, mix, mix, npts]
-
-    # Multiply by weights, sum over npts
-    # shape → [batch, mix, mix]
-    return tf.reduce_sum(diff * wg, axis=-1)
-
-
-################################################################################
-# 4) The final CRPS mixture loss:
-#      CRPS( ∑ πᵏ N(μᵏ,σᵏ) ) =
-#         ∑ πᵏ CRPS(Nᵏ, y)  -  0.5 ∑ₖ∑ⱼ πᵏπⱼ ∫ |Fᵏ - Fⱼ|.
-#    The second term is just a mixture-pair average of cdf differences.
-################################################################################
-def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08):
-    """
-    Returns a CRPS-based loss for univariate Gaussian mixture outputs.
-    y_pred is shape [batch, 3 * num_mixtures], split into:
-      logits_pi = y_pred[:, :num_mixtures]
-      mu        = y_pred[:, num_mixtures:2*num_mixtures]
-      log_var   = y_pred[:, 2*num_mixtures:]
-    """
-    # Precompute Gauss-Legendre points & weights once
-    xg_np, wg_np = gauss_legendre(npts, tmin, tmax)
-    # Convert to TF constants
-    xg_tf = tf.constant(xg_np, dtype=tf.float32)  # [npts]
-    wg_tf = tf.constant(wg_np, dtype=tf.float32)  # [npts]
+    # Precompute Gauss–Legendre points and weights just once
+    x_np, w_np = gauss_legendre(npts, tmin, tmax)
+    x_tf = tf.constant(x_np, dtype=tf.float32)
+    w_tf = tf.constant(w_np, dtype=tf.float32)
 
     def loss_fn(y_true, y_pred):
-        # Parse mixture parameters
-        logits_pi = y_pred[:, :num_mixtures]  # [batch, mix]
+        # 1) Parse mixture parameters
+        logits_pi = y_pred[:, :num_mixtures]  # [B, M]
         mu = y_pred[:, num_mixtures : 2 * num_mixtures]
         log_var = y_pred[:, 2 * num_mixtures :]
 
-        pi = tf.nn.softmax(logits_pi, axis=-1)  # [batch, mix]
-        sigma = tf.exp(0.5 * log_var)  # [batch, mix]
+        pi = tf.nn.softmax(logits_pi, axis=-1)  # [B, M]
+        sigma = tf.exp(0.5 * log_var)  # [B, M]
 
-        y = tf.expand_dims(y_true, axis=-1)  # [batch, 1]
+        # 2) Single mixture CRPS: sum_k pi_k * CRPS(N_k, y)
+        y_expanded = tf.expand_dims(y_true, axis=-1)  # [B,1]
+        crps_k = crps_normal(y_expanded, mu, sigma)  # [B, M]
+        term_single = tf.reduce_sum(pi * crps_k, axis=-1)  # [B]
 
-        # 1) Sum of single mixture CRPS
-        crps_single = crps_normal(y, mu, sigma)  # [batch, mix]
-        term1 = tf.reduce_sum(pi * crps_single, axis=-1)  # [batch]
+        # 3) Pairwise mixture part: 0.5 * sum_{k,j} pi_k pi_j * ∫|F_k - F_j|
+        l1_dist = l1_cdf_distance(mu, sigma, x_tf, w_tf)  # [B, M, M]
+        # broadcast pi -> [B, M, 1] and [B, 1, M]
+        pi_k = tf.expand_dims(pi, axis=2)  # [B, M, 1]
+        pi_j = tf.expand_dims(pi, axis=1)  # [B, 1, M]
+        term_pairwise = 0.5 * tf.reduce_sum(pi_k * pi_j * l1_dist, axis=[1, 2])
 
-        # 2) Pairwise cdf overlaps
-        # Expand to shape [batch, mix, mix] for mu, sigma, pi
-        mu1 = tf.expand_dims(mu, 2)  # [batch, mix, 1]
-        mu2 = tf.expand_dims(mu, 1)  # [batch, 1, mix]
-        sig1 = tf.expand_dims(sigma, 2)  # [batch, mix, 1]
-        sig2 = tf.expand_dims(sigma, 1)  # [batch, 1, mix]
-        pi1 = tf.expand_dims(pi, 2)  # [batch, mix, 1]
-        pi2 = tf.expand_dims(pi, 1)  # [batch, 1, mix]
+        crps_val = term_single - term_pairwise
 
-        l1_dist = l1_cdf_distance(mu1, sig1, mu2, sig2, xg_tf, wg_tf)
-        # Weighted sum
-        term2 = 0.5 * tf.reduce_sum(pi1 * pi2 * l1_dist, axis=[1, 2])
-
-        # Combine: CRPS = term1 - term2
-        crps_val = term1 - term2
-
-        # Optional penalty to keep pi near uniform
+        # 4) Optional penalty
         if add_pi_penalty:
             penalty = tf.reduce_sum((pi - 1.0 / num_mixtures) ** 2, axis=-1)
             crps_val += penalty

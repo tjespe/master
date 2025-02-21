@@ -3,11 +3,11 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "embedded-small"
+VERSION = "crps"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
 HIDDEN_UNITS = 20
-N_MIXTURES = 5
+N_MIXTURES = 3
 DROPOUT = 0.4
 EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -23,7 +23,7 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.loss import mdn_nll_numpy, mean_mdn_loss_numpy, mdn_nll_tf
+from shared.loss import mdn_nll_numpy, mean_mdn_loss_numpy, mdn_crps_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
 
@@ -146,7 +146,7 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+            "loss_fn": mdn_crps_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
@@ -154,7 +154,7 @@ if os.path.exists(model_fname):
     # Re-compile
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
     already_trained = True
@@ -175,37 +175,37 @@ weight_per_ticker = pd.Series(index=np.unique(data.train.tickers)).fillna(1)
 # %%
 def calculate_weight_per_ticker() -> pd.Series:
     """
-    Use the training NLL of each ticker to give more weights to series with poor NLL.
-    Also calculate quantiles for some of the stocks with the worst NLL and give even
+    Use the training loss of each ticker to give more weights to series with poor loss.
+    Also calculate quantiles for some of the stocks with the worst loss and give even
     higher weight to samples where the coverage does not match the confidence level.
     """
     print("Collecting garbage...")
     gc.collect()  # We need a lot of memory to make a prediction on the entire training set
-    ## Calculate NLL per ticker
-    print("Calculating NLL per ticker...")
+    ## Calculate loss per ticker
+    print("Calculating loss per ticker...")
     y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
     nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
     train_dates = np.array(data.train.dates)
     train_tickers = np.array(data.train.tickers)
-    nll_df = pd.DataFrame(
+    loss_df = pd.DataFrame(
         {
             "Date": train_dates,
             "Symbol": train_tickers,
-            "NLL": nlls,
+            "loss": nlls,
         }
     )
-    nll_per_ticker = nll_df.groupby("Symbol")["NLL"].mean().sort_values()
+    loss_per_ticker = loss_df.groupby("Symbol")["loss"].mean().sort_values()
     try:
-        display(nll_per_ticker)
+        display(loss_per_ticker)
     except:
-        print(nll_per_ticker)
+        print(loss_per_ticker)
 
-    ## Calculate weights based on NLL
-    print("Calculating weights based on NLL...")
+    ## Calculate weights based on loss
+    print("Calculating weights based on loss...")
     weight_best_nll = 0.1
     weight_worst_nll = 1
-    best_nll = nll_per_ticker.min()
-    underperformance_per_ticker = nll_per_ticker - best_nll
+    best_nll = loss_per_ticker.min()
+    underperformance_per_ticker = loss_per_ticker - best_nll
     underperformance_per_ticker = (
         underperformance_per_ticker / underperformance_per_ticker.max()
     )
@@ -218,7 +218,7 @@ def calculate_weight_per_ticker() -> pd.Series:
 
     ## Add extra weight to the worst performing tickers with the worst coverage
     print("Calculating coverage for worst tickers...")
-    worst_tickers = nll_per_ticker.tail(int(n_tickers / 10)).index
+    worst_tickers = loss_per_ticker.tail(int(n_tickers / 10)).index
     worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
     filtered_y_train_pred = y_train_pred[worst_ticker_mask]
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
@@ -292,7 +292,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
@@ -327,8 +327,19 @@ while True:
     weight_per_ticker = calculate_weight_per_ticker()
 
 # %%
-# 6) Save
+# 6) Save both current model and the model with the best validation loss
 lstm_mdn_model.save(model_fname)
+best_model = build_lstm_mdn(
+    lookback_days=LOOKBACK_DAYS,
+    num_features=data.train.X.shape[2],
+    dropout=DROPOUT,
+    n_mixtures=N_MIXTURES,
+    hidden_units=HIDDEN_UNITS,
+    embed_dim=EMBEDDING_DIMENSIONS,
+    ticker_ids_dim=data.ticker_ids_dim,
+)
+best_model.set_weights(best_model_weights)
+best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
 
 # %%
 # 7) Commit and push
@@ -480,8 +491,8 @@ df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
 
 # %%
-# Calculate NLL
-df_validation["NLL"] = mean_mdn_loss_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
+# Calculate loss
+df_validation["loss"] = mean_mdn_loss_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 
 # %%
 # Calculate CRPS (slow!)
