@@ -241,7 +241,7 @@ def crps_normal(y, mu, sigma):
 ##############################################################################
 # 5) Final MDN-CRPS loss
 ##############################################################################
-def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.06, tmax=0.06):
+def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08):
     """
     Mixture of Gaussians CRPS:
       y_pred -> [batch, 3*num_mixtures], with
