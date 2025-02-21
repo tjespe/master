@@ -3,13 +3,13 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "embedded"
+VERSION = "embedded-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = True
-HIDDEN_UNITS = 50
+HIDDEN_UNITS = 20
 N_MIXTURES = 50
-DROPOUT = 0.1
-EMBEDDING_DIMENSIONS = 8
+DROPOUT = 0.4
+EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -283,7 +283,7 @@ best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=5,  # number of epochs with no improvement to wait
+        patience=3,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
