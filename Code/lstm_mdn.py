@@ -3,9 +3,9 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "crps"
+VERSION = "crps-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
-PI_PENALTY = True
+PI_PENALTY = False
 HIDDEN_UNITS = 20
 N_MIXTURES = 3
 DROPOUT = 0.4
