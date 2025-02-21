@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def mdn_nll_numpy(num_mixtures):
+def mdn_loss_numpy(num_mixtures):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate) using NumPy.
     Output shape: (batch_size, 3*num_mixtures)
@@ -42,7 +42,7 @@ def mean_mdn_loss_numpy(num_mixtures):
     Output shape: (batch_size, 3*num_mixtures)
       => we parse [logits_pi, mu, log_var].
     """
-    unagged_loss_fn = mdn_nll_numpy(num_mixtures)
+    unagged_loss_fn = mdn_loss_numpy(num_mixtures)
 
     def loss_fn(y_true, y_pred):
         nll = unagged_loss_fn(y_true, y_pred)
@@ -110,7 +110,7 @@ def nll_loss_mean_and_vol(y_true, means, vols):
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
 
 
-def mdn_nll_tf(num_mixtures, add_pi_penalty=False):
+def mdn_loss_tf(num_mixtures, add_pi_penalty=False):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).
     Output shape: (batch_size, 3*num_mixtures)

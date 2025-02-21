@@ -24,7 +24,7 @@ from shared.mdn import (
     univariate_mixture_mean_and_var_approx,
 )
 from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mean_mdn_loss_numpy, mdn_nll_tf
+from shared.loss import mean_mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_old
 
@@ -126,21 +126,21 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "loss_fn": mdn_loss_tf(N_MIXTURES),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
     )
     print("Loaded pre-trained model from disk.")
 
 # %%
 # 5) Train
 # Start with one learning rate, then reduce
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
 history = lstm_mdn_model.fit(X_train, y_train, epochs=40, batch_size=32, verbose=1)
 
 # %%

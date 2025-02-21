@@ -23,7 +23,7 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.loss import mdn_nll_numpy, mean_mdn_loss_numpy, mdn_nll_tf
+from shared.loss import mdn_loss_numpy, mean_mdn_loss_numpy, mdn_loss_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
 
@@ -146,7 +146,7 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+            "loss_fn": mdn_loss_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
@@ -154,7 +154,7 @@ if os.path.exists(model_fname):
     # Re-compile
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
     already_trained = True
@@ -184,7 +184,7 @@ def calculate_weight_per_ticker() -> pd.Series:
     ## Calculate NLL per ticker
     print("Calculating NLL per ticker...")
     y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
-    nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
+    nlls = mdn_loss_numpy(N_MIXTURES)(data.train.y, y_train_pred)
     train_dates = np.array(data.train.dates)
     train_tickers = np.array(data.train.tickers)
     nll_df = pd.DataFrame(
@@ -292,7 +292,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_loss_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
