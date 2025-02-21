@@ -747,7 +747,15 @@ for metric in results_df.index:
         # Since picp_miss = target - picp, |picp - target| is equivalent.
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
-    elif metric in ["Correlation (vol. vs. errors)", "QL", "Sign Accuracy"]:
+    elif metric in [
+        "Correlation (vol. vs. errors)",
+        "QL",
+        "Sign Accuracy",
+        "UC Pass %",
+        "Ind Pass %",
+        "CC Pass %",
+        "CHR Pass %",
+    ]:
         # For these, higher is better.
         key = values
         ascending = False
