@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-def mdn_loss_numpy(num_mixtures):
+def mdn_nll_numpy(num_mixtures):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate) using NumPy.
     Output shape: (batch_size, 3*num_mixtures)
@@ -42,7 +42,7 @@ def mean_mdn_loss_numpy(num_mixtures):
     Output shape: (batch_size, 3*num_mixtures)
       => we parse [logits_pi, mu, log_var].
     """
-    unagged_loss_fn = mdn_loss_numpy(num_mixtures)
+    unagged_loss_fn = mdn_nll_numpy(num_mixtures)
 
     def loss_fn(y_true, y_pred):
         nll = unagged_loss_fn(y_true, y_pred)
@@ -110,7 +110,7 @@ def nll_loss_mean_and_vol(y_true, means, vols):
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
 
 
-def mdn_loss_tf(num_mixtures, add_pi_penalty=False):
+def mdn_nll_tf(num_mixtures, add_pi_penalty=False):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).
     Output shape: (batch_size, 3*num_mixtures)
@@ -144,5 +144,128 @@ def mdn_loss_tf(num_mixtures, add_pi_penalty=False):
             nll += pi_penalty
 
         return tf.reduce_mean(nll)
+
+    return loss_fn
+
+
+################################################################################
+# 1) Gauss-Legendre utility
+################################################################################
+def gauss_legendre(npts, a, b):
+    """
+    Returns the 1D Gauss-Legendre sample points (x) and weights (w)
+    for integrating on [a, b] with npts nodes.
+    We use np.polynomial.legendre.leggauss and transform from [-1,1] to [a,b].
+    """
+    # xg, wg for the standard interval [-1, 1]
+    xg, wg = np.polynomial.legendre.leggauss(npts)
+    # Transform to [a, b]
+    # x in [a,b], weight = (b-a)/2 * wg
+    xp = 0.5 * (b - a) * (xg + 1.0) + a
+    wp = 0.5 * (b - a) * wg
+    return xp.astype(np.float32), wp.astype(np.float32)
+
+
+################################################################################
+# 2) CRPS for a single Normal(μ,σ) via known closed form
+#    CRPS(N(μ,σ), y) = σ * [ z(2Φ(z) - 1) + 2φ(z) - 1/√π ],
+#    where z = (y - μ) / (√2 σ).
+################################################################################
+def crps_normal(y, mu, sigma):
+    sigma = tf.maximum(sigma, 1e-12)
+    z = (y - mu) / (sigma * tf.sqrt(2.0))
+
+    pdf_z = 1.0 / tf.sqrt(2.0 * np.pi) * tf.exp(-0.5 * z * z)
+    cdf_z = 0.5 * (1.0 + tf.math.erf(z))
+
+    return sigma * (z * (2.0 * cdf_z - 1.0) + 2.0 * pdf_z - 1.0 / tf.sqrt(np.pi))
+
+
+################################################################################
+# 3) Numeric approximation of the L1 distance ∫ |Φk - Φj|.
+#    We'll do Gauss-Legendre quadrature over [tmin, tmax].
+################################################################################
+def normal_cdf(x, mu, sigma):
+    z = (x - mu) / (tf.maximum(sigma, 1e-12) * tf.sqrt(2.0))
+    return 0.5 * (1.0 + tf.math.erf(z))
+
+
+def l1_cdf_distance(mu1, sig1, mu2, sig2, xg, wg):
+    """
+    mu1, sig1, mu2, sig2: shape [batch, mix, mix]
+    xg, wg: Gauss-Legendre points and weights, shape [npts]
+    Returns ∫ |F1(x) - F2(x)| dx as [batch, mix, mix].
+    """
+    # Expand xg to broadcast: shape (1,1,1,npts)
+    x_expanded = tf.reshape(xg, [1, 1, 1, -1])
+
+    # Evaluate cdfs at all pairs in one shot
+    cdf1 = normal_cdf(x_expanded, mu1, sig1)  # [batch, mix, mix, npts]
+    cdf2 = normal_cdf(x_expanded, mu2, sig2)
+
+    diff = tf.abs(cdf1 - cdf2)  # [batch, mix, mix, npts]
+
+    # Multiply by weights, sum over npts
+    # shape → [batch, mix, mix]
+    return tf.reduce_sum(diff * wg, axis=-1)
+
+
+################################################################################
+# 4) The final CRPS mixture loss:
+#      CRPS( ∑ πᵏ N(μᵏ,σᵏ) ) =
+#         ∑ πᵏ CRPS(Nᵏ, y)  -  0.5 ∑ₖ∑ⱼ πᵏπⱼ ∫ |Fᵏ - Fⱼ|.
+#    The second term is just a mixture-pair average of cdf differences.
+################################################################################
+def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08):
+    """
+    Returns a CRPS-based loss for univariate Gaussian mixture outputs.
+    y_pred is shape [batch, 3 * num_mixtures], split into:
+      logits_pi = y_pred[:, :num_mixtures]
+      mu        = y_pred[:, num_mixtures:2*num_mixtures]
+      log_var   = y_pred[:, 2*num_mixtures:]
+    """
+    # Precompute Gauss-Legendre points & weights once
+    xg_np, wg_np = gauss_legendre(npts, tmin, tmax)
+    # Convert to TF constants
+    xg_tf = tf.constant(xg_np, dtype=tf.float32)  # [npts]
+    wg_tf = tf.constant(wg_np, dtype=tf.float32)  # [npts]
+
+    def loss_fn(y_true, y_pred):
+        # Parse mixture parameters
+        logits_pi = y_pred[:, :num_mixtures]  # [batch, mix]
+        mu = y_pred[:, num_mixtures : 2 * num_mixtures]
+        log_var = y_pred[:, 2 * num_mixtures :]
+
+        pi = tf.nn.softmax(logits_pi, axis=-1)  # [batch, mix]
+        sigma = tf.exp(0.5 * log_var)  # [batch, mix]
+
+        y = tf.expand_dims(y_true, axis=-1)  # [batch, 1]
+
+        # 1) Sum of single mixture CRPS
+        crps_single = crps_normal(y, mu, sigma)  # [batch, mix]
+        term1 = tf.reduce_sum(pi * crps_single, axis=-1)  # [batch]
+
+        # 2) Pairwise cdf overlaps
+        # Expand to shape [batch, mix, mix] for mu, sigma, pi
+        mu1 = tf.expand_dims(mu, 2)  # [batch, mix, 1]
+        mu2 = tf.expand_dims(mu, 1)  # [batch, 1, mix]
+        sig1 = tf.expand_dims(sigma, 2)  # [batch, mix, 1]
+        sig2 = tf.expand_dims(sigma, 1)  # [batch, 1, mix]
+        pi1 = tf.expand_dims(pi, 2)  # [batch, mix, 1]
+        pi2 = tf.expand_dims(pi, 1)  # [batch, 1, mix]
+
+        l1_dist = l1_cdf_distance(mu1, sig1, mu2, sig2, xg_tf, wg_tf)
+        # Weighted sum
+        term2 = 0.5 * tf.reduce_sum(pi1 * pi2 * l1_dist, axis=[1, 2])
+
+        # Combine: CRPS = term1 - term2
+        crps_val = term1 - term2
+
+        # Optional penalty to keep pi near uniform
+        if add_pi_penalty:
+            penalty = tf.reduce_sum((pi - 1.0 / num_mixtures) ** 2, axis=-1)
+            crps_val += penalty
+
+        return tf.reduce_mean(crps_val)
 
     return loss_fn

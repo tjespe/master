@@ -12,7 +12,7 @@ from shared.mdn import (
 )
 from shared.processing import get_lstm_train_test_old
 from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mean_mdn_loss_numpy, mdn_loss_tf
+from shared.loss import mean_mdn_loss_numpy, mdn_nll_tf
 from shared.crps import crps_mdn_numpy
 from settings import (
     LOOKBACK_DAYS,
@@ -165,7 +165,7 @@ if os.path.exists(model_fname):
     transformer_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
@@ -175,7 +175,7 @@ if os.path.exists(model_fname):
 # %%
 # 5) Train
 transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-3, weight_decay=1e-5), loss=mdn_loss_tf(N_MIXTURES)
+    optimizer=Adam(learning_rate=1e-3, weight_decay=1e-5), loss=mdn_nll_tf(N_MIXTURES)
 )
 history = transformer_mdn_model.fit(
     X_train, y_train, epochs=10, batch_size=32, verbose=1
