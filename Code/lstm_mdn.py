@@ -23,7 +23,12 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.loss import mdn_nll_numpy, mdn_nll_tf, mean_mdn_loss_numpy, mdn_crps_tf
+from shared.loss import (
+    mdn_crps_tf,
+    mdn_nll_numpy,
+    mean_mdn_loss_numpy,
+    mean_mdn_crps_tf,
+)
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
 
@@ -146,7 +151,7 @@ if os.path.exists(model_fname):
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+            "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
@@ -154,7 +159,7 @@ if os.path.exists(model_fname):
     # Re-compile
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
     already_trained = True
@@ -292,7 +297,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
@@ -516,9 +521,9 @@ df_validation["Vol_SP"] = uni_mixture_std_sp
 df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 
 # %%
-# Calculate CRPS (slow!)
-# crps = crps_mdn_numpy(N_MIXTURES)
-# df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
+# Calculate CRPS
+crps = mdn_crps_tf(N_MIXTURES)
+df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 
 # %%
 # Add confidence intervals

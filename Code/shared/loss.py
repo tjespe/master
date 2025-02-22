@@ -282,6 +282,27 @@ def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.
             penalty = tf.reduce_sum((pi - 1.0 / num_mixtures) ** 2, axis=-1)
             crps_val += penalty
 
+        return crps_val
+
+    return loss_fn
+
+
+def mean_mdn_crps_tf(
+    num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08
+):
+    """
+    Mixture of Gaussians CRPS:
+      y_pred -> [batch, 3*num_mixtures], with
+        logits_pi = y_pred[:, :num_mixtures]
+        mu        = y_pred[:, num_mixtures:2*num_mixtures]
+        log_var   = y_pred[:, 2*num_mixtures:]
+    """
+    unagged_loss_fn = mdn_crps_tf(
+        num_mixtures, add_pi_penalty=add_pi_penalty, npts=npts, tmin=tmin, tmax=tmax
+    )
+
+    def loss_fn(y_true, y_pred):
+        crps_val = unagged_loss_fn(y_true, y_pred)
         return tf.reduce_mean(crps_val)
 
     return loss_fn
