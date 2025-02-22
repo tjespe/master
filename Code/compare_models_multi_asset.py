@@ -20,7 +20,7 @@ FILTER_ON_IMPORTANT_TICKERS = False
 
 # %%
 # Exclude uninteresting models
-EXCLUDE_MODELS = ["LSTM MDN fe", "LSTM MDN quick"]
+EXCLUDE_MODELS = []
 
 # %%
 import numpy as np
@@ -115,8 +115,12 @@ for version in [
     "pireg",
     "dynamic",
     # "dynamic-weighted",
-    "embedded",
+    # "embedded",
     "l2",
+    # "embedded-2",
+    "embedded-small",
+    # "crps",
+    # "crps-2",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -137,7 +141,9 @@ for version in [
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
-                "nll": np.nanmean(combined_df["NLL"].values),
+                "nll": np.nanmean(
+                    combined_df.get("NLL", combined_df.get("loss")).values
+                ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
