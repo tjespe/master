@@ -1,4 +1,4 @@
-,GARCH,LSTM MDN pireg,LSTM MDN dynamic,LSTM MDN l2,LSTM MDN embedded-small,LSTM MAF V2,LSTM MAF V3,LSTM MAF V4,LSTM MDN MAF Ensemble,Ensemble of everything
+,GARCH,LSTM MDN pireg,LSTM MDN dynamic,LSTM MDN l2,LSTM MDN embedded-small,LSTM MAF v2,LSTM MAF v3,LSTM MAF v4,LSTM MDN MAF Ensemble,Ensemble of everything
 PICP,6,9,5,7,10,8,4,3,1,2
 Mean width (MPIW),4,1,7,2,3,10,9,8,5,6
 Interval Score,7,3,5,1,9,6,10,8,2,4
