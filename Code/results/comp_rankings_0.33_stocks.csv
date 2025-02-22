@@ -1,0 +1,15 @@
+,GARCH,LSTM MDN pireg,LSTM MDN dynamic,LSTM MDN l2,LSTM MDN embedded-small,LSTM MAF v2,LSTM MAF v3,LSTM MAF v4,LSTM MDN MAF Ensemble,Ensemble of everything
+PICP,5,2,1,3,6,10,4,9,8,7
+Mean width (MPIW),5,2,4,1,3,10,9,8,7,6
+Interval Score,6,1,3,2,8,7,10,9,4,5
+Correlation (vol. vs. errors),9,6,8,2,10,4,7,5,1,3
+NLL,5,1,3,2,4,8,10,9,7,6
+QL,6,3,4,1,2,10,5,9,8,7
+CRPS,,,,,,,,,,
+Lopez Loss,2,9,7,10,8,1,5,6,4,3
+RMSE,2,3,1,4,8,7,10,9,5,6
+UC Pass %,3,1,4,2,6,10,5,9,8,7
+Ind Pass %,7,5,8,8,6,2,10,3,1,4
+CC Pass %,3,1,4,2,5,10,6,9,7,7
+CHR Pass %,3,1,4,2,5,10,6,9,8,7
+Rank Sum,56,35,51,39,71,89,87,94,68,68
