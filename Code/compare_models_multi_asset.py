@@ -7,12 +7,11 @@ from settings import (
     TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
 )
-from shared.crps import crps_loss_mean_and_vol
 from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.05
+CONFIDENCE_LEVEL = 0.01
 
 # %%
 # Select whether to only filter on important tickers
@@ -139,8 +138,12 @@ for version in [
                 "name": f"LSTM MDN {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
                 "nll": np.nanmean(
                     combined_df.get("NLL", combined_df.get("loss")).values
                 ),
@@ -171,8 +174,18 @@ for version in ["v2", "v3", "v4"]:
                 "name": f"LSTM MAF {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_50": combined_df["LB_50"].values,
+                "UB_50": combined_df["UB_50"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df["LB_90"].values,
+                "UB_90": combined_df["UB_90"].values,
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
+                "LB_97": combined_df["LB_97"].values,
+                "UB_97": combined_df["UB_97"].values,
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
                 "nll": np.nanmean(combined_df["NLL"].values),
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
@@ -662,7 +675,7 @@ results_df.loc["Winner", "Ind Pass %"] = results_df["Ind Pass %"].idxmax()
 results_df.loc["Winner", "CC Pass %"] = results_df["CC Pass %"].idxmax()
 results_df.loc["Winner", "CHR Pass %"] = results_df["CHR Pass %"].idxmax()
 results_df = results_df.T
-results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
+results_df.to_csv(f"results/comp_results_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
 results_df
 
 # %%
@@ -725,7 +738,7 @@ rankings_df
 
 # %%
 # Save rankings to CSV
-rankings_df.to_csv(f"results/comp_rankings{SUFFIX}.csv")
+rankings_df.to_csv(f"results/comp_rankings_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
 
 # %%
 # Analyze which sectors each model passes/fails for
