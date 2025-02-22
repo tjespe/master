@@ -3,11 +3,11 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "crps-2"
+VERSION = "nll-crps-mix"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 HIDDEN_UNITS = 20
-N_MIXTURES = 3
+N_MIXTURES = 5
 DROPOUT = 0.4
 EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -23,7 +23,7 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.loss import mdn_nll_numpy, mean_mdn_loss_numpy, mdn_crps_tf
+from shared.loss import mdn_nll_numpy, mdn_nll_tf, mean_mdn_loss_numpy, mdn_crps_tf
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
 
@@ -277,13 +277,13 @@ if already_trained:
 # %%
 # Train until validation loss stops decreasing
 increases_since_best = 0
-max_increases_since_best = 5
+max_increases_since_best = 0
 best_model_weights = lstm_mdn_model.get_weights()
 best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=3,  # number of epochs with no improvement to wait
+        patience=0,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
@@ -292,7 +292,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
@@ -325,6 +325,27 @@ while True:
         increases_since_best = 0
     histories.append(history)
     weight_per_ticker = calculate_weight_per_ticker()
+
+# %%
+# Train one epoch with CRPS loss
+print("Training one epoch with CRPS loss...")
+lstm_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+    loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+)
+history = lstm_mdn_model.fit(
+    [data.train.X, data.train_ticker_ids],
+    data.train.y,
+    epochs=1,
+    batch_size=32,
+    verbose=1,
+    validation_data=(
+        [data.validation.X, data.validation_ticker_ids],
+        data.validation.y,
+    ),
+    sample_weight=ticker_weights,
+)
+histories.append(history)
 
 # %%
 # 6) Save both current model and the model with the best validation loss
@@ -492,7 +513,7 @@ df_validation["Vol_SP"] = uni_mixture_std_sp
 
 # %%
 # Calculate loss
-df_validation["loss"] = mean_mdn_loss_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
+df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 
 # %%
 # Calculate CRPS (slow!)

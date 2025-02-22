@@ -30,7 +30,7 @@ def mdn_nll_numpy(num_mixtures):
         weighted_pdf = pi * normal_dist
         pdf_sum = np.sum(weighted_pdf, axis=1) + 1e-12  # avoid log(0)
 
-        nll = -np.log(pdf_sum)
+        nll: np.ndarray = -np.log(pdf_sum)
         return nll
 
     return loss_fn
