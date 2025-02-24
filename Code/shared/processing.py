@@ -125,7 +125,12 @@ class ProcessedData:
         return self._ticker_lookup.vocabulary_size()
 
 
-def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
+def get_lstm_train_test_new(
+    multiply_by_beta=False,
+    include_fng=False,
+    include_spx_data=False,
+    include_returns=False,
+) -> ProcessedData:
     """
     Prepare data for LSTM
     """
@@ -140,10 +145,29 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
     df
 
     # %%
-    # Join in the S&P 500 data
+    # Remove .O from the symbol names
+    df["Symbol"] = df["Symbol"].str.replace(r"\.O$", "", regex=True)
+    df
+
+    # %%
+    # Temporary: remove NaT date rows
+    df = df[~df["Date"].isnull()]
+    df
+
+    # %%
+    # Read the S&P 500 data
     spx_df = pd.read_csv("data/spx.csv")
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
+
+    # %%
+    # Temporary: filter away rows outside the S&P 500 data range
+    spx_end = spx_df.index[-1]
+    df = df[df["Date"] <= spx_end].copy()  # Copy to avoid SettingWithCopyWarning
+    df
+
+    # %%
+    # Join in the S&P 500 data
     df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values
     df[["Close", "Close_SPX"]]
 
@@ -164,7 +188,7 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
     df["SPX_MonthlyReturn"] = df["Close_SPX"] / df["Close_SPX"].shift(21) - 1
 
     # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
-    df = df[~df["LogReturn"].isnull()]
+    df = df[~df["LogReturn"].isnull()].copy()  # Copy to avoid SettingWithCopyWarning
 
     df["SquaredReturn"] = df["LogReturn"] ** 2
 
@@ -185,7 +209,7 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # Compute rolling beta for each stock
-    def compute_beta(g, window=251):
+    def compute_beta(g, window=251 * 5):
         g = g.reset_index().set_index("Date")
         rolling_df = g[["PctReturn", "SPX_PctReturn"]].rolling(
             window, min_periods=window
@@ -195,12 +219,11 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
             cov[("PctReturn", "SPX_PctReturn")]
             / cov[("SPX_PctReturn", "SPX_PctReturn")]
         )
-        g["Beta"] = beta
-        g = g.reset_index().set_index(["Date", "Symbol"])
-        return g
+        return beta
 
-    df = df.groupby("Symbol").apply(lambda g: compute_beta(g)).droplevel(0)
-    df["Beta"]
+    df["Beta_5y"] = df.groupby("Symbol").apply(lambda g: compute_beta(g)).values
+    df["Beta_60d"] = df.groupby("Symbol").apply(lambda g: compute_beta(g, 60)).values
+    df[["Beta_5y", "Beta_60d"]]
 
     # %%
     # Add more features:
@@ -234,7 +257,17 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
         # Remove extra level in the multi-index
         df = df.droplevel(0)
-        df
+    df
+
+    # %%
+    # If we are using the Dow Jones dataset, read in the realized volatility data
+    if DATA_PATH.startswith("data/dow_jones"):
+        capire_df = pd.read_csv(
+            "data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv"
+        )
+        capire_df["Date"] = pd.to_datetime(capire_df["Date"]).dt.date
+        capire_df.set_index(["Date", "Symbol"], inplace=True)
+        df = df.join(capire_df, how="left")
 
     # %%
     # Read RVOL data
@@ -261,20 +294,23 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # Filter away data we don't have RVOL data for
-    df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
-    df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
+    if include_spx_data:
+        df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
+        df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
     df
 
     # %%
     # Filter away data we don't have VIX data for
-    df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
-    df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
+    if include_spx_data:
+        df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
+        df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
     df
 
     # %%
     # Filter away data we don't have Fear & Greed Index data for
-    df = df[df.index.get_level_values("Date") >= fng_df.index[0]]
-    df = df[df.index.get_level_values("Date") <= fng_df.index[-1]]
+    if include_fng:
+        df = df[df.index.get_level_values("Date") >= fng_df.index[0]]
+        df = df[df.index.get_level_values("Date") <= fng_df.index[-1]]
     df
 
     # %%
@@ -293,7 +329,10 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # If we are looking at stocks, enrich with industry codes
-    if DATA_PATH.startswith("data/sp500_stocks"):
+    if DATA_PATH.startswith("data/sp500_stocks") or DATA_PATH.startswith(
+        "data/dow_jones"
+    ):
+        print("Adding industry codes")
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         df = df.join(meta_df, how="left", rsuffix="_META")
@@ -301,7 +340,9 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
         # Check for nans
         nan_mask = df[["GICS Sector"]].isnull().sum(axis=1).gt(0)
         nan_rows = df[nan_mask]
-        nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count()
+        print(
+            "NaNs:", nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count()
+        )
 
     # %%
     # Check for NaN values
@@ -312,7 +353,7 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
         "GARCH_Vol",
         "RVOL_Std",
         "DownsideVol",
-        "Beta",
+        "Beta_5y",
         "Skew_EWM",
         "Kurt_EWM",
     ]
@@ -322,23 +363,23 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
 
     # %%
     # Impute missing RVOL values using the last available value
-    df["Close_RVOL"] = df["Close_RVOL"].fillna(method="ffill")
-    df["RVOL_Std"] = df["RVOL_Std"].fillna(method="ffill")
+    df["Close_RVOL"] = df["Close_RVOL"].ffill()
+    df["RVOL_Std"] = df["RVOL_Std"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing VIX values using the last available value
-    df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
+    df["Close_VIX"] = df["Close_VIX"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing DownsideVol values using the last available value
-    df["DownsideVol"] = df["DownsideVol"].fillna(method="ffill")
+    df["DownsideVol"] = df["DownsideVol"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing Fear Greed values using the last available value
-    df["Fear Greed"] = df["Fear Greed"].fillna(method="ffill")
+    df["Fear Greed"] = df["Fear Greed"].ffill()
     df[["LogReturn", "Fear Greed"]].loc[nan_mask]
 
     # %%
@@ -346,6 +387,37 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
     dates = pd.to_datetime(df.index.get_level_values("Date"))
     df["NextDayTradingDay"] = dates.shift(1, freq="D").isin(dates)
     df["NextDayTradingDay"]
+
+    # %%
+    # If we use realized volatility data, remove rows outside range
+    if "RV" in df.columns:
+        rv_data = df[~df["RV"].isna()]
+        rv_min_date = rv_data.index.get_level_values("Date").min()
+        rv_max = rv_data.index.get_level_values("Date").max()
+        print(f"RV data range: {rv_min_date} - {rv_max}")
+        df = df[
+            (df.index.get_level_values("Date") >= rv_min_date)
+            & (df.index.get_level_values("Date") <= rv_max)
+        ]
+
+        important_cols += ["RV"]
+    df
+
+    # %%
+    # Check for missing beta values
+    beta_nan_df = df[df["Beta_5y"].isna()].reset_index()
+    beta_nans_per_day = beta_nan_df.groupby("Date")["Date"].count()
+    # for ticker in beta_nan_df["Symbol"].unique():
+    #     df.xs(ticker, level="Symbol")["Beta_5y"].plot(label=ticker + " beta")
+    # import matplotlib.pyplot as plt
+    # plt.legend()
+    # beta_nan_df.groupby("Symbol")["Symbol"].count()
+    beta_nans_per_day
+
+    # %%
+    # Remove rows with nan beta
+    df = df[~df["Beta_5y"].isna()]
+    df
 
     # %%
     # Check for NaN values
@@ -423,7 +495,8 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
         fear_greed = group["Fear Greed"].values.reshape(-1, 1) / 100
         fear_greed_1d = np.diff(fear_greed, axis=0, prepend=fear_greed[0, 0])
         fear_greed_7d = fear_greed - np.vstack([fear_greed[:7], fear_greed[:-7]])
-        beta = group["Beta"].values.reshape(-1, 1)
+        beta_5y = group["Beta_5y"].values.reshape(-1, 1)
+        beta_60d = group["Beta_60d"].values.reshape(-1, 1)
 
         # Find dates to split on
         dates = pd.to_datetime(group.index.get_level_values("Date"))
@@ -431,11 +504,26 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
         VALIDATION_TEST_SPLIT_index = len(group[dates < VALIDATION_TEST_SPLIT])
 
         # Stack returns and squared returns together
-        market_feature_factor = beta if multiply_by_beta else 1
+        market_feature_factor = beta_5y if multiply_by_beta else 1
         data = np.hstack(
             (
                 log_sq_returns,
                 sign_return,
+                # next_day_trading_day,
+                # downside_log_var,
+                beta_5y,
+                beta_60d,
+            )
+        )
+
+        if include_returns:
+            data = np.hstack(
+                data,
+                returns,
+            )
+
+        if include_spx_data:
+            data = np.hstack(
                 rvol * market_feature_factor,
                 rvol_change_1d * market_feature_factor,
                 rvol_change_2d * market_feature_factor,
@@ -443,17 +531,65 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
                 vix_change_1d * market_feature_factor,
                 vix_change_2d * market_feature_factor,
                 vix_change_7d * market_feature_factor,
-                next_day_trading_day * market_feature_factor,
                 rvol_std * market_feature_factor,
-                downside_log_var,
                 vix_rvol_diff * market_feature_factor,
-                returns,
-                fear_greed * market_feature_factor,
-                fear_greed_1d * 10 * market_feature_factor,
-                fear_greed_7d * 10 * market_feature_factor,
-                beta,
             )
-        )
+
+        if include_fng:
+            data = np.hstack(
+                (
+                    data,
+                    fear_greed * market_feature_factor,
+                    fear_greed_1d * 10 * market_feature_factor,
+                    fear_greed_7d * 10 * market_feature_factor,
+                )
+            )
+
+        # If we have RVOL data, add it as a feature
+        if "RV" in group.columns:
+            # 1) Variance-like measures: RV, BPV, Good, Bad (and their 5-min versions)
+            for key in ["RV", "BPV", "Good", "Bad", "RV_5", "BPV_5", "Good_5", "Bad_5"]:
+                # annualized variance in "percent^2" => convert to decimal => then daily
+                annual_var_pct2 = group[key].values.reshape(
+                    -1, 1
+                )  # e.g. 8.31 => 8.31%²
+                annual_var_decimal = annual_var_pct2 / 100.0  # => 0.0831
+                daily_var_decimal = annual_var_decimal / 252.0  # => daily variance
+                log_daily_var = np.log(
+                    daily_var_decimal + 1e-10
+                )  # small offset to avoid log(0)
+                data = np.hstack((data, log_daily_var))
+
+            # 2) Quarticity measures: RQ (and RQ_5)
+            for key in ["RQ", "RQ_5"]:
+                # annualized quarticity in "percent^4" => decimal => daily
+                annual_q_pct4 = group[key].values.reshape(-1, 1)  # e.g. 263 => 263%²
+                annual_q_decimal = annual_q_pct4 / (100.0**2)  # => 2.63 in decimal^2
+                data = np.hstack(
+                    (
+                        data,
+                        # Log for scale
+                        np.log(annual_q_decimal + 1e-12),
+                    )
+                )
+
+            # 3) Estimate realized skewness and kurtosis
+            daily_good_var = (group["Good"].values / 100) / 252.0
+            daily_bad_var = (group["Bad"].values / 100) / 252.0
+            daily_rv = (group["RV"].values / 100) / 252.0
+            daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+            daily_skew = (
+                (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
+            ).reshape(-1, 1)
+            daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
+
+            data = np.hstack(
+                (
+                    data,
+                    daily_skew / 100,
+                    daily_kurt / 10,
+                )
+            )
 
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
@@ -468,7 +604,14 @@ def get_lstm_train_test_new(multiply_by_beta=False) -> ProcessedData:
             log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
             garch_skewness = group["Skew_EWM"].values.reshape(-1, 1)
             garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
-            data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
+            data = np.hstack(
+                (
+                    data,
+                    log_sq_garch,
+                    garch_skewness,
+                    garch_kurtosis / 10,  # Divide by 10 to scale it down
+                )
+            )
 
         # Include relative high-low difference as a feature if available to indicate volatility
         if (
@@ -763,7 +906,7 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Impute missing RVOL values using the last available value
-    df["Close_RVOL"] = df["Close_RVOL"].fillna(method="ffill")
+    df["Close_RVOL"] = df["Close_RVOL"].ffill()
     df["RVOL_Std"] = df["RVOL_Std"].fillna(method="ffill")
     df[important_cols].loc[nan_mask]
 
