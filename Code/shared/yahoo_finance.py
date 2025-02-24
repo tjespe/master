@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-
+# %%
 dow_jones_tickers = [
     "AMZN",  # Amazon
     "AXP",  # American Express
@@ -70,4 +70,26 @@ dow_jones
 # %%
 # save to csv
 dow_jones.to_csv("../data/dow_jones_yahoo.csv")
+
+
+# %%
+# =============================================================================
+# S&P ==========================================
+# =============================================================================
+
+# %%
+# get the data from the S&P 500 index
+sp500 = yf.download("^GSPC", start="1927-12-30", end="2025-02-19", progress=False)
+sp500
+# %%
+sp500 = sp500.reset_index()
+sp500.columns = sp500.columns.droplevel(1)
+sp500
+# %%
+# set data as index
+sp500 = sp500.set_index("Date")
+sp500
+# %%
+# save to csv
+sp500.to_csv("../data/sp500_yahoo.csv")
 # %%
