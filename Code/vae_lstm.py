@@ -29,7 +29,8 @@ warnings.filterwarnings("ignore")
 from scipy.optimize import brentq
 from scipy.stats import norm
 
-# Import parameters
+# Example placeholders (replace with your real paths)
+# improt paprameters from settings.py
 from settings import LOOKBACK_DAYS, TEST_ASSET, SUFFIX
 
 VERSION = 1
@@ -203,6 +204,9 @@ print("Latent embeddings shape:")
 print(f"  Z_train: {Z_train.shape}")
 print(f"  Z_test:  {Z_test.shape}")
 
+#% % [markdown]
+# TDDO? 
+
 
 # %% [markdown]
 # # 4) Build LSTM predictor that takes latent samples (1 step)
@@ -265,7 +269,7 @@ def sample_latent_posterior(encoder, x, n_samples=100):
     return z_samples
 
 
-def predict_distribution(encoder, predictor, X, n_samples=100):
+def predict_distribution(encoder, predictor, X, n_samples=1000):
     """
     For each sample X[i], sample the posterior 'n_samples' times,
     feed each sample into the LSTM -> distribution of predictions.
@@ -300,7 +304,6 @@ y_std_test = y_dist_test.std(axis=1)
 # %% [markdown]
 # # 6) Save predictions in a DataFrame
 
-# In your real code, you'll have your actual test date index.
 test_dates = pd.date_range(start="2020-01-01", periods=len(X_test), freq="B")
 df_validation = pd.DataFrame(index=test_dates)
 
@@ -313,9 +316,6 @@ lower_q = 0.025
 upper_q = 0.975
 df_validation["Pred_LB_95"] = np.quantile(y_dist_test, lower_q, axis=1)
 df_validation["Pred_UB_95"] = np.quantile(y_dist_test, upper_q, axis=1)
-
-
-
 
 
 # %% [markdown]
@@ -332,15 +332,14 @@ def compute_nll(y_true, y_samples, eps=1e-12):
     """
     Compute Negative Log Likelihood (NLL) for VAE + LSTM.
     Uses Kernel Density Estimation (KDE) to approximate the probability density.
-
+    
     Arguments:
     - y_true: True values (shape: (batch,))
     - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
-   
+    
     Returns:
     - Mean NLL across all samples
     """
-
     B = y_true.shape[0]  # Batch size
     nlls = np.zeros(B)
 
@@ -350,12 +349,10 @@ def compute_nll(y_true, y_samples, eps=1e-12):
         # If variance is too low, assign a fallback probability
         if sample_var < 1e-8:  # Threshold to detect near-identical samples
             p_y = eps  # Assign a small probability to avoid log(0)
-
         else:
             try:
                 kde = gaussian_kde(y_samples[i])  # Estimate density from samples
                 p_y = kde(y_true[i])  # Evaluate density at the true value
-
             except np.linalg.LinAlgError:
                 p_y = eps  # In case KDE still fails, use a fallback small probability
 
@@ -371,11 +368,10 @@ def compute_crps(y_true, y_samples):
     Arguments:
     - y_true: True values (shape: (batch,))
     - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
-   
+    
     Returns:
     - CRPS values (shape: (batch,))
     """
-
     B = y_true.shape[0]  # Batch size
     crps_values = np.zeros(B)
 
@@ -405,7 +401,6 @@ def compute_confidence_intervals(y_samples, confidence_levels):
     Returns:
     - Array of shape (batch, len(confidence_levels), 2) containing lower and upper bounds.
     """
-
     num_levels = len(confidence_levels)
     num_samples = y_samples.shape[0]
 
@@ -421,9 +416,11 @@ def compute_confidence_intervals(y_samples, confidence_levels):
 
     return intervals
 
-# Compute NLL for the valitadtion set
-df_validation["NLL"] = compute_nll(y_test, y_dist_test)
-df_validation["CRPS"] = compute_crps(y_test, y_dist_test)
+
+
+# Compute NLL for the test set
+df_test["NLL"] = compute_nll(y_test, y_dist_test) 
+df_test["CRPS"] = compute_crps(y_test, y_dist_test)
 
 # Define confidence levels and compute confidence intervals from sampled predictions
 confidence_levels = [0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
@@ -431,8 +428,8 @@ intervals = compute_confidence_intervals(y_dist_test, confidence_levels)
 
 # Store in DataFrame
 for i, cl in enumerate(confidence_levels):
-    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]  # Lower bound
-    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]  # Upper bound
+    df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]  # Lower bound
+    df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]  # Upper bound
 
 
 # %% [markdown]
@@ -444,6 +441,9 @@ csv_fname = (
 df_validation.to_csv(csv_fname)
 
 df_validation.head()
+
+
+
 
 # %% [markdown]
 # ================================== GRAPHS ==================================
