@@ -3,11 +3,13 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-data"
+VERSION = "rv-data-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
-MU_PENALTY = True
+MU_PENALTY = False
 SIGMA_PENALTY = False
+INCLUDE_MARKET_FEATURES = True
+INCLUDE_RETURNS = True
 HIDDEN_UNITS = 20
 N_MIXTURES = 5
 DROPOUT = 0.4
@@ -67,7 +69,11 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
+data = get_lstm_train_test_new(
+    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+    include_returns=INCLUDE_RETURNS,
+    include_spx_data=INCLUDE_MARKET_FEATURES,
+)
 
 # %%
 # Garbage collection

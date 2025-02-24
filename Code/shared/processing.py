@@ -525,21 +525,25 @@ def get_lstm_train_test_new(
 
         if include_returns:
             data = np.hstack(
-                data,
-                returns,
+                (
+                    data,
+                    returns,
+                )
             )
 
         if include_spx_data:
             data = np.hstack(
-                rvol * market_feature_factor,
-                rvol_change_1d * market_feature_factor,
-                rvol_change_2d * market_feature_factor,
-                rvol_change_7d * market_feature_factor,
-                vix_change_1d * market_feature_factor,
-                vix_change_2d * market_feature_factor,
-                vix_change_7d * market_feature_factor,
-                rvol_std * market_feature_factor,
-                vix_rvol_diff * market_feature_factor,
+                (
+                    rvol * market_feature_factor,
+                    rvol_change_1d * market_feature_factor,
+                    rvol_change_2d * market_feature_factor,
+                    rvol_change_7d * market_feature_factor,
+                    vix_change_1d * market_feature_factor,
+                    vix_change_2d * market_feature_factor,
+                    vix_change_7d * market_feature_factor,
+                    rvol_std * market_feature_factor,
+                    vix_rvol_diff * market_feature_factor,
+                )
             )
 
         if include_fng:
