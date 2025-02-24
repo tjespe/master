@@ -16,6 +16,7 @@ from tensorflow.keras.layers import (
     RepeatVector,
     TimeDistributed,
 )
+
 from tensorflow.keras.optimizers import Adam
 import os
 import warnings
@@ -83,6 +84,7 @@ def build_vae_decoder(lookback_days, num_features, latent_dim):
     # Expand to (batch, 1, latent_dim), then repeat
     repeated_z = RepeatVector(lookback_days)(latent_inputs)
     x = LSTM(16, activation="tanh", return_sequences=True)(repeated_z)
+    x = Dropout(0.2)(x)  # TODO added afterwards to prevent overfitting (remove?)
     x = TimeDistributed(Dense(num_features, activation=None))(x)
 
     decoder = Model(latent_inputs, x, name="decoder")
@@ -91,7 +93,7 @@ def build_vae_decoder(lookback_days, num_features, latent_dim):
 
 # 2.1.3) VAE model with custom loss
 class VAE(tf.keras.Model):
-    def __init__(self, encoder, decoder, beta=1.0, **kwargs):
+    def __init__(self, encoder, decoder, beta=0.01, **kwargs): # TODO beta=1.0 earlier
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
@@ -113,10 +115,14 @@ class VAE(tf.keras.Model):
             z_mean, z_log_var, z = self.encoder(x, training=True)
             reconstructed = self.decoder(z, training=True)
 
-            # Reconstruction loss
-            reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(tf.square(x - reconstructed), axis=[1, 2])
-            )
+            # Reconstruction loss (OLD) # TODO: check if this is correct (original code new below)
+            # reconstruction_loss = tf.reduce_mean(
+            #     tf.reduce_sum(tf.square(x - reconstructed), axis=[1,2]) # TODO should this be axis=[1,2] or axis=1?
+            # )
+
+            # Reconstruction loss (NEW) TODO: check if this is correct
+            # Use mean squared error (MSE)
+            reconstruction_loss = tf.reduce_mean(tf.square(x - reconstructed))
 
             # KL divergence
             kl_loss = -0.5 * tf.reduce_mean(
@@ -137,7 +143,20 @@ class VAE(tf.keras.Model):
             "recon_loss": reconstruction_loss,
             "kl_loss": kl_loss,
         }
+    
 
+    def test_step(self, data): # TODO: check if this is correct (added afterwards)
+        x = data
+        z_mean, z_log_var, z = self.encoder(x, training=False)
+        reconstructed = self.decoder(z, training=False)
+
+        reconstruction_loss = tf.reduce_mean(tf.square(x - reconstructed))
+        kl_loss = -0.5 * tf.reduce_mean(
+            tf.reduce_sum(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var), axis=1)
+        )
+
+        total_loss = reconstruction_loss + self.beta * kl_loss
+        return {"loss": total_loss, "recon_loss": reconstruction_loss, "kl_loss": kl_loss}
 
 # %% [markdown]
 # # 2.2) Build & train the VAE
@@ -151,11 +170,21 @@ def dummy_loss(y_true, y_pred):
 
 encoder = build_vae_encoder(LOOKBACK_DAYS, num_features, latent_dim)
 decoder = build_vae_decoder(LOOKBACK_DAYS, num_features, latent_dim)
-vae = VAE(encoder, decoder, beta=1.0)
-vae.compile(optimizer=Adam(learning_rate=1e-3), loss=dummy_loss)
+vae = VAE(encoder, decoder, beta=0.01) # TODO beta=1.0 earlier
+vae.compile(optimizer=Adam(learning_rate=5e-4), loss=dummy_loss) # TODO: check if this is correct (earlier: learning_rate=1e-3)  
 
 # Fit (reconstruct input -> input)
-vae.fit(X_train, epochs=10, batch_size=32, validation_data=(X_test, X_test), verbose=1)
+vae.fit(X_train, epochs=3, batch_size=32, validation_data=(X_test, X_test), verbose=1)
+
+
+# %% [markdown] # TODO onbly for testing (REMOVE AFTER TESTING)
+from vae_lstm_HELPERS import plot_loss, visualize_latent_space, plot_reconstruction, compare_real_vs_generated
+
+# Use after training
+plot_loss(vae.history)  # Plot loss curves
+visualize_latent_space(encoder, X_test, method="PCA")  # Check latent space
+plot_reconstruction(vae, X_test, num_samples=5)  # Check reconstructions
+compare_real_vs_generated(encoder, decoder, X_test)  # Compare distributions
 
 
 # %% [markdown]
@@ -163,12 +192,8 @@ vae.fit(X_train, epochs=10, batch_size=32, validation_data=(X_test, X_test), ver
 
 
 def get_embeddings_from_vae(encoder, X):
-    """
-    Returns mean (z_mean) for each input in X.
-    If you prefer sampling, change to return z (the third output).
-    """
     z_mean, z_log_var, z_sample = encoder.predict(X, batch_size=32)
-    return z_sample  # shape: (batch_size, latent_dim)
+    return z_mean  # shape: (batch_size, latent_dim)
 
 
 Z_train = get_embeddings_from_vae(encoder, X_train)
@@ -210,7 +235,7 @@ latent_lstm.fit(
     Z_train_reshaped,
     y_train,
     validation_data=(Z_test_reshaped, y_test),
-    epochs=10,
+    epochs=3, # 10
     batch_size=32,
     verbose=1,
 )
@@ -289,6 +314,129 @@ upper_q = 0.975
 df_validation["Pred_LB_95"] = np.quantile(y_dist_test, lower_q, axis=1)
 df_validation["Pred_UB_95"] = np.quantile(y_dist_test, upper_q, axis=1)
 
+
+
+
+
+# %% [markdown]
+# Calulacte loss function values for the total distribution sampled from output of the model
+# =================================================================================================
+# ============================= MUST BE MOVED TO loss.py FILE ===================================
+# =================================================================================================
+
+from scipy.stats import gaussian_kde
+from scipy.stats import gaussian_kde
+import numpy as np
+
+def compute_nll(y_true, y_samples, eps=1e-12):
+    """
+    Compute Negative Log Likelihood (NLL) for VAE + LSTM.
+    Uses Kernel Density Estimation (KDE) to approximate the probability density.
+
+    Arguments:
+    - y_true: True values (shape: (batch,))
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+   
+    Returns:
+    - Mean NLL across all samples
+    """
+
+    B = y_true.shape[0]  # Batch size
+    nlls = np.zeros(B)
+
+    for i in range(B):
+        sample_var = np.var(y_samples[i])  # Check variance
+
+        # If variance is too low, assign a fallback probability
+        if sample_var < 1e-8:  # Threshold to detect near-identical samples
+            p_y = eps  # Assign a small probability to avoid log(0)
+
+        else:
+            try:
+                kde = gaussian_kde(y_samples[i])  # Estimate density from samples
+                p_y = kde(y_true[i])  # Evaluate density at the true value
+
+            except np.linalg.LinAlgError:
+                p_y = eps  # In case KDE still fails, use a fallback small probability
+
+        p_y = np.maximum(p_y, eps)  # Prevent log(0)
+        nlls[i] = -np.log(p_y)  # Compute NLL
+
+    return np.mean(nlls)  # Return mean NLL across batch
+
+def compute_crps(y_true, y_samples):
+    """
+    Compute CRPS (Continuous Ranked Probability Score) for VAE + LSTM.
+    
+    Arguments:
+    - y_true: True values (shape: (batch,))
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+   
+    Returns:
+    - CRPS values (shape: (batch,))
+    """
+
+    B = y_true.shape[0]  # Batch size
+    crps_values = np.zeros(B)
+
+    for i in range(B):
+        s = np.sort(y_samples[i])  # Sort the sample predictions
+        n = len(s)
+
+        # Compute empirical CDF of the samples
+        empirical_cdf = np.arange(1, n + 1) / n
+
+        # Find where the true value falls in the sorted sample set
+        indicator = (y_true[i] <= s).astype(float)
+
+        # Compute CRPS using the empirical formula
+        crps_values[i] = np.mean((empirical_cdf - indicator) ** 2)
+
+    return crps_values  # Returns array of shape (batch,)
+
+def compute_confidence_intervals(y_samples, confidence_levels):
+    """
+    Compute confidence intervals for different confidence levels from sampled predictions.
+
+    Arguments:
+    - y_samples: Sampled predictions from LSTM (shape: (batch, n_samples))
+    - confidence_levels: List of confidence levels (e.g., [0.67, 0.95, 0.975, 0.99])
+
+    Returns:
+    - Array of shape (batch, len(confidence_levels), 2) containing lower and upper bounds.
+    """
+
+    num_levels = len(confidence_levels)
+    num_samples = y_samples.shape[0]
+
+    intervals = np.zeros((num_samples, num_levels, 2))
+
+    for i, cl in enumerate(confidence_levels):
+        lower_q = (1 - cl) / 2  # Lower bound quantile
+        upper_q = 1 - lower_q   # Upper bound quantile
+
+        # Compute lower and upper bound for each sample
+        intervals[:, i, 0] = np.quantile(y_samples, lower_q, axis=1)
+        intervals[:, i, 1] = np.quantile(y_samples, upper_q, axis=1)
+
+    return intervals
+
+# Compute NLL for the valitadtion set
+df_validation["NLL"] = compute_nll(y_test, y_dist_test)
+df_validation["CRPS"] = compute_crps(y_test, y_dist_test)
+
+# Define confidence levels and compute confidence intervals from sampled predictions
+confidence_levels = [0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = compute_confidence_intervals(y_dist_test, confidence_levels)
+
+# Store in DataFrame
+for i, cl in enumerate(confidence_levels):
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]  # Lower bound
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]  # Upper bound
+
+
+# %% [markdown]
+# # 7) Save predictions to CSV and plot
 os.makedirs("predictions", exist_ok=True)
 csv_fname = (
     f"predictions/vae_lstm_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
@@ -298,6 +446,7 @@ df_validation.to_csv(csv_fname)
 df_validation.head()
 
 # %% [markdown]
+# ================================== GRAPHS ==================================
 # # 7) Plot predictions vs. actual
 
 import matplotlib.dates as mdates
