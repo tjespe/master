@@ -4,7 +4,7 @@ import numpy as np
 
 # %%
 # load the following data Code\data\dow_jones\processed_data\dow_jones_stocks_1990_to_today_19022025_cleaned.csv
-dow_jones_eikon = pd.read_csv("../data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv")
+dow_jones_eikon = pd.read_csv("../data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_v2.csv")
 dow_jones_yahoo = pd.read_csv("../data/dow_jones_yahoo.csv")
 
 # index both dataframes on the date and symbol
@@ -60,15 +60,15 @@ apple_merged
 pd.options.display.float_format = '{:.2f}'.format
 apple_merged
 
-# %%
-# make this the order of coloumns: Date, Close_e, Adjusted Close_y, High_e, High_y, Low_e, Low_y, Open_e, Open_y, Volume_e, Volume_y
-apple_merged = apple_merged[["Date", "Close_e", "Adjusted Close_y", "High_e", "High_y", "Low_e", "Low_y", "Open_e", "Open_y", "Volume_e", "Volume_y"]]
-# %%
-# print the dataframe and make it scrollable
-from IPython.display import display
-from IPython.display import HTML
+# # %%
+# # make this the order of coloumns: Date, Close_e, Adjusted Close_y, High_e, High_y, Low_e, Low_y, Open_e, Open_y, Volume_e, Volume_y
+# apple_merged = apple_merged[["Date", "Close_e", "Adjusted Close_y", "High_e", "High_y", "Low_e", "Low_y", "Open_e", "Open_y", "Volume_e", "Volume_y"]]
+# # %%
+# # print the dataframe and make it scrollable
+# from IPython.display import display
+# from IPython.display import HTML
 
-display(HTML(apple_merged.to_html(index=False)))
+# display(HTML(apple_merged.to_html(index=False)))
 # %%
 # Let's do all the same for "WMT"
 walmart_eikon = dow_jones_eikon.loc[(slice(None), "WMT"), :]
@@ -113,8 +113,8 @@ sum(nan_values.values())
 # make a dictionary with the keys and the number of nan values in the yahoo dataframe for that ticker as the value
 nan_values = {}
 for ticker in dow_jones_yahoo.index.get_level_values("Symbol").unique():
-    data = dow_jones_eikon.loc[(slice(None), ticker), :]
-    nan_values[ticker] = data["Date"].isna().sum()
+    data = dow_jones_yahoo.loc[(slice(None), ticker), :]
+    nan_values[ticker] = data.index.get_level_values("Date").isna().sum()
 
 # print the dictionary
 nan_values
