@@ -317,7 +317,7 @@ model.eval()
 np.random.seed(42)
 
 
-example_tickers = ["GOOG", "AON", "WMT"] # change these based on data
+example_tickers = ["AAPL", "GS", "WMT"] # change these based on data
 
 # %%
 # Print smooted distributions
