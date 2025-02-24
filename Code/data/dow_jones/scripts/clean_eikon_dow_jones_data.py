@@ -185,6 +185,6 @@ df_final = df_final.sort_values(by=["Symbol", "Date"], ascending=[True, True])
 # %%
 df_final
 # %% Save the final DataFrame to a CSV file
-df_final.to_csv("data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_v2.csv", index=False)
+df_final.to_csv("data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv", index=False)
 
 # %%
