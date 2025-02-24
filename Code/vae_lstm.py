@@ -16,6 +16,7 @@ from tensorflow.keras.layers import (
     RepeatVector,
     TimeDistributed,
 )
+
 from tensorflow.keras.optimizers import Adam
 import os
 import warnings
@@ -84,6 +85,7 @@ def build_vae_decoder(lookback_days, num_features, latent_dim):
     # Expand to (batch, 1, latent_dim), then repeat
     repeated_z = RepeatVector(lookback_days)(latent_inputs)
     x = LSTM(16, activation="tanh", return_sequences=True)(repeated_z)
+    x = Dropout(0.2)(x)  # TODO added afterwards to prevent overfitting (remove?)
     x = TimeDistributed(Dense(num_features, activation=None))(x)
 
     decoder = Model(latent_inputs, x, name="decoder")
@@ -92,7 +94,7 @@ def build_vae_decoder(lookback_days, num_features, latent_dim):
 
 # 2.1.3) VAE model with custom loss
 class VAE(tf.keras.Model):
-    def __init__(self, encoder, decoder, beta=1.0, **kwargs):
+    def __init__(self, encoder, decoder, beta=0.01, **kwargs): # TODO beta=1.0 earlier
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
@@ -114,10 +116,14 @@ class VAE(tf.keras.Model):
             z_mean, z_log_var, z = self.encoder(x, training=True)
             reconstructed = self.decoder(z, training=True)
 
-            # Reconstruction loss
-            reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(tf.square(x - reconstructed), axis=[1, 2])
-            )
+            # Reconstruction loss (OLD) # TODO: check if this is correct (original code new below)
+            # reconstruction_loss = tf.reduce_mean(
+            #     tf.reduce_sum(tf.square(x - reconstructed), axis=[1,2]) # TODO should this be axis=[1,2] or axis=1?
+            # )
+
+            # Reconstruction loss (NEW) TODO: check if this is correct
+            # Use mean squared error (MSE)
+            reconstruction_loss = tf.reduce_mean(tf.square(x - reconstructed))
 
             # KL divergence
             kl_loss = -0.5 * tf.reduce_mean(
@@ -138,7 +144,20 @@ class VAE(tf.keras.Model):
             "recon_loss": reconstruction_loss,
             "kl_loss": kl_loss,
         }
+    
 
+    def test_step(self, data): # TODO: check if this is correct (added afterwards)
+        x = data
+        z_mean, z_log_var, z = self.encoder(x, training=False)
+        reconstructed = self.decoder(z, training=False)
+
+        reconstruction_loss = tf.reduce_mean(tf.square(x - reconstructed))
+        kl_loss = -0.5 * tf.reduce_mean(
+            tf.reduce_sum(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var), axis=1)
+        )
+
+        total_loss = reconstruction_loss + self.beta * kl_loss
+        return {"loss": total_loss, "recon_loss": reconstruction_loss, "kl_loss": kl_loss}
 
 # %% [markdown]
 # # 2.2) Build & train the VAE
@@ -152,11 +171,21 @@ def dummy_loss(y_true, y_pred):
 
 encoder = build_vae_encoder(LOOKBACK_DAYS, num_features, latent_dim)
 decoder = build_vae_decoder(LOOKBACK_DAYS, num_features, latent_dim)
-vae = VAE(encoder, decoder, beta=1.0)
-vae.compile(optimizer=Adam(learning_rate=1e-3), loss=dummy_loss)
+vae = VAE(encoder, decoder, beta=0.01) # TODO beta=1.0 earlier
+vae.compile(optimizer=Adam(learning_rate=5e-4), loss=dummy_loss) # TODO: check if this is correct (earlier: learning_rate=1e-3)  
 
 # Fit (reconstruct input -> input)
-vae.fit(X_train, epochs=10, batch_size=32, validation_data=(X_test, X_test), verbose=1)
+vae.fit(X_train, epochs=3, batch_size=32, validation_data=(X_test, X_test), verbose=1)
+
+
+# %% [markdown] # TODO onbly for testing (REMOVE AFTER TESTING)
+from vae_lstm_HELPERS import plot_loss, visualize_latent_space, plot_reconstruction, compare_real_vs_generated
+
+# Use after training
+plot_loss(vae.history)  # Plot loss curves
+visualize_latent_space(encoder, X_test, method="PCA")  # Check latent space
+plot_reconstruction(vae, X_test, num_samples=5)  # Check reconstructions
+compare_real_vs_generated(encoder, decoder, X_test)  # Compare distributions
 
 
 # %% [markdown]
@@ -210,7 +239,7 @@ latent_lstm.fit(
     Z_train_reshaped,
     y_train,
     validation_data=(Z_test_reshaped, y_test),
-    epochs=10,
+    epochs=3, # 10
     batch_size=32,
     verbose=1,
 )
@@ -294,8 +323,8 @@ df_validation["Pred_UB_95"] = np.quantile(y_dist_test, upper_q, axis=1)
 # =================================================================================================
 # ============================= MUST BE MOVED TO loss.py FILE ===================================
 # =================================================================================================
-from scipy.stats import gaussian_kde
 
+from scipy.stats import gaussian_kde
 from scipy.stats import gaussian_kde
 import numpy as np
 
@@ -331,7 +360,6 @@ def compute_nll(y_true, y_samples, eps=1e-12):
         nlls[i] = -np.log(p_y)  # Compute NLL
 
     return np.mean(nlls)  # Return mean NLL across batch
-
 
 def compute_crps(y_true, y_samples):
     """
@@ -418,6 +446,7 @@ df_validation.head()
 
 
 # %% [markdown]
+# ================================== GRAPHS ==================================
 # # 7) Plot predictions vs. actual
 
 import matplotlib.dates as mdates

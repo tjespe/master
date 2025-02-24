@@ -1,0 +1,627 @@
+Fetching data from 1990-01-01 to 1990-04-01...
+2025-02-19 11:57:38,175 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:38,176 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:38,176 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:38,177 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:38,177 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1990-04-01 to 1990-07-01...
+2025-02-19 11:57:39,155 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:39,155 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:39,156 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:39,156 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:39,157 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1990-07-01 to 1990-10-01...
+2025-02-19 11:57:39,623 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:39,624 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:39,624 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:39,624 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:39,625 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1990-10-01 to 1991-01-01...
+2025-02-19 11:57:40,086 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:40,086 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:40,087 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:40,087 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:40,088 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1991-01-01 to 1991-04-01...
+2025-02-19 11:57:52,410 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:52,411 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:52,412 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:52,412 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:52,413 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 1991-04-01 to 1991-07-01...
+2025-02-19 11:57:52,948 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:52,949 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:52,949 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:52,950 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:52,950 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1991-07-01 to 1991-10-01...
+2025-02-19 11:57:53,522 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:53,522 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:53,523 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:53,523 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:53,523 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1991-10-01 to 1992-01-01...
+2025-02-19 11:57:53,995 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:53,995 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:53,995 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:53,996 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:53,996 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1992-01-01 to 1992-04-01...
+2025-02-19 11:57:54,422 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:54,422 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:54,423 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:54,423 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:54,423 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1992-04-01 to 1992-07-01...
+2025-02-19 11:57:54,923 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:54,923 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:54,924 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:54,924 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:54,924 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1992-07-01 to 1992-10-01...
+2025-02-19 11:57:55,283 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:55,284 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:55,284 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:55,284 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:55,285 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1992-10-01 to 1993-01-01...
+2025-02-19 11:57:55,676 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:55,676 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:55,677 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:55,677 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:55,677 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1993-01-01 to 1993-04-01...
+2025-02-19 11:57:57,455 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:57,455 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:57,455 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:57,456 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:57,456 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1993-04-01 to 1993-07-01...
+2025-02-19 11:57:57,851 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:57,852 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:57,852 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:57,853 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:57,853 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1993-07-01 to 1993-10-01...
+2025-02-19 11:57:59,292 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:59,293 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:59,293 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:59,294 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:59,294 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1993-10-01 to 1994-01-01...
+2025-02-19 11:57:59,795 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:57:59,796 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:57:59,796 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:57:59,796 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:57:59,796 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1994-01-01 to 1994-04-01...
+2025-02-19 11:58:00,313 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:00,313 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:00,314 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:00,314 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:00,314 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1994-04-01 to 1994-07-01...
+2025-02-19 11:58:00,825 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:00,825 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:00,825 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:00,826 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:00,826 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1994-07-01 to 1994-10-01...
+2025-02-19 11:58:01,214 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:01,214 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:01,215 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:01,215 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:01,215 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1994-10-01 to 1995-01-01...
+2025-02-19 11:58:01,745 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:01,746 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:01,746 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:01,746 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:01,747 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1995-01-01 to 1995-04-01...
+2025-02-19 11:58:02,358 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:02,359 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:02,359 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:02,360 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:02,360 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1995-04-01 to 1995-07-01...
+2025-02-19 11:58:02,948 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:02,949 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:02,949 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:02,949 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:02,950 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1995-07-01 to 1995-10-01...
+2025-02-19 11:58:04,612 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:04,612 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:04,612 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:04,613 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:04,613 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1995-10-01 to 1996-01-01...
+2025-02-19 11:58:05,177 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:05,177 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:05,178 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:05,178 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:05,178 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 1996-01-01 to 1996-04-01...
+2025-02-19 11:58:05,683 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:05,684 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:05,684 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:05,685 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:05,685 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1996-04-01 to 1996-07-01...
+2025-02-19 11:58:06,335 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:06,335 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:06,336 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:06,336 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:06,337 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1996-07-01 to 1996-10-01...
+2025-02-19 11:58:08,787 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:08,787 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:08,787 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:08,787 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:08,789 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1996-10-01 to 1997-01-01...
+2025-02-19 11:58:09,617 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:09,618 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:09,618 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:09,619 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:09,619 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1997-01-01 to 1997-04-01...
+2025-02-19 11:58:10,136 P[1804] [MainThread 14676] Error with AMZN.O: No data available for the requested date range
+2025-02-19 11:58:10,137 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:10,137 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:10,137 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:10,138 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 1997-04-01 to 1997-07-01...
+2025-02-19 11:58:10,718 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:10,718 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:10,719 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:10,719 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 1997-07-01 to 1997-10-01...
+2025-02-19 11:58:11,222 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:11,223 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:11,223 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:11,223 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 65 rows
+Fetching data from 1997-10-01 to 1998-01-01...
+2025-02-19 11:58:11,717 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:11,718 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:11,718 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:11,718 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1998-01-01 to 1998-04-01...
+2025-02-19 11:58:12,227 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:12,228 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:12,228 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:12,228 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 1998-04-01 to 1998-07-01...
+2025-02-19 11:58:12,732 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:12,732 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:12,733 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:12,733 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1998-07-01 to 1998-10-01...
+2025-02-19 11:58:13,227 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:13,228 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:13,229 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:13,229 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 65 rows
+Fetching data from 1998-10-01 to 1999-01-01...
+2025-02-19 11:58:13,783 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:13,783 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:13,784 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:13,784 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 64 rows
+Fetching data from 1999-01-01 to 1999-04-01...
+2025-02-19 11:58:14,290 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:14,291 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:14,291 P[1804] [MainThread 14676] Error with GS: No data available for the requested date range
+2025-02-19 11:58:14,292 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 1999-04-01 to 1999-07-01...
+2025-02-19 11:58:14,824 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:14,824 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:14,825 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 1999-07-01 to 1999-10-01...
+2025-02-19 11:58:15,194 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:15,195 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:15,196 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 65 rows
+Fetching data from 1999-10-01 to 2000-01-01...
+2025-02-19 11:58:15,815 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:15,816 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:15,816 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2000-01-01 to 2000-04-01...
+2025-02-19 11:58:18,965 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:18,965 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:18,966 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2000-04-01 to 2000-07-01...
+2025-02-19 11:58:20,424 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:20,424 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:20,425 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2000-07-01 to 2000-10-01...
+2025-02-19 11:58:21,026 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:21,027 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:21,027 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 63 rows
+Fetching data from 2000-10-01 to 2001-01-01...
+2025-02-19 11:58:21,628 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:21,629 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:21,629 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 63 rows
+Fetching data from 2001-01-01 to 2001-04-01...
+2025-02-19 11:58:22,135 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:22,135 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:22,136 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2001-04-01 to 2001-07-01...
+2025-02-19 11:58:26,506 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:26,507 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:26,507 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2001-07-01 to 2001-10-01...
+2025-02-19 11:58:27,174 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:27,175 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:27,175 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 60 rows
+Fetching data from 2001-10-01 to 2002-01-01...
+2025-02-19 11:58:28,023 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:28,023 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:28,024 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2002-01-01 to 2002-04-01...
+2025-02-19 11:58:28,803 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:28,804 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:28,804 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 61 rows
+Fetching data from 2002-04-01 to 2002-07-01...
+2025-02-19 11:58:30,220 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:30,221 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:30,221 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2002-07-01 to 2002-10-01...
+2025-02-19 11:58:30,879 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:30,879 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:30,880 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2002-10-01 to 2003-01-01...
+2025-02-19 11:58:31,403 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:31,404 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:31,404 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2003-01-01 to 2003-04-01...
+2025-02-19 11:58:31,887 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:31,888 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:31,888 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2003-04-01 to 2003-07-01...
+2025-02-19 11:58:32,390 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:32,391 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:32,391 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2003-07-01 to 2003-10-01...
+2025-02-19 11:58:33,210 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:33,211 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:33,211 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2003-10-01 to 2004-01-01...
+2025-02-19 11:58:33,730 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:33,730 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:33,731 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2004-01-01 to 2004-04-01...
+2025-02-19 11:58:34,301 P[1804] [MainThread 14676] Error with CRM: No data available for the requested date range
+2025-02-19 11:58:34,301 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:34,302 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2004-04-01 to 2004-07-01...
+2025-02-19 11:58:36,237 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:36,238 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2004-07-01 to 2004-10-01...
+2025-02-19 11:58:36,876 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:36,877 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2004-10-01 to 2005-01-01...
+2025-02-19 11:58:37,690 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:37,690 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 64 rows
+Fetching data from 2005-01-01 to 2005-04-01...
+2025-02-19 11:58:38,280 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:38,281 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 62 rows
+Fetching data from 2005-04-01 to 2005-07-01...
+2025-02-19 11:58:38,818 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:38,819 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 65 rows
+Fetching data from 2005-07-01 to 2005-10-01...
+2025-02-19 11:58:39,270 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:39,271 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2005-10-01 to 2006-01-01...
+2025-02-19 11:58:39,998 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:39,999 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 63 rows
+Fetching data from 2006-01-01 to 2006-04-01...
+2025-02-19 11:58:40,537 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:40,537 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 62 rows
+Fetching data from 2006-04-01 to 2006-07-01...
+2025-02-19 11:58:41,174 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:41,174 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 63 rows
+Fetching data from 2006-07-01 to 2006-10-01...
+2025-02-19 11:58:41,749 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:41,750 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2006-10-01 to 2007-01-01...
+2025-02-19 11:58:42,380 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:42,380 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2007-01-01 to 2007-04-01...
+2025-02-19 11:58:42,887 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:42,887 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 61 rows
+Fetching data from 2007-04-01 to 2007-07-01...
+2025-02-19 11:58:43,367 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:43,368 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2007-07-01 to 2007-10-01...
+2025-02-19 11:58:43,852 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:43,853 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 64 rows
+Fetching data from 2007-10-01 to 2008-01-01...
+2025-02-19 11:58:44,396 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+2025-02-19 11:58:44,396 P[1804] [MainThread 14676] Error with V: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2008-01-01 to 2008-04-01...
+2025-02-19 11:58:44,862 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 62 rows
+Fetching data from 2008-04-01 to 2008-07-01...
+2025-02-19 11:58:56,864 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2008-07-01 to 2008-10-01...
+2025-02-19 11:58:57,596 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 65 rows
+Fetching data from 2008-10-01 to 2009-01-01...
+2025-02-19 11:59:02,263 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1056:RuntimeWarning: invalid value encountered in cast
+C:\Users\kngrude\AppData\Roaming\Python\Python312\site-packages\pandas\core\dtypes\cast.py:1080:RuntimeWarning: invalid value encountered in cast
+    ✅ Data retrieved: 64 rows
+Fetching data from 2009-01-01 to 2009-04-01...
+2025-02-19 11:59:02,944 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2009-04-01 to 2009-07-01...
+2025-02-19 11:59:03,812 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2009-07-01 to 2009-10-01...
+2025-02-19 11:59:04,354 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2009-10-01 to 2010-01-01...
+2025-02-19 11:59:05,162 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2010-01-01 to 2010-04-01...
+2025-02-19 11:59:05,833 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2010-04-01 to 2010-07-01...
+2025-02-19 11:59:06,331 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2010-07-01 to 2010-10-01...
+2025-02-19 11:59:06,928 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2010-10-01 to 2011-01-01...
+2025-02-19 11:59:07,449 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2011-01-01 to 2011-04-01...
+2025-02-19 11:59:08,076 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2011-04-01 to 2011-07-01...
+2025-02-19 11:59:09,333 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2011-07-01 to 2011-10-01...
+2025-02-19 11:59:10,341 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2011-10-01 to 2012-01-01...
+2025-02-19 11:59:18,631 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2012-01-01 to 2012-04-01...
+2025-02-19 11:59:34,793 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2012-04-01 to 2012-07-01...
+2025-02-19 11:59:35,401 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2012-07-01 to 2012-10-01...
+2025-02-19 11:59:39,560 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2012-10-01 to 2013-01-01...
+2025-02-19 11:59:40,325 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2013-01-01 to 2013-04-01...
+2025-02-19 11:59:52,794 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 61 rows
+Fetching data from 2013-04-01 to 2013-07-01...
+2025-02-19 11:59:53,366 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2013-07-01 to 2013-10-01...
+2025-02-19 11:59:58,480 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2013-10-01 to 2014-01-01...
+2025-02-19 11:59:59,091 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2014-01-01 to 2014-04-01...
+2025-02-19 11:59:59,721 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2014-04-01 to 2014-07-01...
+2025-02-19 12:00:00,650 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2014-07-01 to 2014-10-01...
+2025-02-19 12:00:01,627 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2014-10-01 to 2015-01-01...
+2025-02-19 12:00:02,497 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2015-01-01 to 2015-04-01...
+2025-02-19 12:00:03,963 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2015-04-01 to 2015-07-01...
+2025-02-19 12:00:05,184 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2015-07-01 to 2015-10-01...
+2025-02-19 12:00:05,810 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2015-10-01 to 2016-01-01...
+2025-02-19 12:00:06,769 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2016-01-01 to 2016-04-01...
+2025-02-19 12:00:07,794 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2016-04-01 to 2016-07-01...
+2025-02-19 12:00:08,613 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 65 rows
+Fetching data from 2016-07-01 to 2016-10-01...
+2025-02-19 12:00:09,468 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2016-10-01 to 2017-01-01...
+2025-02-19 12:00:10,092 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2017-01-01 to 2017-04-01...
+2025-02-19 12:00:10,664 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 62 rows
+Fetching data from 2017-04-01 to 2017-07-01...
+2025-02-19 12:00:12,377 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2017-07-01 to 2017-10-01...
+2025-02-19 12:00:13,096 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2017-10-01 to 2018-01-01...
+2025-02-19 12:00:15,042 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2018-01-01 to 2018-04-01...
+2025-02-19 12:00:15,661 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 61 rows
+Fetching data from 2018-04-01 to 2018-07-01...
+2025-02-19 12:00:16,301 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2018-07-01 to 2018-10-01...
+2025-02-19 12:00:17,088 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 64 rows
+Fetching data from 2018-10-01 to 2019-01-01...
+2025-02-19 12:00:17,646 P[1804] [MainThread 14676] Error with DOW: No data available for the requested date range
+    ✅ Data retrieved: 63 rows
+Fetching data from 2019-01-01 to 2019-04-01...
+    ✅ Data retrieved: 62 rows
+Fetching data from 2019-04-01 to 2019-07-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2019-07-01 to 2019-10-01...
+    ✅ Data retrieved: 65 rows
+Fetching data from 2019-10-01 to 2020-01-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2020-01-01 to 2020-04-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2020-04-01 to 2020-07-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2020-07-01 to 2020-10-01...
+    ✅ Data retrieved: 65 rows
+Fetching data from 2020-10-01 to 2021-01-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2021-01-01 to 2021-04-01...
+    ✅ Data retrieved: 62 rows
+Fetching data from 2021-04-01 to 2021-07-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2021-07-01 to 2021-10-01...
+    ✅ Data retrieved: 65 rows
+Fetching data from 2021-10-01 to 2022-01-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2022-01-01 to 2022-04-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2022-04-01 to 2022-07-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2022-07-01 to 2022-10-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2022-10-01 to 2023-01-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2023-01-01 to 2023-04-01...
+    ✅ Data retrieved: 62 rows
+Fetching data from 2023-04-01 to 2023-07-01...
+    ✅ Data retrieved: 62 rows
+Fetching data from 2023-07-01 to 2023-10-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2023-10-01 to 2024-01-01...
+    ✅ Data retrieved: 63 rows
+Fetching data from 2024-01-01 to 2024-04-01...
+    ✅ Data retrieved: 62 rows
+Fetching data from 2024-04-01 to 2024-07-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2024-07-01 to 2024-10-01...
+    ✅ Data retrieved: 65 rows
+Fetching data from 2024-10-01 to 2025-01-01...
+    ✅ Data retrieved: 64 rows
+Fetching data from 2025-01-01 to 2025-02-19...
+    ✅ Data retrieved: 31 rows
