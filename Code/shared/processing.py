@@ -167,6 +167,13 @@ def get_lstm_train_test_new(
     df
 
     # %%
+    # Temporary: remove October 25th 2003
+    df = df[~df["Date"].astype(str).str.startswith("2003-10-25")].copy()
+    # Inspect weekdays
+    df["Weekday"] = df["Date"].astype("datetime64[ns]").dt.day_name()
+    df["Weekday"].value_counts()
+
+    # %%
     # Join in the S&P 500 data
     df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values
     df[["Close", "Close_SPX"]]

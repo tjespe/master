@@ -15,7 +15,7 @@ CONFIDENCE_LEVEL = 0.05
 
 # %%
 # Select whether to only filter on important tickers
-FILTER_ON_IMPORTANT_TICKERS = False
+FILTER_ON_IMPORTANT_TICKERS = True
 
 # %%
 # Exclude uninteresting models
@@ -35,6 +35,9 @@ df = pd.read_csv(DATA_PATH)
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
+
+# Remove .O suffix from tickers
+df["Symbol"] = df["Symbol"].str.replace(".O", "")
 
 # Sort the dataframe by both Date and Symbol
 df = df.sort_values(["Symbol", "Date"])
@@ -122,11 +125,13 @@ for version in [
     # "crps-2",
     # "nll-crps-mix",
     3,
+    "rv-data",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
         )
+        lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
