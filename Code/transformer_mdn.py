@@ -10,9 +10,9 @@ from shared.mdn import (
     predict_with_mc_dropout_mdn,
     univariate_mixture_mean_and_var_approx,
 )
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.loss import mean_mdn_loss_numpy, mdn_nll_tf
 from shared.crps import crps_mdn_numpy
 from settings import (
     LOOKBACK_DAYS,
@@ -49,7 +49,7 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-df, X_train, X_val, y_train, y_val = get_lstm_train_test(
+df, X_train, X_val, y_train, y_val = get_lstm_train_test_old(
     include_log_returns=True, include_fng=True
 )
 gc.collect()
@@ -165,7 +165,7 @@ if os.path.exists(model_fname):
     transformer_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
@@ -175,7 +175,7 @@ if os.path.exists(model_fname):
 # %%
 # 5) Train
 transformer_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-3, weight_decay=1e-5), loss=mdn_loss_tf(N_MIXTURES)
+    optimizer=Adam(learning_rate=1e-3, weight_decay=1e-5), loss=mdn_nll_tf(N_MIXTURES)
 )
 history = transformer_mdn_model.fit(
     X_train, y_train, epochs=10, batch_size=32, verbose=1
@@ -296,7 +296,7 @@ uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp
 df_validation["Vol_SP"] = uni_mixture_std_sp
-df_validation["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_val, y_pred_mdn)
+df_validation["NLL"] = mean_mdn_loss_numpy(N_MIXTURES)(y_val, y_pred_mdn)
 crps = crps_mdn_numpy(N_MIXTURES)
 df_validation["CRPS"] = crps(y_val, y_pred_mdn)
 

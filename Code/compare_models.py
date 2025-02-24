@@ -365,7 +365,7 @@ except FileNotFoundError:
 
     # LSTM with MAF and LSTM feature extractor model
 try:
-    mlp_with_maf_non_linear_preds = (
+    lstm_with_maf_non_linear_preds = (
         pd.read_csv(f"predictions/lstm_MAF_v2_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
         .set_index("Date")
         .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
@@ -373,8 +373,35 @@ try:
     preds_per_model.append(
         {
             "name": "LSTM with MAF non-linear flows",
-            "mean_pred": mlp_with_maf_non_linear_preds["Mean_SP"].values,
-            "volatility_pred": mlp_with_maf_non_linear_preds["Vol_SP"].values,
+            "mean_pred": lstm_with_maf_non_linear_preds["Mean_SP"].values,
+            "volatility_pred": lstm_with_maf_non_linear_preds["Vol_SP"].values,
+            "LB_95": lstm_with_maf_non_linear_preds["LB_95"].values,
+            "UB_95": lstm_with_maf_non_linear_preds["UB_95"].values,
+            "LB_99": lstm_with_maf_non_linear_preds["LB_99"].values,
+            "UB_99": lstm_with_maf_non_linear_preds["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds["NLL"].values.mean(),
+        }
+    )
+except FileNotFoundError:
+    print("LSTM with MAF non-linear flows predictions not found")
+
+    # LSTM with MAF and LSTM feature extractor model v3
+try:
+    lstm_with_maf_non_linear_preds_v3 = (
+        pd.read_csv(f"predictions/lstm_MAF_v3_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv")
+        .set_index("Date")
+        .loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]
+    )
+    preds_per_model.append(
+        {
+            "name": "LSTM with MAF non-linear flows v3",
+            "mean_pred": lstm_with_maf_non_linear_preds_v3["Mean_SP"].values,
+            "volatility_pred": lstm_with_maf_non_linear_preds_v3["Vol_SP"].values,
+            "LB_95": lstm_with_maf_non_linear_preds_v3["LB_95"].values,
+            "UB_95": lstm_with_maf_non_linear_preds_v3["UB_95"].values,
+            "LB_99": lstm_with_maf_non_linear_preds_v3["LB_99"].values,
+            "UB_99": lstm_with_maf_non_linear_preds_v3["UB_99"].values,
+            "nll": lstm_with_maf_non_linear_preds_v3["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
@@ -393,6 +420,11 @@ try:
             "name": "LSTM with MAF non-linear flows v4",
             "mean_pred": mlp_with_maf_non_linear_preds_v4["Mean_SP"].values,
             "volatility_pred": mlp_with_maf_non_linear_preds_v4["Vol_SP"].values,
+            "LB_95": mlp_with_maf_non_linear_preds_v4["LB_95"].values,
+            "UB_95": mlp_with_maf_non_linear_preds_v4["UB_95"].values,
+            "LB_99": mlp_with_maf_non_linear_preds_v4["LB_99"].values,
+            "UB_99": mlp_with_maf_non_linear_preds_v4["UB_99"].values,
+            "nll": mlp_with_maf_non_linear_preds_v4["NLL"].values.mean(),
         }
     )
 except FileNotFoundError:
@@ -479,7 +511,7 @@ except NameError:
 
 
 # LSTM MDN
-for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng"]:
+for version in ["v1", "v2", "v3", "vbig", "vbig2", "vbig3", "vbig-fng", "vquick"]:
     try:
         lstm_mdn_preds = (
             pd.read_csv(
@@ -949,7 +981,7 @@ for metric in results_df.index:
     values = results_df.loc[metric, model_cols]
 
     # Skip PICP Miss because it is redundant with PICP.
-    if metric == "PICP Miss":
+    if metric == "PICP Miss" or metric == "Sign accuracy":
         continue
 
     # Determine ranking rule for each metric.

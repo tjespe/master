@@ -24,7 +24,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.distributions import Normal
 
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 
 
 import os
@@ -32,7 +32,9 @@ import warnings
 
 # %%
 # Load data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(
+    include_log_returns=False
+)
 df
 
 # %%

@@ -6,12 +6,12 @@ from settings import (
     TEST_ASSET,
     DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
-    VALIDATION_TEST_SPLIT
+    VALIDATION_TEST_SPLIT,
 )
 from scipy.stats import ks_2samp
 
 
-MODEL_NAME = f"LSTM_MAF__v4{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"LSTM_MAF_v4{LOOKBACK_DAYS}_days{SUFFIX}"
 
 # %%
 # Import libraries
@@ -27,7 +27,7 @@ import torch.nn.functional as F
 from torch.utils.data import TensorDataset, DataLoader
 
 
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_old
 from shared.loss import nll_loss_maf
 from tqdm import tqdm
 
@@ -37,7 +37,9 @@ import warnings
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=False)
+df, X_train, X_test, y_train, y_test = get_lstm_train_test_old(
+    include_log_returns=False
+)
 df
 
 # %%
@@ -83,6 +85,7 @@ class LSTMFeatureExtractor(nn.Module):
 # %%
 # Define the Masked Autoregressive Network with Non-Linear Flows
 
+
 class AdaptiveDeepNonLinearFlow(nn.Module):
     def __init__(self, cond_dim, hidden_dim, n_hidden_layers=4, dropout_rate=0.2):
         """
@@ -97,16 +100,16 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
         self.input_layer = nn.Linear(cond_dim, hidden_dim)
         self.activation = nn.ReLU()
         self.dropout = nn.Dropout(dropout_rate)
-        
+
         # For adaptive conditioning, we create a FiLM layer per hidden layer.
-        self.film_layers = nn.ModuleList([
-            nn.Linear(cond_dim, hidden_dim * 2) for _ in range(n_hidden_layers)
-        ])
+        self.film_layers = nn.ModuleList(
+            [nn.Linear(cond_dim, hidden_dim * 2) for _ in range(n_hidden_layers)]
+        )
         # Hidden layers that perform the transformation.
-        self.hidden_layers = nn.ModuleList([
-            nn.Linear(hidden_dim, hidden_dim) for _ in range(n_hidden_layers)
-        ])
-        
+        self.hidden_layers = nn.ModuleList(
+            [nn.Linear(hidden_dim, hidden_dim) for _ in range(n_hidden_layers)]
+        )
+
         # Final layer outputs parameters for both mu and log_sigma.
         self.output_layer = nn.Linear(hidden_dim, y_dim * 2)
 
@@ -121,7 +124,7 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
         h = self.input_layer(cond)
         h = self.activation(h)
         h = self.dropout(h)
-        
+
         # Process through each hidden layer with FiLM conditioning.
         for i, layer in enumerate(self.hidden_layers):
             h_new = layer(h)
@@ -134,19 +137,21 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
             h_new = self.dropout(h_new)
             # Use a residual connection.
             h = h + h_new
-        
+
         # Obtain the transformation parameters.
         params = self.output_layer(h)
         mu, log_sigma = params.chunk(2, dim=-1)
         sigma = torch.exp(log_sigma).clamp(min=1e-6)
-        
+
         # Transform the target y.
         y = y.reshape(-1, 1)
         z = (y - mu) / sigma
         z = torch.tanh(z)  # Non-linear transformation
-        
+
         # Compute the log-determinant of the Jacobian.
-        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z**2 + 1e-6).sum(dim=-1)
+        log_det_jacobian = -log_sigma.sum(dim=-1) + torch.log(1 - z**2 + 1e-6).sum(
+            dim=-1
+        )
         return z, log_det_jacobian
 
     def inverse(self, z, cond):
@@ -156,7 +161,7 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
         h = self.input_layer(cond)
         h = self.activation(h)
         h = self.dropout(h)
-        
+
         for i, layer in enumerate(self.hidden_layers):
             h_new = layer(h)
             film_params = self.film_layers[i](cond)
@@ -165,11 +170,11 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
             h_new = self.activation(h_new)
             h_new = self.dropout(h_new)
             h = h + h_new
-        
+
         params = self.output_layer(h)
         mu, log_sigma = params.chunk(2, dim=-1)
         sigma = torch.exp(log_sigma).clamp(min=1e-6)
-        
+
         z = torch.tanh(z)
         # Inverse of tanh is atanh (implemented here as 0.5 * log((1+z)/(1-z))).
         z = 0.5 * torch.log((1 + z) / (1 - z + 1e-6))
@@ -180,26 +185,28 @@ class AdaptiveDeepNonLinearFlow(nn.Module):
 # %%
 # Define a new type of model
 class LSTMMAFModel(nn.Module):
-    def __init__(self,
-                 feature_dim,
-                 lstm_hidden_dim,
-                 maf_hidden_dim,
-                 n_flows,
-                 num_layers,
-                 extractor_dropout,
-                 flow_dropout):
+    def __init__(
+        self,
+        feature_dim,
+        lstm_hidden_dim,
+        maf_hidden_dim,
+        n_flows,
+        num_layers,
+        extractor_dropout,
+        flow_dropout,
+    ):
         super(LSTMMAFModel, self).__init__()
         self.lstm_feature_extractor = LSTMFeatureExtractor(
             input_dim=feature_dim,
             hidden_dim=lstm_hidden_dim,
             num_layers=num_layers,
-            dropout_rate=extractor_dropout
+            dropout_rate=extractor_dropout,
         )
         self.maf = MaskedAutoregressiveFlow(
-            cond_dim=lstm_hidden_dim,       # use LSTM hidden state as conditioning
+            cond_dim=lstm_hidden_dim,  # use LSTM hidden state as conditioning
             hidden_dim=maf_hidden_dim,
             n_flows=n_flows,
-            flow_dropout=flow_dropout
+            flow_dropout=flow_dropout,
         )
 
     def log_prob(self, y, x):
@@ -217,10 +224,14 @@ class LSTMMAFModel(nn.Module):
 class MaskedAutoregressiveFlow(nn.Module):
     def __init__(self, cond_dim, hidden_dim, n_flows, flow_dropout):
         super(MaskedAutoregressiveFlow, self).__init__()
-        self.flows = nn.ModuleList([
-            AdaptiveDeepNonLinearFlow(cond_dim, hidden_dim, n_hidden_layers=4, dropout_rate=flow_dropout)
-            for _ in range(n_flows)
-        ])
+        self.flows = nn.ModuleList(
+            [
+                AdaptiveDeepNonLinearFlow(
+                    cond_dim, hidden_dim, n_hidden_layers=4, dropout_rate=flow_dropout
+                )
+                for _ in range(n_flows)
+            ]
+        )
         self.base_dist = Normal(0, 1)
 
     def log_prob(self, y, cond):
@@ -275,7 +286,7 @@ scheduler = optim.lr_scheduler.ReduceLROnPlateau(
 
 # %%
 # Train the model
-epochs = 5
+epochs = 1
 for epoch in range(epochs):
     model.train()
     epoch_loss = 0.0
@@ -386,7 +397,8 @@ plt.axvline(
 plt.title("Predicted Return Distribution for Last Test Point")
 # %%
 # Predicting the Distribution for the Entire Test Period
-
+confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
+intervals = np.zeros((len(X_test), len(confidence_levels), 2))
 predicted_returns = []
 predicted_stds = []
 actual_returns = y_test.numpy().flatten()
@@ -394,10 +406,26 @@ actual_returns = y_test.numpy().flatten()
 for i in range(len(X_test)):
     specific_sample = X_test[i].unsqueeze(0)
     samples = model.sample(x=specific_sample, num_samples=5000)
+    samples_np = samples.detach().cpu().numpy().flatten()
     predicted_return = samples.mean().item()
     predicted_std = samples.std().item()
     predicted_stds.append(predicted_std)
     predicted_returns.append(predicted_return)
+
+    # For each confidence level, calculate the lower and upper quantiles.
+    for j, cl in enumerate(confidence_levels):
+        # For cl=0, you may simply take the median (50th percentile) for both bounds.
+        if cl == 0:
+            lower_q = 50
+            upper_q = 50
+        else:
+            lower_q = (1 - cl) / 2 * 100
+            upper_q = 100 - lower_q
+        
+        lower_bound = np.percentile(samples_np, lower_q)
+        upper_bound = np.percentile(samples_np, upper_q)
+        intervals[i, j, 0] = lower_bound
+        intervals[i, j, 1] = upper_bound
 
 # Plotting Predicted Returns vs Actual Returns
 plt.figure(figsize=(14, 6))
@@ -431,6 +459,15 @@ plt.fill_between(
     alpha=0.2,
     label="Predicted Return Std",
 )
+# add the 95% confidence interval with label
+plt.fill_between(
+    range(len(predicted_returns)),
+    intervals[:, 4, 0],
+    intervals[:, 4, 1],
+    color="green",
+    alpha=0.2,
+    label="95% Confidence Interval",
+)
 plt.title("Predicted Returns vs Actual Returns (Last 100 Time Steps)")
 plt.xlabel("Time Step")
 plt.ylabel("Return")
@@ -457,13 +494,21 @@ print("predicted stds lenght:", len(predicted_stds))
 
 # %%
 # 8) Store single-pass predictions
-df_validation = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT]# TEST_ASSET
+df_validation = df.xs(TEST_ASSET, level="Symbol").loc[
+    TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
+]  # TEST_ASSET
 
 print(df_validation.shape)
 print(len(predicted_returns))
 df_validation["Mean_SP"] = predicted_returns
 df_validation["Vol_SP"] = predicted_stds
 df_validation["NLL"] = nll_loss_maf(model, X_test, y_test)
+
+# Store the intervals in the DataFrame.
+for j, cl in enumerate(confidence_levels):
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, j, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, j, 1]
+
 
 df_validation
 
