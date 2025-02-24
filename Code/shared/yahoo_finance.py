@@ -26,11 +26,11 @@ dow_jones_tickers = [
     "MSFT",  # Microsoft
     "NKE",  # Nike
     "PG",  # Procter & Gamble
-    "SHW",  # Sherwin-Williams (added in 2024, replacing Dow Inc.)
+    "DOW",  # Sherwin-Williams (added in 2024, replacing Dow Inc.)
     "TRV",  # Travelers Companies
     "UNH",  # UnitedHealth Group
     "CRM",  # Salesforce
-    "NVDA",  # Nvidia (added in 2024, replacing Intel)
+    "INTC",  # Nvidia (added in 2024, replacing Intel)
     "VZ",  # Verizon Communications
     "V",  # Visa
     "WMT",  # Walmart

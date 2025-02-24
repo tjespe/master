@@ -73,18 +73,30 @@ display(HTML(apple_merged.to_html(index=False)))
 # Let's do all the same for "WMT"
 walmart_eikon = dow_jones_eikon.loc[(slice(None), "WMT"), :]
 walmart_yahoo = dow_jones_yahoo.loc[(slice(None), "WMT"), :]
-print("Lenght walmart eikon", len(walmart_eikon))
-print("Lenght walmart yahoo", len(walmart_yahoo))
 walmart_eikon = walmart_eikon.drop(columns=["Total Return"])
 walmart_eikon = walmart_eikon.reset_index().drop(columns=["Symbol"])
 walmart_yahoo = walmart_yahoo.reset_index().drop(columns=["Symbol"])
 walmart_eikon.columns = [col + "_e" if col != "Date" else col for col in walmart_eikon.columns]
 walmart_yahoo.columns = [col + "_y" if col != "Date" else col for col in walmart_yahoo.columns]
+print("Walmart eikon")
+walmart_eikon
+
+# %%
+print("Walmart yahoo")
+walmart_yahoo
+
+# %%
+print("Number of NaN dates in walmart eikon", walmart_eikon["Date"].isna().sum())
+print("Number of NaN dates in walmart yahoo", walmart_yahoo["Date"].isna().sum())
+dates_not_in_eikon = walmart_yahoo[~walmart_yahoo["Date"].isin(walmart_eikon["Date"])]
+print("Dates not in eikon")
+dates_not_in_eikon
+
+# %%
 walmart_merged = walmart_eikon.merge(walmart_yahoo, on="Date", how="inner")
 walmart_merged
-# %%
-walmart_merged = walmart_merged[["Date", "Close_e", "Close_y", "High_e", "High_y", "Low_e", "Low_y", "Open_e", "Open_y", "Volume_e", "Volume_y"]]
-display(HTML(walmart_merged.to_html(index=False)))
+
+
 # %%
 # make a dictionary with the keys and the number of nan values in the eikon dataframe for that ticker as the value
 nan_values = {}
