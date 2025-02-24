@@ -530,21 +530,49 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
 
         # If we have RVOL data, add it as a feature
         if "RV" in group.columns:
-            for key in [
-                "RV",
-                "BPV",
-                "Good",
-                "Bad",
-                "RQ",
-                "RV_5",
-                "BPV_5",
-                "Good_5",
-                "Bad_5",
-                "RQ_5",
-            ]:
-                variance = group[key].values.reshape(-1, 1)
-                log_variance = np.log(variance + (0.1 / 100) ** 2)
-                data = np.hstack((data, log_variance))
+            # 1) Variance-like measures: RV, BPV, Good, Bad (and their 5-min versions)
+            for key in ["RV", "BPV", "Good", "Bad", "RV_5", "BPV_5", "Good_5", "Bad_5"]:
+                # annualized variance in "percent^2" => convert to decimal => then daily
+                annual_var_pct2 = group[key].values.reshape(
+                    -1, 1
+                )  # e.g. 8.31 => 8.31%²
+                annual_var_decimal = annual_var_pct2 / 100.0  # => 0.0831
+                daily_var_decimal = annual_var_decimal / 252.0  # => daily variance
+                log_daily_var = np.log(
+                    daily_var_decimal + 1e-10
+                )  # small offset to avoid log(0)
+                data = np.hstack((data, log_daily_var))
+
+            # 2) Quarticity measures: RQ (and RQ_5)
+            for key in ["RQ", "RQ_5"]:
+                # annualized quarticity in "percent^4" => decimal => daily
+                annual_q_pct4 = group[key].values.reshape(-1, 1)  # e.g. 263 => 263%²
+                annual_q_decimal = annual_q_pct4 / (100.0**2)  # => 2.63 in decimal^2
+                data = np.hstack(
+                    (
+                        data,
+                        # Log for scale
+                        np.log(annual_q_decimal + 1e-12),
+                    )
+                )
+
+            # 3) Estimate realized skewness and kurtosis
+            daily_good_var = (group["Good"].values / 100) / 252.0
+            daily_bad_var = (group["Bad"].values / 100) / 252.0
+            daily_rv = (group["RV"].values / 100) / 252.0
+            daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+            daily_skew = (
+                (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
+            ).reshape(-1, 1)
+            daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
+
+            data = np.hstack(
+                (
+                    data,
+                    daily_skew / 100,
+                    daily_kurt / 10,
+                )
+            )
 
         # If we have GICS sectors, add them as a feature
         if "IDY_CODE" in group.columns:
@@ -559,7 +587,14 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
             log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
             garch_skewness = group["Skew_EWM"].values.reshape(-1, 1)
             garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
-            data = np.hstack((data, log_sq_garch, garch_skewness, garch_kurtosis))
+            data = np.hstack(
+                (
+                    data,
+                    log_sq_garch,
+                    garch_skewness,
+                    garch_kurtosis / 10,  # Divide by 10 to scale it down
+                )
+            )
 
         # Include relative high-low difference as a feature if available to indicate volatility
         if (
