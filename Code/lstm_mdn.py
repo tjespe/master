@@ -6,6 +6,8 @@ from settings import LOOKBACK_DAYS, SUFFIX
 VERSION = "nll-crps-mix"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
+MU_PENALTY = True
+SIGMA_PENALTY = False
 HIDDEN_UNITS = 20
 N_MIXTURES = 5
 DROPOUT = 0.4
@@ -143,7 +145,9 @@ lstm_mdn_model = build_lstm_mdn(
 
 # %%
 # 4) Load existing model if it exists
-model_fname = f"models/{MODEL_NAME}.keras"
+load_best_val_loss_model = True
+best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
+model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
 already_trained = False
 if os.path.exists(model_fname):
     mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
@@ -335,8 +339,8 @@ while True:
 # Train one epoch with CRPS loss
 print("Training one epoch with CRPS loss...")
 lstm_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-    loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+    optimizer=Adam(learning_rate=1e-7, weight_decay=1e-7),
+    loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY, MU_PENALTY, SIGMA_PENALTY, npts=64),
 )
 history = lstm_mdn_model.fit(
     [data.train.X, data.train_ticker_ids],
@@ -348,7 +352,6 @@ history = lstm_mdn_model.fit(
         [data.validation.X, data.validation_ticker_ids],
         data.validation.y,
     ),
-    sample_weight=ticker_weights,
 )
 histories.append(history)
 

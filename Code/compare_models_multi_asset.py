@@ -11,7 +11,7 @@ from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.33
+CONFIDENCE_LEVEL = 0.05
 
 # %%
 # Select whether to only filter on important tickers
@@ -120,6 +120,8 @@ for version in [
     "embedded-small",
     # "crps",
     # "crps-2",
+    # "nll-crps-mix",
+    3,
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -148,7 +150,11 @@ for version in [
                     combined_df.get("NLL", combined_df.get("loss")).values
                 ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
-                # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+                "crps": (
+                    np.nanmean(crps.values)
+                    if (crps := combined_df.get("CRPS")) is not None
+                    else None
+                ),
             }
         )
         nans = combined_df["Mean_SP"].isnull().sum()

@@ -241,7 +241,15 @@ def crps_normal(y, mu, sigma):
 ##############################################################################
 # 5) Final MDN-CRPS loss
 ##############################################################################
-def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08):
+def mdn_crps_tf(
+    num_mixtures,
+    add_pi_penalty=False,
+    add_mu_penalty=False,
+    add_sigma_penalty=False,
+    npts=16,
+    tmin=-0.08,
+    tmax=0.08,
+):
     """
     Mixture of Gaussians CRPS:
       y_pred -> [batch, 3*num_mixtures], with
@@ -277,9 +285,17 @@ def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.
 
         crps_val = term_single - term_pairwise
 
-        # 4) Optional penalty
+        # 4) Optional penalties
         if add_pi_penalty:
             penalty = tf.reduce_sum((pi - 1.0 / num_mixtures) ** 2, axis=-1)
+            crps_val += penalty
+
+        if add_mu_penalty:
+            penalty = tf.reduce_sum(mu**2, axis=-1)
+            crps_val += penalty
+
+        if add_sigma_penalty:
+            penalty = tf.reduce_sum(sigma**2, axis=-1)
             crps_val += penalty
 
         return crps_val
@@ -288,7 +304,13 @@ def mdn_crps_tf(num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.
 
 
 def mean_mdn_crps_tf(
-    num_mixtures, add_pi_penalty=False, npts=16, tmin=-0.08, tmax=0.08
+    num_mixtures,
+    add_pi_penalty=False,
+    add_mu_penalty=False,
+    add_sigma_penalty=False,
+    npts=16,
+    tmin=-0.08,
+    tmax=0.08,
 ):
     """
     Mixture of Gaussians CRPS:
@@ -298,7 +320,13 @@ def mean_mdn_crps_tf(
         log_var   = y_pred[:, 2*num_mixtures:]
     """
     unagged_loss_fn = mdn_crps_tf(
-        num_mixtures, add_pi_penalty=add_pi_penalty, npts=npts, tmin=tmin, tmax=tmax
+        num_mixtures,
+        add_pi_penalty,
+        add_mu_penalty,
+        add_sigma_penalty,
+        npts,
+        tmin,
+        tmax,
     )
 
     def loss_fn(y_true, y_pred):
@@ -306,3 +334,12 @@ def mean_mdn_crps_tf(
         return tf.reduce_mean(crps_val)
 
     return loss_fn
+
+
+if __name__ == "__main__":
+    # Should be ~0.39 for standard Normal at median.
+    y = tf.constant([0.0])
+    mu = tf.constant([[0.0]])
+    sigma = tf.constant([[1.0]])
+    val = crps_normal(y, mu, sigma)
+    print(val.numpy())  # should be close to 0.39
