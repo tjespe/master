@@ -1,9 +1,7 @@
 # Define parameters
 LOOKBACK_DAYS = 30
 SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
-DATA_PATH = (
-    "data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv"
-)
+DATA_PATH = "data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv"
 TRAIN_VALIDATION_SPLIT = "2021-12-31"
 VALIDATION_TEST_SPLIT = "2023-12-31"
 
