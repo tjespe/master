@@ -91,5 +91,5 @@ sp500 = sp500.set_index("Date")
 sp500
 # %%
 # save to csv
-sp500.to_csv("../data/sp500_yahoo.csv")
+sp500.to_csv("../data/spx.csv")
 # %%
