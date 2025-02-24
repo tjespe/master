@@ -221,7 +221,7 @@ input_dim = 300  # 10 features * 30 lookback days
 feature_dim = X_train.shape[-1]
 extractor_num_layers = 1
 extractor_dropout = 0.5
-flow_dropout = 0.3
+flow_dropout = 0.5
 print("Input dimension:", input_dim)
 
 
@@ -256,7 +256,7 @@ val_losses = []
 
 # %%
 # Train the model
-epochs = 2
+epochs = 5
 l2_lambda = 1e-4  # Regularization strength
 for epoch in range(epochs):
     model.train()
