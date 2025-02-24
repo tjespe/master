@@ -7,12 +7,11 @@ from settings import (
     TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
 )
-from shared.crps import crps_loss_mean_and_vol
 from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.05
+CONFIDENCE_LEVEL = 0.33
 
 # %%
 # Select whether to only filter on important tickers
@@ -20,7 +19,7 @@ FILTER_ON_IMPORTANT_TICKERS = False
 
 # %%
 # Exclude uninteresting models
-EXCLUDE_MODELS = ["LSTM MDN fe", "LSTM MDN quick"]
+EXCLUDE_MODELS = []
 
 # %%
 import numpy as np
@@ -115,8 +114,12 @@ for version in [
     "pireg",
     "dynamic",
     # "dynamic-weighted",
-    "embedded",
+    # "embedded",
     "l2",
+    # "embedded-2",
+    "embedded-small",
+    # "crps",
+    # "crps-2",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -135,9 +138,15 @@ for version in [
                 "name": f"LSTM MDN {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
-                "nll": np.nanmean(combined_df["NLL"].values),
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
+                "nll": np.nanmean(
+                    combined_df.get("NLL", combined_df.get("loss")).values
+                ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
@@ -148,98 +157,50 @@ for version in [
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
-# LSTM MAF V2
-try:
-    lstm_maf_v2 = pd.read_csv(f"predictions/lstm_MAF_v2{SUFFIX}.csv")
-    lstm_maf_v2["Date"] = pd.to_datetime(lstm_maf_v2["Date"])
-    lstm_maf_v2 = lstm_maf_v2.set_index(["Date", "Symbol"])
-    lstm_maf_v2_dates = lstm_maf_v2.index.get_level_values("Date")
-    lstm_maf_v2 = lstm_maf_v2[
-        (lstm_maf_v2_dates >= TRAIN_VALIDATION_SPLIT)
-        & (lstm_maf_v2_dates < VALIDATION_TEST_SPLIT)
-    ]
-    combined_df = df_validation.join(lstm_maf_v2, how="left", rsuffix="_LSTM_MAF_V2")
-    preds_per_model.append(
-        {
-            "name": "LSTM MAF V2",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "LB_95": combined_df["LB_95"].values,
-            "UB_95": combined_df["UB_95"].values,
-            "nll": np.nanmean(combined_df["NLL"].values),
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            # "crps": lstm_mdn_preds["CRPS"].values.mean(),
-        }
-    )
-    nans = combined_df["Mean_SP"].isnull().sum()
-    if nans > 0:
-        print(f"LSTM MAF v2 has {nans} NaN predictions")
-except FileNotFoundError:
-    print("LSTM MAF v2 predictions not found")
+# LSTM MAF
+for version in ["v2", "v3", "v4"]:
+    try:
+        lstm_maf_preds = pd.read_csv(f"predictions/lstm_MAF_{version}{SUFFIX}.csv")
+        lstm_maf_preds["Date"] = pd.to_datetime(lstm_maf_preds["Date"])
+        lstm_maf_preds = lstm_maf_preds.set_index(["Date", "Symbol"])
+        lstm_maf_dates = lstm_maf_preds.index.get_level_values("Date")
+        lstm_maf_preds = lstm_maf_preds[
+            (lstm_maf_dates >= TRAIN_VALIDATION_SPLIT)
+            & (lstm_maf_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(lstm_maf_preds, how="left", rsuffix="_MAF")
+        preds_per_model.append(
+            {
+                "name": f"LSTM MAF {version}",
+                "mean_pred": combined_df["Mean_SP"].values,
+                "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_50": combined_df["LB_50"].values,
+                "UB_50": combined_df["UB_50"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df["LB_90"].values,
+                "UB_90": combined_df["UB_90"].values,
+                "LB_95": combined_df["LB_95"].values,
+                "UB_95": combined_df["UB_95"].values,
+                "LB_97": combined_df["LB_97"].values,
+                "UB_97": combined_df["UB_97"].values,
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
+                "nll": np.nanmean(combined_df["NLL"].values),
+                "symbols": combined_df.index.get_level_values("Symbol"),
+                # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+            }
+        )
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"LSTM MAF {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"LSTM MAF {version} predictions not found")
 
-
-# LSTM MAF V3
-try:
-    lstm_maf_v3 = pd.read_csv(f"predictions/lstm_MAF_v3{SUFFIX}.csv")
-    lstm_maf_v3["Date"] = pd.to_datetime(lstm_maf_v3["Date"])
-    lstm_maf_v3 = lstm_maf_v3.set_index(["Date", "Symbol"])
-    lstm_maf_v3_dates = lstm_maf_v3.index.get_level_values("Date")
-    lstm_maf_v3 = lstm_maf_v3[
-        (lstm_maf_v3_dates >= TRAIN_VALIDATION_SPLIT)
-        & (lstm_maf_v3_dates < VALIDATION_TEST_SPLIT)
-    ]
-    combined_df = df_validation.join(lstm_maf_v3, how="left", rsuffix="_LSTM_MAF_V3")
-    preds_per_model.append(
-        {
-            "name": "LSTM MAF V3",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "LB_95": combined_df["LB_95"].values,
-            "UB_95": combined_df["UB_95"].values,
-            "nll": np.nanmean(combined_df["NLL"].values),
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            # "crps": lstm_mdn_preds["CRPS"].values.mean(),
-        }
-    )
-    nans = combined_df["Mean_SP"].isnull().sum()
-    if nans > 0:
-        print(f"LSTM MAF v3 has {nans} NaN predictions")
-except FileNotFoundError:
-    print("LSTM MAF v3 predictions not found")
-
-
-# LSTM MAF V4
-try:
-    lstm_maf_v4 = pd.read_csv(f"predictions/lstm_MAF_v4{SUFFIX}.csv")
-    lstm_maf_v4["Date"] = pd.to_datetime(lstm_maf_v4["Date"])
-    lstm_maf_v4 = lstm_maf_v4.set_index(["Date", "Symbol"])
-    lstm_maf_v4_dates = lstm_maf_v4.index.get_level_values("Date")
-    lstm_maf_v4 = lstm_maf_v4[
-        (lstm_maf_v4_dates >= TRAIN_VALIDATION_SPLIT)
-        & (lstm_maf_v4_dates < VALIDATION_TEST_SPLIT)
-    ]
-    combined_df = df_validation.join(lstm_maf_v4, how="left", rsuffix="_LSTM_MAF_V4")
-    preds_per_model.append(
-        {
-            "name": "LSTM MAF V4",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "LB_95": combined_df["LB_95"].values,
-            "UB_95": combined_df["UB_95"].values,
-            "nll": np.nanmean(combined_df["NLL"].values),
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            # "crps": lstm_mdn_preds["CRPS"].values.mean(),
-        }
-    )
-    nans = combined_df["Mean_SP"].isnull().sum()
-    if nans > 0:
-        print(f"LSTM MAF v4 has {nans} NaN predictions")
-except FileNotFoundError:
-    print("LSTM MAF v4 predictions not found")
 
 try:
     maf_entry = next(
-        entry for entry in preds_per_model if entry["name"] == "LSTM MAF V2"
+        entry for entry in preds_per_model if entry["name"] == "LSTM MAF v2"
     )
     mdn_entry = next(
         entry for entry in preds_per_model if entry["name"] == "LSTM MDN pireg"
@@ -714,7 +675,7 @@ results_df.loc["Winner", "Ind Pass %"] = results_df["Ind Pass %"].idxmax()
 results_df.loc["Winner", "CC Pass %"] = results_df["CC Pass %"].idxmax()
 results_df.loc["Winner", "CHR Pass %"] = results_df["CHR Pass %"].idxmax()
 results_df = results_df.T
-results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
+results_df.to_csv(f"results/comp_results_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
 results_df
 
 # %%
@@ -747,7 +708,15 @@ for metric in results_df.index:
         # Since picp_miss = target - picp, |picp - target| is equivalent.
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
-    elif metric in ["Correlation (vol. vs. errors)", "QL", "Sign Accuracy"]:
+    elif metric in [
+        "Correlation (vol. vs. errors)",
+        "QL",
+        "Sign Accuracy",
+        "UC Pass %",
+        "Ind Pass %",
+        "CC Pass %",
+        "CHR Pass %",
+    ]:
         # For these, higher is better.
         key = values
         ascending = False
@@ -769,7 +738,7 @@ rankings_df
 
 # %%
 # Save rankings to CSV
-rankings_df.to_csv(f"results/comp_rankings{SUFFIX}.csv")
+rankings_df.to_csv(f"results/comp_rankings_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
 
 # %%
 # Analyze which sectors each model passes/fails for
