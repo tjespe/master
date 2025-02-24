@@ -3,7 +3,7 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 
-
+# %%
 dow_jones_tickers = [
     "AMZN",  # Amazon
     "AXP",  # American Express
@@ -26,11 +26,11 @@ dow_jones_tickers = [
     "MSFT",  # Microsoft
     "NKE",  # Nike
     "PG",  # Procter & Gamble
-    "SHW",  # Sherwin-Williams (added in 2024, replacing Dow Inc.)
+    "DOW",  # Sherwin-Williams (added in 2024, replacing Dow Inc.)
     "TRV",  # Travelers Companies
     "UNH",  # UnitedHealth Group
     "CRM",  # Salesforce
-    "NVDA",  # Nvidia (added in 2024, replacing Intel)
+    "INTC",  # Nvidia (added in 2024, replacing Intel)
     "VZ",  # Verizon Communications
     "V",  # Visa
     "WMT",  # Walmart
@@ -70,4 +70,26 @@ dow_jones
 # %%
 # save to csv
 dow_jones.to_csv("../data/dow_jones_yahoo.csv")
+
+
+# %%
+# =============================================================================
+# S&P ==========================================
+# =============================================================================
+
+# %%
+# get the data from the S&P 500 index
+sp500 = yf.download("^GSPC", start="1927-12-30", end="2025-02-19", progress=False)
+sp500
+# %%
+sp500 = sp500.reset_index()
+sp500.columns = sp500.columns.droplevel(1)
+sp500
+# %%
+# set data as index
+sp500 = sp500.set_index("Date")
+sp500
+# %%
+# save to csv
+sp500.to_csv("../data/spx.csv")
 # %%

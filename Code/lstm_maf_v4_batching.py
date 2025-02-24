@@ -288,7 +288,7 @@ for epoch in range(epochs):
     # Update the learning rate scheduler
     scheduler.step(avg_train_loss)
 
-    # ====== VALIDATION PHASE ======
+    # ====== VALIDATION ======
     model.eval()
     epoch_val_loss = 0.0
 
@@ -317,7 +317,7 @@ model.eval()
 np.random.seed(42)
 
 
-example_tickers = ["GOOG", "AON", "WMT"]
+example_tickers = ["GOOG", "AON", "WMT"] # change these based on data
 
 # %%
 # Print smooted distributions

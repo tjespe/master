@@ -1,10 +1,14 @@
 # Define parameters
 LOOKBACK_DAYS = 30
 SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
-TEST_ASSET = "GOOG"
-DATA_PATH = "data/sp500_stocks_garch.csv"
+DATA_PATH = (
+    "data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv"
+)
 TRAIN_VALIDATION_SPLIT = "2021-12-31"
 VALIDATION_TEST_SPLIT = "2023-12-31"
+
+# Only used in old single stock model comparison
+TEST_ASSET = "GOOG"
 
 # Other
 # Not necessary anymore after we stopped using Git LFS
