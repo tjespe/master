@@ -577,3 +577,5 @@ df_validation["Epistemic_Unc_Mean"] = mc_results[
 ]
 
 df_validation.to_csv(f"predictions/lstm_mdn_mc_predictions{SUFFIX}_days_v{VERSION}.csv")
+
+# %%

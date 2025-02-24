@@ -126,6 +126,7 @@ for version in [
     # "nll-crps-mix",
     3,
     "rv-data",
+    "rv-data-2",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
