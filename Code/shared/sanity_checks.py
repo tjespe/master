@@ -4,7 +4,7 @@ import numpy as np
 
 # %%
 # load the following data Code\data\dow_jones\processed_data\dow_jones_stocks_1990_to_today_19022025_cleaned.csv
-dow_jones_eikon = pd.read_csv("../data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_v2.csv")
+dow_jones_eikon = pd.read_csv("../data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv")
 dow_jones_yahoo = pd.read_csv("../data/dow_jones_yahoo.csv")
 
 # index both dataframes on the date and symbol
