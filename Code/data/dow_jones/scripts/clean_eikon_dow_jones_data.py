@@ -130,14 +130,19 @@ total_return_not_in_merged = df_total_return[~df_total_return.set_index(['Date',
 stocks_not_in_merged
 
 # %% For stock_no_in_merge merge the data from the missing data data frame into stock not in merge n and then into main datafreame
-# Merge the missing data into stocks_not_in_merged
+# Merge the missing data into stocks_not_in_merged TODO SOMTHING WRONG HERE?
 stocks_not_in_merged = pd.merge(stocks_not_in_merged, missing_data, on=['Date', 'Symbol'], how='inner')
 # Rename the column to match the merged DataFrame
 stocks_not_in_merged.rename(columns={"TR.TotalReturn": "Total Return"}, inplace=True)
 
+
 # Display the first few rows of the merged DataFrame
 stocks_not_in_merged
+
 # %%Merge the missing data into the main merged DataFrame
+df_merged = df_merged.reset_index(drop=True)
+stocks_not_in_merged = stocks_not_in_merged.reset_index(drop=True)
+
 df_final = pd.concat([df_merged, stocks_not_in_merged], ignore_index=True)
 df_final
 
@@ -146,13 +151,11 @@ df_final.rename(columns={"CLOSE": "Close Actual", "HIGH": "High", "LOW": "Low", 
 df_final.sort_values(["Symbol", "Date"], inplace=True)
 df_final
 
+
 # %% displauy all rows where column "TotalReturn" is null
 df_final[df_final["Total Return"].isnull()]
 
-# %% Calculate adusted close price and call column Close
-# Ensure Date column is in datetime format
-df_final['Date'] = pd.to_datetime(df_merged['Date'])
-
+# %%
 # Sort the dataframe by Symbol and Date in descending order
 df_final = df_final.sort_values(by=["Symbol", "Date"], ascending=[True, False])
 
