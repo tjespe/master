@@ -1,16 +1,36 @@
 # %%
 # Define parameters (based on settings)
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_ASSET, TRAIN_TEST_SPLIT
+import subprocess
+from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "big-fng"
+VERSION = "nll-crps-mix"
+MULTIPLY_MARKET_FEATURES_BY_BETA = False
+PI_PENALTY = False
+HIDDEN_UNITS = 20
+N_MIXTURES = 5
+DROPOUT = 0.4
+EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Imports from code shared across models
-from shared.numerical_mixture_moments import numerical_mixture_moments
-from shared.loss import mdn_loss_numpy, mdn_loss_tf
+from shared.mdn import (
+    calculate_intervals_vectorized,
+    get_mdn_bias_initializer,
+    get_mdn_kernel_initializer,
+    parse_mdn_output,
+    plot_sample_days,
+    predict_with_mc_dropout_mdn,
+    univariate_mixture_mean_and_var_approx,
+)
+from shared.loss import (
+    mdn_crps_tf,
+    mdn_nll_numpy,
+    mean_mdn_loss_numpy,
+    mean_mdn_crps_tf,
+)
 from shared.crps import crps_mdn_numpy
-from shared.processing import get_lstm_train_test
+from shared.processing import get_lstm_train_test_new
 
 # %%
 # Library imports
@@ -19,6 +39,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
 import os
+import gc
 
 # TensorFlow / Keras
 import tensorflow as tf
@@ -28,103 +49,69 @@ from tensorflow.keras.layers import (
     Dense,
     Dropout,
     LSTM,
+    Embedding,
+    StringLookup,
+    concatenate,
+    Flatten,
+    Lambda,
 )
 from tensorflow.keras.optimizers import Adam
-
-# External
-from scipy.optimize import brentq
-from scipy.stats import norm
+from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
 
 
 # %%
 # Load preprocessed data
-df, X_train, X_test, y_train, y_test = get_lstm_train_test(include_log_returns=True)
-
+data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
 
 # %%
-def get_mdn_kernel_initializer(n_mixtures):
-    """
-    Returns a custom initializer for the MDN output layer.
-    The weight matrix is divided into three parts (columns):
-      - First n_mixtures: for logits (initialized with GlorotUniform)
-      - Second n_mixtures: for mu's (initialized with RandomNormal with stddev=0.01)
-      - Third n_mixtures: for log-variances (initialized with GlorotUniform)
-    """
-
-    def mdn_kernel_initializer(shape, dtype=None, partition_info=None):
-        # Expecting shape = (input_dim, 3 * n_mixtures)
-        input_dim, total_units = shape
-        if total_units != 3 * n_mixtures:
-            raise ValueError("The output dimension does not equal 3 * n_mixtures.")
-
-        # Initialize the three parts:
-        init_logits = tf.keras.initializers.RandomNormal(
-            mean=1 / n_mixtures, stddev=1 / (n_mixtures * 3)
-        )(shape=(input_dim, n_mixtures), dtype=dtype)
-        init_mu = tf.keras.initializers.RandomNormal(mean=0.0, stddev=0.01)(
-            shape=(input_dim, n_mixtures), dtype=dtype
-        )
-        init_logvar = tf.keras.initializers.RandomNormal(mean=0.0, stddev=2)(
-            shape=(input_dim, n_mixtures), dtype=dtype
-        )
-
-        # Concatenate them along the last axis (columns)
-        kernel = tf.concat([init_logits, init_mu, init_logvar], axis=-1)
-        return kernel
-
-    return mdn_kernel_initializer
-
-
-def get_mdn_bias_initializer(n_mixtures, logvar_bias=-9):
-    """
-    Custom initializer for the MDN output layer's bias.
-    The bias vector is of shape (3 * n_mixtures,). We set:
-      - The first n_mixtures (logits) to 0,
-      - The next n_mixtures (mu) to 0,
-      - The last n_mixtures (log-variance) to logvar_bias.
-    """
-
-    def mdn_bias_initializer(shape, dtype=None, partition_info=None):
-        if shape[0] != 3 * n_mixtures:
-            raise ValueError("Bias shape must be (3 * n_mixtures,)")
-        bias = np.zeros((3 * n_mixtures,), dtype=np.float32)
-        bias[2 * n_mixtures :] = (
-            logvar_bias  # Set log-variance bias to -8.5 (or another value if desired)
-        )
-        return tf.convert_to_tensor(bias, dtype=dtype)
-
-    return mdn_bias_initializer
+# Garbage collection
+gc.collect()
 
 
 # %%
 def build_lstm_mdn(
     lookback_days,
     num_features: int,
-    dropout=0.1,
-    n_mixtures=5,
-    hidden_units=10,
+    dropout: float,
+    n_mixtures: int,
+    hidden_units: int,
+    embed_dim: int,
+    ticker_ids_dim: int,
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
       (lookback_days, num_features)
     Then outputs 3*n_mixtures for MDN (univariate).
     """
-    inputs = Input(shape=(lookback_days, num_features))
+    # Sequence input (time series)
+    seq_input = Input(shape=(lookback_days, num_features), name="seq_input")
 
-    # Add LSTM layer
-    x = LSTM(units=hidden_units, activation="tanh")(inputs)
+    # Ticker input (integer-encoded)
+    ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
+    ticker_embed = Embedding(
+        input_dim=ticker_ids_dim, output_dim=embed_dim, name="ticker_embedding"
+    )(ticker_input)
+    ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
 
-    # Add dropout
+    # Process the sequence with LSTM
+    x = LSTM(
+        units=hidden_units,
+        activation="tanh",
+        kernel_regularizer=l2(1e-3),
+        name="lstm_layer",
+    )(seq_input)
     if dropout > 0:
-        x = Dropout(dropout)(x)
+        x = Dropout(dropout, name="dropout_layer")(x)
 
-    # Create the custom kernel initializer for the Dense layer.
+    # Combine LSTM output and ticker embedding
+    x = concatenate([x, ticker_embed], name="concat_layer")
+
+    # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_sigma])
     mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
     mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
-
-    # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
     mdn_output = Dense(
         3 * n_mixtures,
         activation=None,
@@ -133,559 +120,450 @@ def build_lstm_mdn(
         name="mdn_output",
     )(x)
 
-    model = Model(inputs=inputs, outputs=mdn_output)
+    model = Model(inputs=[seq_input, ticker_input], outputs=mdn_output)
     return model
 
 
 # %%
-def parse_mdn_output(mdn_out, n_mixtures):
-    """
-    Given y_pred from the model with shape (batch, 3*n_mixtures),
-    parse out pi, mu, sigma. Returns (pi, mu, sigma) each shape = (batch, n_mixtures).
-    """
-    logits_pi = mdn_out[:, :n_mixtures]
-    mu = mdn_out[:, n_mixtures : 2 * n_mixtures]
-    log_var = mdn_out[:, 2 * n_mixtures :]
-
-    pi = tf.nn.softmax(logits_pi, axis=-1)
-    sigma = tf.exp(0.5 * log_var)
-
-    return pi, mu, sigma
-
-
-def univariate_mixture_mean_and_var(pi, mu, sigma):
-    """
-    Creates a univariate approximation of the mixture distribution.
-
-    For univariate mixture:
-      mixture_mean = sum(pi_k * mu_k)
-      mixture_var  = sum(pi_k * (sigma_k^2 + mu_k^2)) - mixture_mean^2
-    """
-    mixture_mean = tf.reduce_sum(pi * mu, axis=1)
-    mixture_mean_sq = tf.square(mixture_mean)
-    # E[sigma^2 + mu^2] = sum_k(pi_k * (sigma_k^2 + mu_k^2))
-    e_sigma2_mu2 = tf.reduce_sum(pi * (tf.square(sigma) + tf.square(mu)), axis=1)
-    mixture_var = e_sigma2_mu2 - mixture_mean_sq
-    return mixture_mean, mixture_var
-
-
-# %%
-# Example MC Dropout approach specialized for MDN outputs
-def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
-    """
-    Performs T stochastic forward passes with model(X, training=True).
-    Aggregates mixture distribution => splits aleatoric vs. epistemic.
-
-    Returns a dict with:
-      "expected_returns" : mean of mixture means across MC samples
-      "volatility_estimates" : sqrt of total variance (aleatoric + epistemic)
-      "epistemic_uncertainty_expected_returns" : std dev of mixture means across MC
-      "epistemic_uncertainty_volatility_estimates": see notes
-      ...
-    Feel free to adapt as needed.
-    """
-    # Storage for mixture means, mixture variances across T samples
-    mc_means = []
-    mc_vars = []
-
-    # Run T forward passes
-    for _ in range(T):
-        mdn_out = model(X, training=True)  # (batch, 3*n_mixtures)
-        pi, mu, sigma = parse_mdn_output(mdn_out, n_mixtures)
-
-        # compute mixture mean & var for each sample
-        mean_s, var_s = univariate_mixture_mean_and_var(pi, mu, sigma)
-        mc_means.append(mean_s.numpy())
-        mc_vars.append(var_s.numpy())
-
-    mc_means = np.array(mc_means)  # shape: (T, batch)
-    mc_vars = np.array(mc_vars)  # shape: (T, batch)
-
-    # Aleatoric = average of variances
-    aleatoric_var = np.mean(mc_vars, axis=0)  # (batch,)
-
-    # Epistemic = variance of means across MC
-    epistemic_var = np.var(mc_means, axis=0)  # (batch,)
-
-    # Final predicted mean = average of mixture means
-    final_means = np.mean(mc_means, axis=0)
-
-    # total variance = aleatoric + epistemic
-    total_var = aleatoric_var + epistemic_var
-
-    results = {
-        "expected_returns": final_means,  # shape (batch,)
-        "volatility_estimates": np.sqrt(total_var),
-        "epistemic_uncertainty_expected_returns": np.sqrt(epistemic_var),
-        "epistemic_uncertainty_volatility_estimates": np.sqrt(epistemic_var),
-        # or define your own decomposition
-    }
-    return results
-
-
-# %%
-def compute_mixture_pdf(x_vals, pi, mu, sigma):
-    """
-    Compute the PDF of a mixture of normals at given x values.
-
-    Parameters:
-      x_vals : np.ndarray
-          1D array of x values at which to evaluate the PDF.
-      pi : np.ndarray
-          1D array of mixture weights (should sum to 1).
-      mu : np.ndarray
-          1D array of means for each mixture component.
-      sigma : np.ndarray
-          1D array of standard deviations for each mixture component.
-
-    Returns:
-      np.ndarray: PDF values evaluated at x_vals.
-    """
-    # Ensure arrays are numpy arrays in case they're not already.
-    pi, mu, sigma = np.asarray(pi), np.asarray(mu), np.asarray(sigma)
-
-    # Evaluate each component's pdf; shape will be (n_components, len(x_vals))
-    component_pdfs = (1 / (sigma[:, None] * np.sqrt(2 * np.pi))) * np.exp(
-        -0.5 * ((x_vals - mu[:, None]) / sigma[:, None]) ** 2
-    )
-
-    # Weight each component and sum over components.
-    return np.sum(pi[:, None] * component_pdfs, axis=0)
-
-
-# %%
-def calculate_intervals(pis, mus, sigmas, confidence_levels):
-    """
-    Calculate the (lower, upper) quantile intervals for a Gaussian mixture for several
-    confidence levels simultaneously.
-
-    For each sample i, the mixture CDF is defined as:
-        F_i(x) = sum_m pis[i, m] * Phi((x - mus[i, m]) / sigmas[i, m])
-    where Phi is the standard normal CDF. For each confidence level cl, the interval is
-    determined by:
-        lower_i  such that F_i(lower_i) = (1 - cl)/2
-        upper_i  such that F_i(upper_i) = 1 - (1 - cl)/2
-
-    Args:
-        pis: Mixture weights, shape (n_samples, n_mixtures)
-        mus: Mixture means, shape (n_samples, n_mixtures)
-        sigmas: Mixture standard deviations, shape (n_samples, n_mixtures)
-        confidence_levels: Iterable of confidence levels (floats), e.g., [0.95, 0.5]
-
-    Returns:
-        intervals: Array of shape (n_samples, n_confidence_levels, 2) where
-            intervals[i, j, 0] is the lower bound and intervals[i, j, 1] is the upper bound
-            for sample i at confidence level confidence_levels[j].
-    """
-    pis = np.asarray(pis)
-    mus = np.asarray(mus)
-    sigmas = np.asarray(sigmas)
-    conf_levels = np.asarray(confidence_levels)
-
-    n_samples, n_mixtures = pis.shape
-    n_conf = conf_levels.size
-    intervals = np.empty((n_samples, n_conf, 2))
-
-    # To bracket all quantile roots for every cl, we use the most extreme targets,
-    # which come from the highest confidence level.
-    max_conf = np.max(conf_levels)
-    global_alpha = (1 - max_conf) / 2  # smallest quantile target (further left)
-    global_beta = 1 - global_alpha  # largest quantile target (further right)
-
-    for i in range(n_samples):
-        weights = pis[i, :]
-        means = mus[i, :]
-        stds = sigmas[i, :]
-
-        # Mixture CDF for sample i.
-        def mixture_cdf(x):
-            return np.sum(weights * norm.cdf((x - means) / stds))
-
-        # Set an initial search interval.
-        s = np.max(stds)
-        low = -1
-        high = 1
-
-        # Expand search interval if necessary.
-        while mixture_cdf(low) > global_alpha:
-            low -= 10 * s
-        while mixture_cdf(high) < global_beta:
-            high += 10 * s
-
-        # Compute intervals for each confidence level.
-        for j, cl in enumerate(conf_levels):
-            alpha = (1 - cl) / 2
-            beta = 1 - alpha  # equivalently, (1 + cl) / 2
-            lower_bound = brentq(lambda x: mixture_cdf(x) - alpha, low, high)
-            upper_bound = brentq(lambda x: mixture_cdf(x) - beta, low, high)
-            intervals[i, j, 0] = lower_bound
-            intervals[i, j, 1] = upper_bound
-
-    return intervals
-
-
-# %%
 # 1) Inspect shapes
-print(f"X_train.shape: {X_train.shape}, y_train.shape: {y_train.shape}")
-print(f"X_test.shape: {X_test.shape},   y_test.shape: {y_test.shape}")
+print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
+print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shape}")
 
 # %%
 # 2) Build model
-N_MIXTURES = 100
 lstm_mdn_model = build_lstm_mdn(
     lookback_days=LOOKBACK_DAYS,
-    num_features=X_train.shape[2],  # 2 features in our example
-    dropout=0.1,
+    num_features=data.train.X.shape[2],
+    dropout=DROPOUT,
     n_mixtures=N_MIXTURES,
-    hidden_units=20,
+    hidden_units=HIDDEN_UNITS,
+    embed_dim=EMBEDDING_DIMENSIONS,
+    ticker_ids_dim=data.ticker_ids_dim,
 )
 
 # %%
 # 4) Load existing model if it exists
 model_fname = f"models/{MODEL_NAME}.keras"
+already_trained = False
 if os.path.exists(model_fname):
     mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
     mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
     lstm_mdn_model = tf.keras.models.load_model(
         model_fname,
         custom_objects={
-            "loss_fn": mdn_loss_tf(N_MIXTURES),
+            "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
         },
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES)
+        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
+    already_trained = True
 
 # %%
 # 5) Train
-# Start with one learning rate, then reduce
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=10, batch_size=32, verbose=1)
+val_loss = (
+    lstm_mdn_model.evaluate(
+        [data.validation.X, data.validation_ticker_ids], data.validation.y, verbose=0
+    )
+    if already_trained
+    else np.inf
+)
+histories = []
+weight_per_ticker = pd.Series(index=np.unique(data.train.tickers)).fillna(1)
+
 
 # %%
-# Reduce learning rate again
-lstm_mdn_model.compile(optimizer=Adam(learning_rate=1e-4), loss=mdn_loss_tf(N_MIXTURES))
-history = lstm_mdn_model.fit(X_train, y_train, epochs=5, batch_size=32, verbose=1)
+def calculate_weight_per_ticker() -> pd.Series:
+    """
+    Use the training loss of each ticker to give more weights to series with poor loss.
+    Also calculate quantiles for some of the stocks with the worst loss and give even
+    higher weight to samples where the coverage does not match the confidence level.
+    """
+    print("Collecting garbage...")
+    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
+    ## Calculate loss per ticker
+    print("Calculating loss per ticker...")
+    y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
+    nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
+    train_dates = np.array(data.train.dates)
+    train_tickers = np.array(data.train.tickers)
+    loss_df = pd.DataFrame(
+        {
+            "Date": train_dates,
+            "Symbol": train_tickers,
+            "loss": nlls,
+        }
+    )
+    loss_per_ticker = loss_df.groupby("Symbol")["loss"].mean().sort_values()
+    try:
+        display(loss_per_ticker)
+    except:
+        print(loss_per_ticker)
+
+    ## Calculate weights based on loss
+    print("Calculating weights based on loss...")
+    weight_best_nll = 0.1
+    weight_worst_nll = 1
+    best_nll = loss_per_ticker.min()
+    underperformance_per_ticker = loss_per_ticker - best_nll
+    underperformance_per_ticker = (
+        underperformance_per_ticker / underperformance_per_ticker.max()
+    )
+    weight_per_ticker = (
+        weight_best_nll
+        + (weight_worst_nll - weight_best_nll) * underperformance_per_ticker
+    )
+    weight_per_ticker = weight_per_ticker.clip(0, 1)
+    n_tickers = len(weight_per_ticker)
+
+    ## Add extra weight to the worst performing tickers with the worst coverage
+    print("Calculating coverage for worst tickers...")
+    worst_tickers = loss_per_ticker.tail(int(n_tickers / 10)).index
+    worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
+    filtered_y_train_pred = y_train_pred[worst_ticker_mask]
+    pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
+    confidence_levels = [0.95, 0.99]
+    intervals = calculate_intervals_vectorized(
+        pi_pred, mu_pred, sigma_pred, confidence_levels
+    )
+    actuals = data.train.y[worst_ticker_mask]
+    within_bounds = {
+        cl: np.logical_and(
+            actuals > intervals[:, i, 0],
+            actuals < intervals[:, i, 1],
+        )
+        for i, cl in enumerate(confidence_levels)
+    }
+    within_bounds_df = pd.DataFrame(
+        {
+            "Date": train_dates[worst_ticker_mask],
+            "Symbol": train_tickers[worst_ticker_mask],
+            "WithinBounds-0.95": within_bounds[0.95],
+            "WithinBounds-0.99": within_bounds[0.99],
+        }
+    ).set_index(["Date", "Symbol"])
+    coverage = within_bounds_df.groupby("Symbol").mean()
+    coverage_miss = pd.DataFrame(
+        {
+            "CoverageMiss-0.95": np.abs(0.95 - coverage["WithinBounds-0.95"]),
+            "CoverageMiss-0.99": np.abs(0.99 - coverage["WithinBounds-0.99"]),
+        },
+        index=coverage.index,
+    )
+    mean_miss = coverage_miss.mean(axis=1)
+    worst_miss = mean_miss.max()
+    extra_weight_worst_miss = 1
+    picp_based_weight = extra_weight_worst_miss * mean_miss / worst_miss
+
+    ## Combine weights
+    weight_per_ticker.loc[worst_tickers] += picp_based_weight
+
+    ## Plot weights for inspection if we are running in a notebook
+    try:
+        display(weight_per_ticker)
+        weight_per_ticker.hist(bins=50)
+        plt.title("Distribution of weights per ticker")
+        plt.show()
+    except:
+        print(weight_per_ticker)
+
+    return weight_per_ticker
+
 
 # %%
-# 6) Save
+if already_trained:
+    weight_per_ticker = calculate_weight_per_ticker()
+
+# %%
+# Train until validation loss stops decreasing
+increases_since_best = 0
+max_increases_since_best = 0
+best_model_weights = lstm_mdn_model.get_weights()
+best_val_loss = val_loss
+while True:
+    early_stop = EarlyStopping(
+        monitor="val_loss",
+        patience=0,  # number of epochs with no improvement to wait
+        restore_best_weights=True,
+    )
+
+    print("Aligning ticker weights...")
+    ticker_weights = weight_per_ticker.loc[data.train.tickers].values
+    print("Compiling model...", flush=True)
+    lstm_mdn_model.compile(
+        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+    )
+    print("Fitting model...", flush=True)
+    history = lstm_mdn_model.fit(
+        [data.train.X, data.train_ticker_ids],
+        data.train.y,
+        epochs=50,
+        batch_size=32,
+        verbose=1,
+        validation_data=(
+            [data.validation.X, data.validation_ticker_ids],
+            data.validation.y,
+        ),
+        callbacks=[early_stop],
+        sample_weight=ticker_weights,
+    )
+    val_loss = np.array(history.history["val_loss"]).min()
+    if val_loss >= best_val_loss:
+        increases_since_best += 1
+        if increases_since_best >= max_increases_since_best:
+            print(
+                f"Validation loss has not decreased for {max_increases_since_best} iterations. "
+                "Stopping training. \n"
+                "If you want to restore the best model, type:\n"
+                "lstm_mdn_model.set_weights(best_model_weights)"
+            )
+            break
+    else:
+        best_model_weights = lstm_mdn_model.get_weights()
+        best_val_loss = val_loss
+        increases_since_best = 0
+    histories.append(history)
+    weight_per_ticker = calculate_weight_per_ticker()
+
+# %%
+# Train one epoch with CRPS loss
+print("Training one epoch with CRPS loss...")
+lstm_mdn_model.compile(
+    optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+    loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+)
+history = lstm_mdn_model.fit(
+    [data.train.X, data.train_ticker_ids],
+    data.train.y,
+    epochs=1,
+    batch_size=32,
+    verbose=1,
+    validation_data=(
+        [data.validation.X, data.validation_ticker_ids],
+        data.validation.y,
+    ),
+    sample_weight=ticker_weights,
+)
+histories.append(history)
+
+# %%
+# 6) Save both current model and the model with the best validation loss
 lstm_mdn_model.save(model_fname)
+best_model = build_lstm_mdn(
+    lookback_days=LOOKBACK_DAYS,
+    num_features=data.train.X.shape[2],
+    dropout=DROPOUT,
+    n_mixtures=N_MIXTURES,
+    hidden_units=HIDDEN_UNITS,
+    embed_dim=EMBEDDING_DIMENSIONS,
+    ticker_ids_dim=data.ticker_ids_dim,
+)
+best_model.set_weights(best_model_weights)
+best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
 
 # %%
 # 7) Commit and push
-!git pull
-!git add models/lstm_mdn_*.keras
-!git commit -m "Train LSTM w MDN model with FNG" -m "$history.history"
-!git push
+try:
+    subprocess.run(["git", "pull"], check=True)
+    subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
+
+    commit_header = f"Train LSTM MDN {VERSION}"
+    commit_body = f"Training history:\n" + "\n".join(
+        [str(h.history) for h in histories]
+    )
+
+    subprocess.run(
+        ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+    )
+    subprocess.run(["git", "push"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Git command failed: {e}")
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict(X_test)  # shape: (batch, 3*N_MIXTURES)
+y_pred_mdn = lstm_mdn_model.predict([data.validation.X, data.validation_ticker_ids])
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-plt.figure(figsize=(10, 40))
-np.random.seed(0)
-days = np.random.randint(0, len(y_test), 10)
-days = np.sort(days)[::-1]
-for i, day in enumerate(days):
-    plt.subplot(10, 1, i + 1)
-    timestamp = df.index[-day][0]
-    x_min = -0.1
-    x_max = 0.1
-    x_vals = np.linspace(x_min, x_max, 1000)
-    mixture_pdf = compute_mixture_pdf(
-        x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+example_tickers = ["GOOG", "AON", "WMT", "GS"]
+for ticker in example_tickers:
+    s = data.validation.sets[ticker]
+    from_idx, to_idx = data.validation.get_range(ticker)
+    plot_sample_days(
+        s.y_dates,
+        s.y,
+        pi_pred[from_idx:to_idx],
+        mu_pred[from_idx:to_idx],
+        sigma_pred[from_idx:to_idx],
+        N_MIXTURES,
+        ticker=ticker,
     )
-    plt.fill_between(
-        x_vals,
-        np.zeros_like(x_vals),
-        mixture_pdf,
-        color="blue",
-        label="Mixture",
-        alpha=0.5,
-    )
-    plotted_mixtures = 0
-    top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
-    for j in range(N_MIXTURES):
-        weight = pi_pred[-day, j].numpy()
-        if weight < 0.001:
-            continue
-        plotted_mixtures += 1
-        mu = mu_pred[-day, j]
-        sigma = sigma_pred[-day, j]
-        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
-            -0.5 * ((x_vals - mu) / sigma) ** 2
-        )
-        legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
-        plt.plot(x_vals, pdf, label=legend, alpha=min(10*weight, 1))
-    plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
-    moment_estimates = numerical_mixture_moments(
-        np.array(pi_pred[-day]),
-        np.array(mu_pred[-day]),
-        np.array(sigma_pred[-day]),
-        range_factor=3,
-    )
-    plt.axvline(
-        moment_estimates["mean"], color="black", linestyle="--", label="Predicted Mean"
-    )
-    plt.text(
-        x_min + 0.01,
-        5,
-        f"Mean: {moment_estimates['mean']*100:.2f}%\n"
-        f"Std: {moment_estimates['std']*100:.2f}%\n"
-        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
-        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
-        f"* Numerically estimated",
-        fontsize=10,
-    )
-    plt.gca().set_xticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-    )
-    plt.title(
-        f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {TEST_ASSET}"
-    )
-    plt.ylim(0, 50)
-    plt.legend()
-    plt.ylabel("Density")
-plt.xlabel("LogReturn")
-plt.tight_layout()
-plt.show()
 
 # %%
 # 10) Plot weights over time to show how they change
-plt.figure(figsize=(18, 8))
-dates = (
-    df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_TEST_SPLIT:]
-    .index.get_level_values("Date")
+fig, axes = plt.subplots(
+    nrows=len(example_tickers), figsize=(18, len(example_tickers) * 9)
 )
-for j in range(N_MIXTURES):
-    mean_over_time = np.mean(pi_pred[:, j], axis=0)
-    if mean_over_time < 0.01:
-        continue
-    plt.plot(dates, pi_pred[:, j], label=f"$\pi_{{{j}}}$")
-plt.gca().set_yticklabels(["{:.0f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"Evolution of Mixture Weights for {TEST_ASSET}")
-plt.xlabel("Time")
-plt.ylabel("Weight")
-plt.legend()
+
+# Dictionary to store union of legend entries
+legend_dict = {}
+
+for ax, ticker in zip(axes, example_tickers):
+    s = data.validation.sets[ticker]
+    from_idx, to_idx = data.validation.get_range(ticker)
+    pi_pred_ticker = pi_pred[from_idx:to_idx]
+    for j in range(N_MIXTURES):
+        mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
+        if mean_over_time < 0.01:
+            continue
+        (line,) = ax.plot(s.y_dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+        # Only add new labels
+        if f"$\pi_{{{j}}}$" not in legend_dict:
+            legend_dict[f"$\pi_{{{j}}}$"] = line
+    ax.set_yticklabels(["{:.2f}%".format(x * 100) for x in ax.get_yticks()])
+    ax.set_title(f"Evolution of Mixture Weights for {ticker}")
+    ax.set_xlabel("Time")
+    ax.set_ylabel("Weight")
+
+# Create a combined legend using the union of entries
+handles = list(legend_dict.values())
+labels = list(legend_dict.keys())
+fig.legend(handles, labels, loc="center left")
+plt.tight_layout(rect=[0, 0, 1, 0.95])
 plt.show()
 
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
-intervals = calculate_intervals(pi_pred, mu_pred, sigma_pred, confidence_levels)
+confidence_levels = [0.67, 0.95, 0.99]
+intervals = calculate_intervals_vectorized(
+    pi_pred, mu_pred, sigma_pred, confidence_levels
+)
 
 # %%
 # 12) Plot time series with mean, volatility and actual returns for last X days
 days = 150
-shift = 500
-filtered_df = (
-    df.xs(TEST_ASSET, level="Symbol")
-    .loc[TRAIN_TEST_SPLIT:]
-    .tail(days + shift)
-    .head(days)
-)
-filtered_intervals = intervals[-days - shift : -shift]
+shift = 1
 mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-filtered_mean = mean[-days - shift : -shift]
+for ticker in example_tickers:
+    from_idx, to_idx = data.validation.get_range(ticker)
+    ticker_mean = mean[from_idx:to_idx]
+    filtered_mean = ticker_mean[-days - shift : -shift]
+    ticker_intervals = intervals[from_idx:to_idx]
+    filtered_intervals = ticker_intervals[-days - shift : -shift]
+    s = data.validation.sets[ticker]
+    dates = s.y_dates[-days - shift : -shift]
+    actual_return = s.y[-days - shift : -shift]
 
-plt.figure(figsize=(12, 6))
-plt.plot(
-    filtered_df.index,
-    filtered_df["LogReturn"],
-    label="Actual Returns",
-    color="black",
-    alpha=0.5,
-)
-plt.plot(filtered_df.index, filtered_mean, label="Predicted Mean", color="red")
-median = filtered_intervals[:, 0, 0]
-plt.plot(filtered_df.index, median, label="Median", color="blue")
-for i, cl in enumerate(confidence_levels):
-    if cl == 0:
-        continue
-    plt.fill_between(
-        filtered_df.index,
-        filtered_intervals[:, i, 0],
-        filtered_intervals[:, i, 1],
-        color="blue",
-        alpha=0.7 - i * 0.1,
-        label=f"{int(100*cl)}% Interval",
+    plt.figure(figsize=(12, 6))
+    plt.plot(
+        dates,
+        actual_return,
+        label="Actual Returns",
+        color="black",
+        alpha=0.5,
     )
-plt.axhline(
-    filtered_df["LogReturn"].mean(),
-    color="red",
-    linestyle="--",
-    label="True mean return across time",
-    alpha=0.5,
-)
-plt.gca().set_yticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()])
-plt.title(f"LSTM w MDN predictions for {TEST_ASSET}, {days} days")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
+    plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+    median = filtered_intervals[:, 0, 0]
+    plt.plot(dates, median, label="Median", color="blue")
+    for i, cl in enumerate(confidence_levels):
+        if cl == 0:
+            continue
+        plt.fill_between(
+            dates,
+            filtered_intervals[:, i, 0],
+            filtered_intervals[:, i, 1],
+            color="blue",
+            alpha=0.7 - i * 0.1,
+            label=f"{int(100*cl)}% Interval",
+        )
+    plt.axhline(
+        actual_return.mean(),
+        color="red",
+        linestyle="--",
+        label="True mean return across time",
+        alpha=0.5,
+    )
+    plt.gca().set_yticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
+    )
+    plt.title(f"LSTM w MDN predictions for {ticker}, {days} days")
+    plt.xlabel("Date")
+    plt.ylabel("LogReturn")
+    plt.legend()
+    plt.show()
 
 # %%
-# 13) Store single-pass predictions
-df_test = df.xs(TEST_ASSET, level="Symbol").loc[TRAIN_TEST_SPLIT:]
-# For reference, compute mixture means & variances
-uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var(
+# 13) Make data frame for signle pass predictions
+df_validation = pd.DataFrame(
+    np.vstack([data.validation.dates, data.validation.tickers]).T,
+    columns=["Date", "Symbol"],
+)
+# %%
+# For comparison to other models, compute mixture means & variances
+uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
     pi_pred, mu_pred, sigma_pred
 )
 uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
-df_test["Mean_SP"] = uni_mixture_mean_sp
-df_test["Vol_SP"] = uni_mixture_std_sp
-df_test["NLL"] = mdn_loss_numpy(N_MIXTURES)(y_test, y_pred_mdn)
-crps = crps_mdn_numpy(N_MIXTURES)
-df_test["CRPS"] = crps(y_test, y_pred_mdn)
+df_validation["Mean_SP"] = uni_mixture_mean_sp
+df_validation["Vol_SP"] = uni_mixture_std_sp
 
+# %%
+# Calculate loss
+df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
+
+# %%
+# Calculate CRPS
+crps = mdn_crps_tf(N_MIXTURES)
+df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
+
+# %%
+# Add confidence intervals
 for i, cl in enumerate(confidence_levels):
-    df_test[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
-    df_test[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
+    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
+    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
 
-os.makedirs("predictions", exist_ok=True)
-df_test.to_csv(
-    f"predictions/lstm_mdn_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
+# %%
+# Save
+df_validation.set_index(["Date", "Symbol"]).to_csv(
+    f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}.csv"
 )
+
+# %%
+# Commit predictions
+try:
+    subprocess.run(["git", "pull"], check=True)
+    subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
+    commit_header = f"Add predictions for LSTM MDN {VERSION}"
+    commit_body = f"Validation loss: {val_loss}"
+    subprocess.run(
+        ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+    )
+    subprocess.run(["git", "push"], check=True)
+except subprocess.CalledProcessError as e:
+    print(f"Git command failed: {e}")
 
 # %%
 # 9) MC Dropout predictions
 mc_results = predict_with_mc_dropout_mdn(
-    lstm_mdn_model, X_test, T=100, n_mixtures=N_MIXTURES
+    lstm_mdn_model, data.validation.y, T=100, n_mixtures=N_MIXTURES
 )
 
-df_test["Mean_MC"] = mc_results["expected_returns"]
-df_test["Vol_MC"] = mc_results["volatility_estimates"]
-df_test["Epistemic_Unc_Vol"] = mc_results["epistemic_uncertainty_volatility_estimates"]
-df_test["Epistemic_Unc_Mean"] = mc_results["epistemic_uncertainty_expected_returns"]
+df_validation["Mean_MC"] = mc_results["expected_returns"]
+df_validation["Vol_MC"] = mc_results["volatility_estimates"]
+df_validation["Epistemic_Unc_Vol"] = mc_results[
+    "epistemic_uncertainty_volatility_estimates"
+]
+df_validation["Epistemic_Unc_Mean"] = mc_results[
+    "epistemic_uncertainty_expected_returns"
+]
 
-df_test.to_csv(
-    f"predictions/lstm_mdn_mc_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days_v{VERSION}.csv"
-)
-
-# %%
-# 10) (Optional) Compare coverage vs. GARCH predictions
-garch_path = f"predictions/garch_predictions_{TEST_ASSET}_{LOOKBACK_DAYS}_days.csv"
-if os.path.exists(garch_path):
-    garch_vol_pred = pd.read_csv(garch_path, index_col="Date")["Volatility"]
-else:
-    garch_vol_pred = None
-
-# %%
-# We'll do a short coverage example on the last 100 points
-lookback_days_plot = 100
-shift = 200
-idx_start = max(0, len(df_test) - lookback_days_plot - shift)
-idx_end = idx_start + lookback_days_plot
-
-actual_returns = df_test["LogReturn"].iloc[idx_start:idx_end]
-mc_means = df_test["Mean_MC"].iloc[idx_start:idx_end]
-mc_vols = df_test["Vol_MC"].iloc[idx_start:idx_end]
-
-# Chart with intervals
-plt.figure(figsize=(12, 6))
-plt.plot(actual_returns.index, actual_returns, label="Actual Returns", color="black")
-plt.plot(mc_means.index, mc_means, label="MC Dropout Mean", color="blue")
-plt.fill_between(
-    mc_means.index,
-    mc_means - mc_vols,
-    mc_means + mc_vols,
-    color="blue",
-    alpha=0.5,
-    label="±1 SD Interval (MC)",
-)
-plt.fill_between(
-    mc_means.index,
-    mc_means - 2 * mc_vols,
-    mc_means + 2 * mc_vols,
-    color="blue",
-    alpha=0.2,
-    label="±2 SD Interval (MC)",
-)
-# Plot epistemc uncertainty as a bar chart on a secondary y-axis
-plt.bar(
-    mc_means.index,
-    df_test["Epistemic_Unc_Mean"].iloc[idx_start:idx_end],
-    alpha=0.3,
-    color="red",
-    label="Epistemic Uncertainty (MC)",
-)
-plt.title(f"lstm + MDN (MC Dropout) intervals, last {lookback_days_plot} points")
-plt.xlabel("Date")
-plt.ylabel("LogReturn")
-plt.legend()
-plt.show()
-
-# %%
-# Coverage stats
-# 67% ~ 1 std
-cov_67 = np.mean(
-    (actual_returns >= mc_means - mc_vols) & (actual_returns <= mc_means + mc_vols)
-)
-# 95% ~ 2 std
-cov_95 = np.mean(
-    (actual_returns >= mc_means - 2 * mc_vols)
-    & (actual_returns <= mc_means + 2 * mc_vols)
-)
-
-# %%
-# Compare with GARCH if available
-if garch_vol_pred is not None:
-    # align garch_vol_pred with same date range
-    garch_vol_plot = garch_vol_pred.loc[mc_means.index]
-    cov_67_garch = np.mean(
-        (actual_returns >= -garch_vol_plot) & (actual_returns <= garch_vol_plot)
-    )
-    cov_95_garch = np.mean(
-        (actual_returns >= -1.96 * garch_vol_plot)
-        & (actual_returns <= 1.96 * garch_vol_plot)
-    )
-
-    mean_width_67_garch = garch_vol_plot.mean()
-    mean_width_95_garch = 1.96 * 2 * garch_vol_plot.mean()
-
-    mean_width_67_mc = mc_vols.mean()
-    mean_width_95_mc = 2.0 * 2 * mc_vols.mean()  # 2 stdev => 95% in normal approx
-
-    print(f"Stats for last {lookback_days_plot} points:")
-    stats_df = pd.DataFrame(
-        {
-            "Model": ["MC Dropout", "GARCH"],
-            "PICP (67%)": [cov_67, cov_67_garch],
-            "PICP (95%)": [cov_95, cov_95_garch],
-            "Width (67%)": [mean_width_67_mc, mean_width_67_garch],
-            "Width (95%)": [mean_width_95_mc, mean_width_95_garch],
-            "PICP/Width (67%)": [
-                cov_67 / mean_width_67_mc if mean_width_67_mc != 0 else np.nan,
-                (
-                    cov_67_garch / mean_width_67_garch
-                    if mean_width_67_garch != 0
-                    else np.nan
-                ),
-            ],
-            "PICP/Width (95%)": [
-                cov_95 / mean_width_95_mc if mean_width_95_mc != 0 else np.nan,
-                (
-                    cov_95_garch / mean_width_95_garch
-                    if mean_width_95_garch != 0
-                    else np.nan
-                ),
-            ],
-        }
-    )
-    print(stats_df)
-else:
-    print(f"Coverage (67%): {cov_67:.3f}, Coverage (95%): {cov_95:.3f}")
-
-print("Done.")
-
-# %%
+df_validation.to_csv(f"predictions/lstm_mdn_mc_predictions{SUFFIX}_days_v{VERSION}.csv")

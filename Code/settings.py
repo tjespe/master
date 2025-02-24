@@ -3,7 +3,9 @@ LOOKBACK_DAYS = 30
 SUFFIX = "_stocks"  # Use "_stocks" for the single stocks or "" for S&P500 only
 TEST_ASSET = "GOOG"
 DATA_PATH = "data/sp500_stocks_garch.csv"
-TRAIN_TEST_SPLIT = "2020-06-30"
+TRAIN_VALIDATION_SPLIT = "2021-12-31"
+VALIDATION_TEST_SPLIT = "2023-12-31"
 
 # Other
-import _fix_path
+# Not necessary anymore after we stopped using Git LFS
+# import _fix_path
