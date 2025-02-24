@@ -151,7 +151,10 @@ df_final.rename(columns={"CLOSE": "Close Actual", "HIGH": "High", "LOW": "Low", 
 df_final.sort_values(["Symbol", "Date"], inplace=True)
 df_final
 
+# %%  drop 2003-10-25 for symbol AMGN.O as it is not a trading day
 
+df_final = df_final.drop(df_final[(df_final["Date"] == "2003-10-25") & (df_final["Symbol"] == "AMGN.O")].index)
+df_final
 # %% displauy all rows where column "TotalReturn" is null
 df_final[df_final["Total Return"].isnull()]
 
