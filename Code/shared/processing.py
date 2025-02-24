@@ -125,7 +125,12 @@ class ProcessedData:
         return self._ticker_lookup.vocabulary_size()
 
 
-def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> ProcessedData:
+def get_lstm_train_test_new(
+    multiply_by_beta=False,
+    include_fng=False,
+    include_spx_data=False,
+    include_returns=False,
+) -> ProcessedData:
     """
     Prepare data for LSTM
     """
@@ -214,12 +219,11 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
             cov[("PctReturn", "SPX_PctReturn")]
             / cov[("SPX_PctReturn", "SPX_PctReturn")]
         )
-        g["Beta"] = beta
-        g = g.reset_index().set_index(["Date", "Symbol"])
-        return g
+        return beta
 
-    df = df.groupby("Symbol").apply(lambda g: compute_beta(g)).droplevel(0)
-    df["Beta"]
+    df["Beta_5y"] = df.groupby("Symbol").apply(lambda g: compute_beta(g)).values
+    df["Beta_60d"] = df.groupby("Symbol").apply(lambda g: compute_beta(g, 60)).values
+    df[["Beta_5y", "Beta_60d"]]
 
     # %%
     # Add more features:
@@ -290,14 +294,16 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
 
     # %%
     # Filter away data we don't have RVOL data for
-    df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
-    df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
+    if include_spx_data:
+        df = df[df.index.get_level_values("Date") >= rvol_df.index[0]]
+        df = df[df.index.get_level_values("Date") <= rvol_df.index[-1]]
     df
 
     # %%
     # Filter away data we don't have VIX data for
-    df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
-    df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
+    if include_spx_data:
+        df = df[df.index.get_level_values("Date") >= vix_df.index[0]]
+        df = df[df.index.get_level_values("Date") <= vix_df.index[-1]]
     df
 
     # %%
@@ -305,7 +311,7 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
     if include_fng:
         df = df[df.index.get_level_values("Date") >= fng_df.index[0]]
         df = df[df.index.get_level_values("Date") <= fng_df.index[-1]]
-        df
+    df
 
     # %%
     # Add RVOL data to the dataframe
@@ -347,7 +353,7 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
         "GARCH_Vol",
         "RVOL_Std",
         "DownsideVol",
-        "Beta",
+        "Beta_5y",
         "Skew_EWM",
         "Kurt_EWM",
     ]
@@ -399,10 +405,10 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
 
     # %%
     # Check for missing beta values
-    beta_nan_df = df[df["Beta"].isna()].reset_index()
+    beta_nan_df = df[df["Beta_5y"].isna()].reset_index()
     beta_nans_per_day = beta_nan_df.groupby("Date")["Date"].count()
     # for ticker in beta_nan_df["Symbol"].unique():
-    #     df.xs(ticker, level="Symbol")["Beta"].plot(label=ticker + " beta")
+    #     df.xs(ticker, level="Symbol")["Beta_5y"].plot(label=ticker + " beta")
     # import matplotlib.pyplot as plt
     # plt.legend()
     # beta_nan_df.groupby("Symbol")["Symbol"].count()
@@ -410,7 +416,7 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
 
     # %%
     # Remove rows with nan beta
-    df = df[~df["Beta"].isna()]
+    df = df[~df["Beta_5y"].isna()]
     df
 
     # %%
@@ -489,7 +495,8 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
         fear_greed = group["Fear Greed"].values.reshape(-1, 1) / 100
         fear_greed_1d = np.diff(fear_greed, axis=0, prepend=fear_greed[0, 0])
         fear_greed_7d = fear_greed - np.vstack([fear_greed[:7], fear_greed[:-7]])
-        beta = group["Beta"].values.reshape(-1, 1)
+        beta_5y = group["Beta_5y"].values.reshape(-1, 1)
+        beta_60d = group["Beta_60d"].values.reshape(-1, 1)
 
         # Find dates to split on
         dates = pd.to_datetime(group.index.get_level_values("Date"))
@@ -497,11 +504,26 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
         VALIDATION_TEST_SPLIT_index = len(group[dates < VALIDATION_TEST_SPLIT])
 
         # Stack returns and squared returns together
-        market_feature_factor = beta if multiply_by_beta else 1
+        market_feature_factor = beta_5y if multiply_by_beta else 1
         data = np.hstack(
             (
                 log_sq_returns,
                 sign_return,
+                # next_day_trading_day,
+                # downside_log_var,
+                beta_5y,
+                beta_60d,
+            )
+        )
+
+        if include_returns:
+            data = np.hstack(
+                data,
+                returns,
+            )
+
+        if include_spx_data:
+            data = np.hstack(
                 rvol * market_feature_factor,
                 rvol_change_1d * market_feature_factor,
                 rvol_change_2d * market_feature_factor,
@@ -509,14 +531,9 @@ def get_lstm_train_test_new(multiply_by_beta=False, include_fng=False) -> Proces
                 vix_change_1d * market_feature_factor,
                 vix_change_2d * market_feature_factor,
                 vix_change_7d * market_feature_factor,
-                next_day_trading_day * market_feature_factor,
                 rvol_std * market_feature_factor,
-                downside_log_var,
                 vix_rvol_diff * market_feature_factor,
-                returns,
-                beta,
             )
-        )
 
         if include_fng:
             data = np.hstack(
