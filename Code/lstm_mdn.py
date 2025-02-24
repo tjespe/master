@@ -3,7 +3,7 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "nll-crps-mix"
+VERSION = "rv-data"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = True
@@ -30,6 +30,7 @@ from shared.loss import (
     mdn_nll_numpy,
     mean_mdn_loss_numpy,
     mean_mdn_crps_tf,
+    mdn_nll_tf,
 )
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
@@ -301,7 +302,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
@@ -395,7 +396,7 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-example_tickers = ["GOOG", "AON", "WMT", "GS"]
+example_tickers = ["AAPL", "WMT", "GS"]
 for ticker in example_tickers:
     s = data.validation.sets[ticker]
     from_idx, to_idx = data.validation.get_range(ticker)
