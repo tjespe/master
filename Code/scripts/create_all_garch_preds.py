@@ -39,8 +39,12 @@ df: pd.DataFrame = df.set_index(["Date", "Symbol"])
 df
 
 # %%
+# Temporary: remove null dates
+df = df[~df.index.get_level_values("Date").isnull()]
+
+# %%
 # Filter away data before 2000
-df = df[df.index.get_level_values("Date") >= "2000-01-01"]
+# df = df[df.index.get_level_values("Date") >= "2000-01-01"]
 
 # Get list of unique symbols
 symbols = df.index.get_level_values("Symbol").unique()
