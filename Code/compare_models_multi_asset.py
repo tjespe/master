@@ -1017,8 +1017,10 @@ for cl in CONFIDENCE_LEVELS:
     )
     y = np.arange(len(existing_tickers))
 
-    plt.figure(figsize=(10, len(existing_tickers) * 2))
-    plt.title("PICP by ticker")
+    plt.figure(figsize=(10, len(existing_tickers) * 0.5))
+    plt.title("PICP by ticker ({:.0f}% interval)".format(cl * 100))
+    x_from = cl - 0.05
+    x_to = cl + 0.05
 
     num_models = len(passing_models)
     offsets = np.linspace(
@@ -1041,15 +1043,17 @@ for cl in CONFIDENCE_LEVELS:
         )
         # Add a check mark or cross to indicate if the model passes or fails
         for idx, row in chr_results_df.iterrows():
-            plt.text(
-                row["Coverage"] - 0.002,
-                y[existing_tickers.index(idx)] + offsets[i],
-                "✓" if row["all_pass"] else "✗",
-                verticalalignment="center",
-                color="white",
-            )
+            picp = row["Coverage"]
+            if x_from < picp < x_to:
+                plt.text(
+                    row["Coverage"] - 0.002,
+                    y[existing_tickers.index(idx)] + offsets[i],
+                    "✓" if row["uc_pass"] else "✗",
+                    verticalalignment="center",
+                    color="white",
+                )
 
-    plt.xlim(cl - 0.05, cl + 0.05)
+    plt.xlim(x_from, x_to)
     plt.axvline(cl, color="black", linestyle="--", label="Target")
     plt.yticks(y, existing_tickers)
     plt.gca().set_xticklabels(
