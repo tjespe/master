@@ -1060,6 +1060,7 @@ for cl in CONFIDENCE_LEVELS:
         ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
     )
     plt.legend()
+    plt.savefig(f"results/picp_by_ticker_{cl}.svg")
     plt.show()
 
 # %%

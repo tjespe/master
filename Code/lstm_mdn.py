@@ -416,6 +416,7 @@ for ticker in example_tickers:
         sigma_pred[from_idx:to_idx],
         N_MIXTURES,
         ticker=ticker,
+        save_to=f"results/distributions/{ticker}_lstm_mdn_v{VERSION}.svg",
     )
 
 # %%
@@ -449,6 +450,7 @@ handles = list(legend_dict.values())
 labels = list(legend_dict.keys())
 fig.legend(handles, labels, loc="center left")
 plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.savefig(f"results/lstm_mdn_v{VERSION}_mixture_weights.svg")
 plt.show()
 
 
@@ -510,6 +512,7 @@ for ticker in example_tickers:
     plt.xlabel("Date")
     plt.ylabel("LogReturn")
     plt.legend()
+    plt.savefig(f"results/time_series/{ticker}_lstm_mdn_v{VERSION}.svg")
     plt.show()
 
 # %%
