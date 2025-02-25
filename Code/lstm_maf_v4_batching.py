@@ -371,6 +371,7 @@ for ticker in example_tickers:
         plt.legend()
         plt.show()
 
+
 # %%
 # Predicting the Distribution for the Entire Validation Period
 batch_size = 64
@@ -406,6 +407,9 @@ with torch.no_grad():
         # calculate predicted return and std
         predicted_return = samples.mean(dim=1).numpy().flatten()
         predicted_std = samples.std(dim=1).numpy().flatten()
+
+        # calculate nll loss based on kernal density estimation
+        nll_loss[batch_start:batch_start + batch_size] = 
 
         # calculate nll loss
         nll_loss[batch_start:batch_start + batch_size] = - model.log_prob(y_val[batch_start:batch_start + batch_size], X_batch).numpy()
@@ -487,8 +491,7 @@ print("Number of NaN values in predicted returns:", nan_values.sum())
 print("Last predicted return:", predicted_returns[-1])
 
 # %%
-# Calculate NLL - this value should be the same as in the on in compare models
-# print("NLL Loss:", nll_loss_maf(model, X_val, y_val))
+# Based on the 
 
 # %%
 # Check lenghts of the predicted returns and stds

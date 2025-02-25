@@ -236,6 +236,41 @@ for version in ["v2", "v3", "v4"]:
     except FileNotFoundError:
         print(f"LSTM MAF {version} predictions not found")
 
+for version in ["v1"]:
+    try:
+        vae = pd.read_csv(f"predictions/vae_lstm_{version}{SUFFIX}.csv")
+        vae["Date"] = pd.to_datetime(vae["Date"])
+        vae = vae.set_index(["Date", "Symbol"])
+        vae_dates = vae.index.get_level_values("Date")
+        vae = vae[(vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)]
+        combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
+        preds_per_model.append(
+            {
+                "name": f"VAE {version}",
+                "mean_pred": combined_df["Mean_SP"].values,
+                "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df["LB_90"].values,
+                "UB_90": combined_df["UB_90"].values,
+                "LB_95": combined_df["LB_95"].values,
+                "UB_95": combined_df["UB_95"].values,
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
+                "nll": nll_loss_mean_and_vol(
+                            y_true,
+                            mus,
+                            garch_vol_pred,
+                                        ),
+                "symbols": combined_df.index.get_level_values("Symbol"),
+                # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+            }
+        )
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"VAE {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"VAE {version} predictions not found")
 
 try:
     maf_entry = next(
