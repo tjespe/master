@@ -40,7 +40,7 @@ import warnings
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new()
+data = get_lstm_train_test_new(multiply_by_beta=True, include_fng=False, include_spx_data=True, include_returns=True)
 data
 
 
@@ -221,7 +221,7 @@ input_dim = 300  # 10 features * 30 lookback days
 feature_dim = X_train.shape[-1]
 extractor_num_layers = 1
 extractor_dropout = 0.5
-flow_dropout = 0.5
+flow_dropout = 0.3
 print("Input dimension:", input_dim)
 
 
@@ -256,7 +256,7 @@ val_losses = []
 
 # %%
 # Train the model
-epochs = 5
+epochs = 40
 l2_lambda = 1e-4  # Regularization strength
 for epoch in range(epochs):
     model.train()
@@ -310,6 +310,12 @@ for epoch in range(epochs):
     # Print loss per epoch
     print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
 
+    # Stop if validation loss does not improve for 3 epochs
+    if len(val_losses) > 3 and all(
+        val_losses[-1] >= val_losses[i] for i in range(-3, 0)
+    ):
+        print("Validation loss did not improve for 3 epochs. Stopping training.")
+        break
 
 # %%
 # Predicting the Distribution for 10 Random Test Samples
