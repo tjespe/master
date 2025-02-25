@@ -11,7 +11,7 @@ from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.33
+CONFIDENCE_LEVEL = 0.005
 
 # %%
 # Select whether to only filter on important tickers
@@ -127,6 +127,7 @@ for version in [
     3,
     "rv-data",
     "rv-data-2",
+    "rv-data-3",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -148,10 +149,18 @@ for version in [
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "LB_67": combined_df["LB_67"].values,
                 "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df.get("LB_90"),
+                "UB_90": combined_df.get("UB_90"),
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
+                "LB_97.5": combined_df.get("LB_97.5"),
+                "UB_97.5": combined_df.get("UB_97.5"),
                 "LB_99": combined_df["LB_99"].values,
                 "UB_99": combined_df["UB_99"].values,
+                "LB_99.5": combined_df.get("LB_99.5"),
+                "UB_99.5": combined_df.get("UB_99.5"),
+                "LB_99.9": combined_df.get("LB_99.9"),
+                "UB_99.9": combined_df.get("UB_99.9"),
                 "nll": np.nanmean(
                     combined_df.get("NLL", combined_df.get("loss")).values
                 ),

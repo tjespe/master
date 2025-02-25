@@ -473,3 +473,22 @@ def calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels):
         intervals[:, j, 1] = upper_bound
 
     return intervals
+
+
+def calculate_prob_above_zero_vectorized(pis, mus, sigmas):
+    """
+    Vectorized calculation of the probability that a mixture distribution
+    is above zero, for each row (sample) in pis, mus, sigmas.
+    """
+    pis = np.asarray(pis)
+    mus = np.asarray(mus)
+    sigmas = np.asarray(sigmas)
+
+    # Standard normal CDF at -mu/sigma
+    cdf_vals = norm.cdf(-mus / sigmas)
+
+    # Mixture CDF at zero = sum_i pi_i * cdf(-mu_i/sigma_i)
+    mixture_cdf_zero = np.sum(pis * cdf_vals, axis=1)
+
+    # Probability above zero
+    return 1 - mixture_cdf_zero
