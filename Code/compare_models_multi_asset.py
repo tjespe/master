@@ -11,7 +11,7 @@ from data.tickers import IMPORTANT_TICKERS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.05
+CONFIDENCE_LEVEL = 0.33
 
 # %%
 # Select whether to only filter on important tickers
