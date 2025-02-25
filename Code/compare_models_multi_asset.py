@@ -565,6 +565,7 @@ for entry in preds_per_model:
         start_index = 0
 
         # Group by symbol in original order.
+        exceedance_df.sort_values("Symbol", inplace=True)
         for symbol, group in exceedance_df.groupby("Symbol", sort=False):
             asset_exceedances = (
                 ~group["Within Bounds"].astype(bool)
@@ -624,9 +625,6 @@ for entry in preds_per_model:
             chr_results_df["uc_pass"].astype(bool)
             & chr_results_df["ind_pass"].astype(bool)
             & chr_results_df["cc_pass"].astype(bool),
-        )
-        entry[f"christoffersen_test_{cl_str}"] = interpret_christoffersen_test(
-            chr_results_df.replace([np.inf, -np.inf], np.nan).mean()
         )
 
         # Print Christoffersen's Test Results
@@ -756,11 +754,15 @@ results_df = results_df.set_index("Model")
 
 # %%
 # Remove inadequate models
-for cl in CONFIDENCE_LEVELS:
-    results_df = results_df[
-        (results_df[f"[{format_cl(cl)}] Pooled CC p-value"] > 0.05)
-        | results_df.index.get_level_values("Model").str.contains("GARCH")
-    ]
+for model in results_df.index:
+    if "GARCH" in model:
+        continue
+    passes = 0
+    for cl in CONFIDENCE_LEVELS:
+        if results_df.loc[model, f"[{format_cl(cl)}] Pooled CC p-value"] > 0.05:
+            passes += 1
+    if passes == 0:
+        results_df.drop(model, inplace=True)
 
 # %%
 # Identify winners
@@ -1253,3 +1255,5 @@ for entry in preds_per_model:
     strat_results_df.loc[entry["name"]] = [mean_return, p_value, cumulative_return]
 
 strat_results_df
+
+# %%
