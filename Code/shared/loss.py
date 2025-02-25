@@ -80,6 +80,37 @@ def nll_loss_maf(model, X_test, y_test):
     nll = -total_log_prob / len(X_test)
     return nll
 
+# def kde_negative_log_likelihood(y_obs, samples, bandwidth=0.1):
+#     """
+#     Compute -log p(y_obs) under a Gaussian KDE built from the given samples.
+    
+#     Args:
+#       y_obs: scalar, the observed value
+#       samples: array-like of shape (N,), the empirical distribution
+#       bandwidth: float, the smoothing parameter for the Gaussian kernel
+      
+#     Returns:
+#       A scalar representing the negative log-likelihood: -log p(y_obs)
+#     """
+#     samples = np.asarray(samples)
+#     N = len(samples)
+    
+#     # Evaluate the kernel for each sample
+#     # Gaussian kernel => 1/(sqrt(2*pi)*h) * exp( -(y-yi)^2 / (2h^2) )
+#     # We'll do it in a vectorized way
+#     coeff = 1.0 / (np.sqrt(2.0 * np.pi) * bandwidth)
+#     diff_sq = (y_obs - samples)**2
+    
+#     kernel_vals = coeff * np.exp(-0.5 * diff_sq / (bandwidth**2))
+    
+#     # Average over the N kernels
+#     pdf_est = np.mean(kernel_vals)
+    
+#     # If pdf_est is extremely small, the log might blow up
+#     # We'll do a minimal floor to avoid -inf
+#     pdf_est = max(pdf_est, 1e-40) 
+    
+#     return -np.log(pdf_est)
 
 def nll_loss_mean_and_log_var(y_true, means, log_vars):
     """
