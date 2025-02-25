@@ -603,3 +603,4 @@ df_validation
 df_validation.set_index(["Date", "Symbol"]).to_csv(
     f"predictions/vae_lstm_v1{SUFFIX}.csv"
 )
+# %%
