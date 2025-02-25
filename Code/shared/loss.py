@@ -90,10 +90,13 @@ def nll_loss_mean_and_log_var(y_true, means, log_vars):
         y_true: target values (B, 1), i.e. actual values
         means: predicted means (B, 1)
         log_vars: predicted log variances (B, 1)
+
+    Returns:
+        nll: Negative log-likelihood (B,)
     """
     weights = np.ones_like(y_true)
     y_pred_combined = np.vstack([weights, means, log_vars]).T
-    return mean_mdn_loss_numpy(1)(y_true, y_pred_combined)
+    return mdn_nll_numpy(1)(y_true, y_pred_combined)
 
 
 def nll_loss_mean_and_vol(y_true, means, vols):
@@ -105,6 +108,9 @@ def nll_loss_mean_and_vol(y_true, means, vols):
         y_true: target values (B, 1), i.e. actual values
         means: predicted means (B, 1)
         vols: predicted volatilities (B, 1)
+
+    Returns:
+        nll: Negative log-likelihood (B,)
     """
     log_vars = 2 * np.log(vols)
     return nll_loss_mean_and_log_var(y_true, means, log_vars)

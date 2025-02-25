@@ -559,7 +559,6 @@ for version in ["v1"]:
         print("VAE + LSTM predictions not found")
 
 
-
 # LSTM FFNN MDN
 for version in ["v1", "v2"]:
     try:
@@ -875,7 +874,7 @@ for entry in preds_per_model:
     if "nll" not in entry:
         entry["nll"] = nll_loss_mean_and_vol(
             y_test_actual, entry["mean_pred"], entry["volatility_pred"]
-        )
+        ).mean()
 
     # Calculate quantile loss
     entry["quantile_loss"] = np.mean(
