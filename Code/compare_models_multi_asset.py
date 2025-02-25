@@ -9,6 +9,10 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 from data.tickers import IMPORTANT_TICKERS
+from scipy.stats import ttest_rel
+from scipy.stats import linregress
+from scipy.stats import ttest_1samp
+
 
 # %%
 # Defined which confidence level to use for prediction intervals
@@ -183,6 +187,7 @@ for version in [
                     if (crps := combined_df.get("CRPS")) is not None
                     else None
                 ),
+                "p_up": combined_df.get("Prob_Increase"),
             }
         )
         nans = combined_df["Mean_SP"].isnull().sum()
@@ -998,7 +1003,9 @@ for cl in CONFIDENCE_LEVELS:
         pass_pct = entry["sector_coverage"].reindex(sectors, fill_value=0)
         plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
 
-    plt.xlim(cl - 0.15, cl + 0.15)
+    x_from = cl - 0.15
+    x_to = min(cl + 0.15, 1)
+    plt.xlim(x_from, x_to)
     plt.axvline(cl, color="black", linestyle="--", label="Target")
     plt.yticks(y, sectors)
     plt.gca().set_xticklabels(
@@ -1064,3 +1071,185 @@ for cl in CONFIDENCE_LEVELS:
     plt.show()
 
 # %%
+# Calculate p-value of outperformance in terms of NLL
+passing_model_names = [entry["name"] for entry in passing_models]
+p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+p_value_df.index.name = "Benchmark"
+p_value_df.columns.name = "Challenger"
+
+for benchmark in passing_model_names:
+    for challenger in passing_model_names:
+        if benchmark == challenger:
+            continue
+        benchmark_entry = next(
+            entry for entry in passing_models if entry["name"] == benchmark
+        )
+        challenger_entry = next(
+            entry for entry in passing_models if entry["name"] == challenger
+        )
+        benchmark_nll = benchmark_entry["nll"]
+        challenger_nll = challenger_entry["nll"]
+        mask = ~np.isnan(benchmark_nll) & ~np.isnan(challenger_nll)
+        benchmark_nll = benchmark_nll[mask]
+        challenger_nll = challenger_nll[mask]
+
+        # Paired one-sided t-test
+        t_stat, p_value = ttest_rel(challenger_nll, benchmark_nll, alternative="less")
+
+        # Store the p-value in the dataframe
+        p_value_df.loc[benchmark, challenger] = p_value
+
+p_value_df
+
+# %%
+# Calculate p-value of outperformance in terms of CRPS
+p_value_df_crps = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+p_value_df_crps.index.name = "Benchmark"
+p_value_df_crps.columns.name = "Challenger"
+
+for benchmark in passing_model_names:
+    for challenger in passing_model_names:
+        if benchmark == challenger:
+            continue
+        benchmark_entry = next(
+            entry for entry in passing_models if entry["name"] == benchmark
+        )
+        challenger_entry = next(
+            entry for entry in passing_models if entry["name"] == challenger
+        )
+        benchmark_crps = benchmark_entry.get("crps")
+        challenger_crps = challenger_entry.get("crps")
+        if benchmark_crps is None or challenger_crps is None:
+            p_value_df_crps.loc[benchmark, challenger] = np.nan
+            continue
+        mask = ~np.isnan(benchmark_crps) & ~np.isnan(challenger_crps)
+        benchmark_crps = benchmark_crps[mask]
+        challenger_crps = challenger_crps[mask]
+
+        # Paired one-sided t-test
+        t_stat, p_value = ttest_rel(challenger_crps, benchmark_crps, alternative="less")
+
+        # Store the p-value in the dataframe
+        p_value_df_crps.loc[benchmark, challenger] = p_value
+
+p_value_df_crps
+
+# %%
+# Examine correlation between probability of increase and actual increase
+for entry in preds_per_model:
+    p_up = entry.get("p_up")
+    if p_up is None:
+        continue
+    df_copy = df_validation.copy()
+    df_copy["p_up"] = p_up
+    df_copy = df_copy.dropna()
+
+    x = df_copy["p_up"]
+    y = df_copy["LogReturn"]
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(df_copy["p_up"], y, alpha=0.5)
+    plt.xlabel("Predicted probability of increase")
+    plt.ylabel("Actual return")
+    plt.title(entry["name"])
+
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+    plt.plot(x, slope * x + intercept, color="red")
+    plt.text(
+        0.05,
+        0.95,
+        f"Correlation: {slope:.2f} ($p$ = {p_value:.4f})",
+        transform=plt.gca().transAxes,
+    )
+    plt.show()
+
+# %%
+# Examine correlation between predicted mean and actual return
+for entry in preds_per_model:
+    mean_pred = entry.get("mean_pred")
+    if mean_pred is None or (mean_pred == 0).all():
+        continue
+    df_copy = df_validation.copy()
+    df_copy["mean_pred"] = mean_pred
+    df_copy = df_copy.dropna()
+
+    x = df_copy["mean_pred"]
+    y = df_copy["LogReturn"]
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(df_copy["mean_pred"], y, alpha=0.5)
+    plt.xlabel("Predicted mean return")
+    plt.ylabel("Actual return")
+    plt.title(entry["name"])
+
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+    plt.plot(x, slope * x + intercept, color="red")
+    plt.text(
+        0.05,
+        0.95,
+        f"Correlation: {slope:.2f} ($p$ = {p_value:.4f})",
+        transform=plt.gca().transAxes,
+    )
+    plt.show()
+
+# %%
+# Test trading strategy: for every model that estimates p_up, buy the 10% of stocks with the highest p_up
+# and sell the 10% of stocks with the lowest p_up
+for entry in preds_per_model:
+    p_up = entry.get("p_up")
+    if p_up is None:
+        continue
+    decisions_df = df_validation.copy()
+    decisions_df["p_up"] = p_up
+    decisions_df = decisions_df.dropna()
+    decisions_df["p_up decile"] = decisions_df.groupby("Date")["p_up"].transform(
+        lambda x: pd.qcut(x, 10, labels=False, duplicates="drop")
+    )
+    decisions_df["p_up decile"] = decisions_df["p_up decile"].astype(int)
+    decisions_df["Decision"] = 0
+    decisions_df.loc[decisions_df["p_up decile"] == 0, "Decision"] = -1
+    decisions_df.loc[decisions_df["p_up decile"] == 9, "Decision"] = 1
+    decisions_df["Return"] = decisions_df["LogReturn"] * decisions_df["Decision"]
+    returns_df = decisions_df.groupby("Date")["Return"].mean()
+    returns_df = returns_df.to_frame()
+    returns_df["Cumulative Return"] = (1 + returns_df["Return"]).cumprod() - 1
+    entry["p_up_strat_returns_df"] = returns_df
+    returns_df["Cumulative Return"].plot(title=entry["name"])
+    plt.show()
+
+# %%
+# Test trading strategy: buy the 10% of stocks with the highest predicted mean
+# and sell the 10% of stocks with the lowest
+strat_results_df = pd.DataFrame(
+    columns=["Mean return", "p-value (H1: mean return > 0)", "Cumulative return"]
+)
+
+for entry in preds_per_model:
+    mean_pred = entry.get("mean_pred")
+    if mean_pred is None or (mean_pred == 0).all():
+        continue
+    decisions_df = df_validation.copy()
+    decisions_df["mean_pred"] = mean_pred
+    decisions_df = decisions_df.dropna()
+    decisions_df["mean_pred decile"] = decisions_df.groupby("Date")[
+        "mean_pred"
+    ].transform(lambda x: pd.qcut(x, 2, labels=False, duplicates="drop"))
+    decisions_df["mean_pred decile"] = decisions_df["mean_pred decile"].astype(int)
+    decisions_df["Decision"] = 0
+    decisions_df.loc[decisions_df["mean_pred decile"] == 0, "Decision"] = -1
+    decisions_df.loc[decisions_df["mean_pred decile"] == 1, "Decision"] = 1
+    decisions_df["Return"] = decisions_df["LogReturn"] * decisions_df["Decision"]
+    returns_df = decisions_df.groupby("Date")["Return"].mean()
+    returns_df = returns_df.to_frame()
+    returns_df["Cumulative Return"] = (1 + returns_df["Return"]).cumprod() - 1
+    entry["mean_strat_returns_df"] = returns_df
+    returns_df["Cumulative Return"].plot(title=entry["name"])
+    plt.show()
+
+    mean_return = returns_df["Return"].mean()
+    cumulative_return = returns_df["Cumulative Return"].iloc[-1]
+
+    t_stat, p_value = ttest_1samp(returns_df["Return"], 0)
+    strat_results_df.loc[entry["name"]] = [mean_return, p_value, cumulative_return]
+
+strat_results_df
