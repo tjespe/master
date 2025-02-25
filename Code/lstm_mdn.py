@@ -20,6 +20,7 @@ MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # Imports from code shared across models
 from shared.mdn import (
     calculate_intervals_vectorized,
+    calculate_prob_above_zero_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
@@ -152,7 +153,7 @@ lstm_mdn_model = build_lstm_mdn(
 
 # %%
 # 4) Load existing model if it exists
-load_best_val_loss_model = True
+load_best_val_loss_model = False
 best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
 model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
 already_trained = False
@@ -331,9 +332,10 @@ while True:
             print(
                 f"Validation loss has not decreased for {max_increases_since_best} iterations. "
                 "Stopping training. \n"
-                "If you want to restore the best model, type:\n"
-                "lstm_mdn_model.set_weights(best_model_weights)"
+                # "If you want to restore the best model, type:\n"
+                # "lstm_mdn_model.set_weights(best_model_weights)"
             )
+            lstm_mdn_model.set_weights(best_model_weights)
             break
     else:
         best_model_weights = lstm_mdn_model.get_weights()
@@ -365,17 +367,17 @@ while True:
 # %%
 # 6) Save both current model and the model with the best validation loss
 lstm_mdn_model.save(model_fname)
-best_model = build_lstm_mdn(
-    lookback_days=LOOKBACK_DAYS,
-    num_features=data.train.X.shape[2],
-    dropout=DROPOUT,
-    n_mixtures=N_MIXTURES,
-    hidden_units=HIDDEN_UNITS,
-    embed_dim=EMBEDDING_DIMENSIONS,
-    ticker_ids_dim=data.ticker_ids_dim,
-)
-best_model.set_weights(best_model_weights)
-best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
+# best_model = build_lstm_mdn(
+#     lookback_days=LOOKBACK_DAYS,
+#     num_features=data.train.X.shape[2],
+#     dropout=DROPOUT,
+#     n_mixtures=N_MIXTURES,
+#     hidden_units=HIDDEN_UNITS,
+#     embed_dim=EMBEDDING_DIMENSIONS,
+#     ticker_ids_dim=data.ticker_ids_dim,
+# )
+# best_model.set_weights(best_model_weights)
+# best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
 
 # %%
 # 7) Commit and push
@@ -452,7 +454,7 @@ plt.show()
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.67, 0.95, 0.99]
+confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.99, 0.995, 0.999]
 intervals = calculate_intervals_vectorized(
     pi_pred, mu_pred, sigma_pred, confidence_levels
 )
@@ -482,7 +484,7 @@ for ticker in example_tickers:
     )
     plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
     median = filtered_intervals[:, 0, 0]
-    plt.plot(dates, median, label="Median", color="blue")
+    plt.plot(dates, median, label="Median", color="green")
     for i, cl in enumerate(confidence_levels):
         if cl == 0:
             continue
@@ -492,7 +494,7 @@ for ticker in example_tickers:
             filtered_intervals[:, i, 1],
             color="blue",
             alpha=0.7 - i * 0.1,
-            label=f"{int(100*cl)}% Interval",
+            label=f"{100*cl:.1f}% Interval",
         )
     plt.axhline(
         actual_return.mean(),
@@ -538,8 +540,14 @@ df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 # %%
 # Add confidence intervals
 for i, cl in enumerate(confidence_levels):
-    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
-    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
+    df_validation[f"LB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 0]
+    df_validation[f"UB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 1]
+
+# %%
+# Calculate probability of price increase
+df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
+    pi_pred, mu_pred, sigma_pred
+)
 
 # %%
 # Save

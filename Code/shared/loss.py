@@ -121,10 +121,13 @@ def nll_loss_mean_and_log_var(y_true, means, log_vars):
         y_true: target values (B, 1), i.e. actual values
         means: predicted means (B, 1)
         log_vars: predicted log variances (B, 1)
+
+    Returns:
+        nll: Negative log-likelihood (B,)
     """
     weights = np.ones_like(y_true)
     y_pred_combined = np.vstack([weights, means, log_vars]).T
-    return mean_mdn_loss_numpy(1)(y_true, y_pred_combined)
+    return mdn_nll_numpy(1)(y_true, y_pred_combined)
 
 
 def nll_loss_mean_and_vol(y_true, means, vols):
@@ -136,6 +139,9 @@ def nll_loss_mean_and_vol(y_true, means, vols):
         y_true: target values (B, 1), i.e. actual values
         means: predicted means (B, 1)
         vols: predicted volatilities (B, 1)
+
+    Returns:
+        nll: Negative log-likelihood (B,)
     """
     log_vars = 2 * np.log(vols)
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
@@ -332,6 +338,42 @@ def mdn_crps_tf(
         return crps_val
 
     return loss_fn
+
+
+def crps_normal_univariate(y_true, mus, sigmas, npts=16, tmin=-0.08, tmax=0.08):
+    """
+    Compute the CRPS for a univariate Normal distribution by leveraging
+    the MDN-CRPS implementation with a single mixture component.
+
+    Parameters:
+      y_true: array-like, shape [B], true scalar values.
+      mus:    array-like, shape [B], means.
+      sigmas: array-like, shape [B], standard deviations.
+      npts, tmin, tmax: Parameters for Gauss-Legendre quadrature (see mdn_crps_tf).
+
+    Returns:
+      Tensor of shape [B] with the CRPS for each sample.
+    """
+    # Convert inputs to tf.float32 tensors.
+    y_true = tf.convert_to_tensor(y_true, dtype=tf.float32)
+    mus = tf.convert_to_tensor(mus, dtype=tf.float32)
+    sigmas = tf.convert_to_tensor(sigmas, dtype=tf.float32)
+
+    B = tf.shape(mus)[0]
+    logits_pi = tf.zeros([B, 1], dtype=tf.float32)  # shape [B,1]
+    mu = tf.reshape(mus, [-1, 1])  # shape [B,1]
+    log_var = 2.0 * tf.math.log(sigmas)  # so that exp(0.5*log_var)=sigmas
+    log_var = tf.reshape(log_var, [-1, 1])  # shape [B,1]
+
+    # Construct y_pred as required: [logits_pi, mu, log_var] => shape [B, 3]
+    y_pred = tf.concat([logits_pi, mu, log_var], axis=1)
+
+    # Create the loss function for a single-mixture MDN CRPS
+    loss_fn = mdn_crps_tf(num_mixtures=1, npts=npts, tmin=tmin, tmax=tmax)
+
+    # Compute and return the CRPS value; note that for num_mixtures=1 the
+    # pairwise term vanishes and we recover crps_normal.
+    return loss_fn(y_true, y_pred)
 
 
 def mean_mdn_crps_tf(
