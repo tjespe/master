@@ -3,7 +3,7 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-data-3"
+VERSION = "rv-data-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -11,7 +11,7 @@ SIGMA_PENALTY = False
 INCLUDE_MARKET_FEATURES = True
 INCLUDE_RETURNS = True
 HIDDEN_UNITS = 20
-N_MIXTURES = 10
+N_MIXTURES = 5
 DROPOUT = 0.4
 EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
@@ -294,13 +294,13 @@ if already_trained:
 # %%
 # Train until validation loss stops decreasing
 increases_since_best = 0
-max_increases_since_best = 3
+max_increases_since_best = 0
 best_model_weights = lstm_mdn_model.get_weights()
 best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=5,  # number of epochs with no improvement to wait
+        patience=0,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
