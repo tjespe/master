@@ -777,7 +777,7 @@ for cl in CONFIDENCE_LEVELS:
     for chr_test in ["UC", "Ind", "CC"]:
         results_df.loc["Winner", f"[{cl_str}] Pooled {chr_test} p-value"] = results_df[
             f"[{cl_str}] Pooled {chr_test} p-value"
-        ].idxmin()
+        ].idxmax()
         results_df.loc["Winner", f"[{cl_str}] {chr_test} passes"] = results_df[
             f"[{cl_str}] {chr_test} passes"
         ].idxmax()
