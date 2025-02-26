@@ -1,0 +1,94 @@
+,GARCH,LSTM MDN rv-data-2,Winner
+NLL,-2.7030404609542478,-2.7783275056257537,LSTM MDN rv-data-2
+CRPS,0.007813746109604836,0.0043094502066396345,LSTM MDN rv-data-2
+RMSE,0.017386700625418628,0.017413102235892236,GARCH
+Sign accuracy,0.003054448871181939,0.49050464807436917,LSTM MDN rv-data-2
+Correlation (vol. vs. errors),0.290785208742048,0.34589679540360474,LSTM MDN rv-data-2
+[67] PICP,0.7399070385126162,0.6765352383569172,LSTM MDN rv-data-2
+[67] PICP Miss,0.06990703851261615,0.006535238356917161,LSTM MDN rv-data-2
+[67] Mean width (MPIW),0.03329949321047519,0.028445983527944384,LSTM MDN rv-data-2
+[67] Interval Score,0.041336040993870095,0.03831771737786202,LSTM MDN rv-data-2
+[67] QL,-0.004338909655992223,-0.0019255808473450395,LSTM MDN rv-data-2
+[67] Lopez Loss,0.12971863543030648,0.16066784825388072,GARCH
+[67] Pooled UC p-value,0.0,0.093,GARCH
+[67] Pooled UC pass?,❌,✅,
+[67] Pooled Ind p-value,0.0,0.0,GARCH
+[67] Pooled Ind pass?,❌,❌,
+[67] Pooled CC p-value,0.0,0.0,GARCH
+[67] Pooled CC pass?,❌,❌,
+[67] UC pass pct,0.2,0.4827586206896552,LSTM MDN rv-data-2
+[67] UC passes,6.0,14.0,LSTM MDN rv-data-2
+[67] UC fails,24.0,15.0,LSTM MDN rv-data-2
+[67] UC indeterminate,0.0,0.0,
+[67] Ind passes,29.0,26.0,GARCH
+[67] Ind fails,1.0,3.0,GARCH
+[67] Ind indeterminate,0.0,0.0,
+[67] CC passes,6.0,15.0,LSTM MDN rv-data-2
+[67] CC fails,24.0,14.0,LSTM MDN rv-data-2
+[67] CC indeterminate,0.0,0.0,
+[90] PICP,0.9177954847277556,,GARCH
+[90] PICP Miss,0.017795484727755606,,GARCH
+[90] Mean width (MPIW),0.056228325530323184,,GARCH
+[90] Interval Score,0.05834500961614998,,GARCH
+[90] QL,-0.015803325815916213,,GARCH
+[90] Lopez Loss,0.043509120718076694,,GARCH
+[90] Pooled UC p-value,0.0,,GARCH
+[90] Pooled UC pass?,❌,,
+[90] Pooled Ind p-value,0.001,,GARCH
+[90] Pooled Ind pass?,❌,,
+[90] Pooled CC p-value,0.0,,GARCH
+[90] Pooled CC pass?,❌,,
+[90] UC pass pct,0.6666666666666666,,GARCH
+[90] UC passes,20.0,,GARCH
+[90] UC fails,10.0,,GARCH
+[90] UC indeterminate,0.0,,
+[90] Ind passes,28.0,,GARCH
+[90] Ind fails,2.0,,GARCH
+[90] Ind indeterminate,0.0,,
+[90] CC passes,22.0,,GARCH
+[90] CC fails,8.0,,GARCH
+[90] CC indeterminate,0.0,,
+[95] PICP,0.9521248339973439,0.9495122956450062,LSTM MDN rv-data-2
+[95] PICP Miss,0.002124833997343978,-0.00048770435499378983,LSTM MDN rv-data-2
+[95] Mean width (MPIW),0.06700018235341668,0.06350416154834172,LSTM MDN rv-data-2
+[95] Interval Score,0.0683065208462841,0.06482476358145026,LSTM MDN rv-data-2
+[95] QL,-0.02118925422746297,-0.019404940561651818,LSTM MDN rv-data-2
+[95] Lopez Loss,0.02577546503094712,0.02378232012746203,LSTM MDN rv-data-2
+[95] Pooled UC p-value,0.228,0.787,GARCH
+[95] Pooled UC pass?,✅,✅,
+[95] Pooled Ind p-value,0.001,0.076,GARCH
+[95] Pooled Ind pass?,❌,✅,
+[95] Pooled CC p-value,0.003,0.199,GARCH
+[95] Pooled CC pass?,❌,✅,
+[95] UC pass pct,0.9,0.7931034482758621,GARCH
+[95] UC passes,27.0,23.0,GARCH
+[95] UC fails,3.0,6.0,GARCH
+[95] UC indeterminate,0.0,0.0,
+[95] Ind passes,25.0,20.0,GARCH
+[95] Ind fails,1.0,0.0,LSTM MDN rv-data-2
+[95] Ind indeterminate,4.0,9.0,
+[95] CC passes,23.0,16.0,GARCH
+[95] CC fails,3.0,4.0,GARCH
+[95] CC indeterminate,4.0,9.0,
+[99] PICP,0.9804780876494024,0.9902459129001236,LSTM MDN rv-data-2
+[99] PICP Miss,-0.009521912350597628,0.0002459129001236571,LSTM MDN rv-data-2
+[99] Mean width (MPIW),0.08805316547158408,0.10409147062430106,GARCH
+[99] Interval Score,0.08867699927411728,0.10441704835866164,GARCH
+[99] QL,-0.031715745786546665,-0.03959125345499198,GARCH
+[99] Lopez Loss,0.010564588158713093,0.004518728162788126,LSTM MDN rv-data-2
+[99] Pooled UC p-value,0.0,0.765,GARCH
+[99] Pooled UC pass?,❌,✅,
+[99] Pooled Ind p-value,0.001,0.406,GARCH
+[99] Pooled Ind pass?,❌,✅,
+[99] Pooled CC p-value,0.0,0.677,GARCH
+[99] Pooled CC pass?,❌,✅,
+[99] UC pass pct,0.5666666666666667,0.9642857142857143,LSTM MDN rv-data-2
+[99] UC passes,17.0,27.0,LSTM MDN rv-data-2
+[99] UC fails,13.0,1.0,LSTM MDN rv-data-2
+[99] UC indeterminate,0.0,1.0,
+[99] Ind passes,3.0,1.0,GARCH
+[99] Ind fails,0.0,0.0,GARCH
+[99] Ind indeterminate,27.0,28.0,
+[99] CC passes,2.0,1.0,GARCH
+[99] CC fails,1.0,0.0,LSTM MDN rv-data-2
+[99] CC indeterminate,27.0,28.0,

@@ -1,6 +1,7 @@
 # %%
 # Define parameters
-from shared.loss import nll_loss_mean_and_vol
+from shared.conf_levels import format_cl
+from shared.loss import crps_normal_univariate, nll_loss_mean_and_vol
 from settings import (
     DATA_PATH,
     SUFFIX,
@@ -8,14 +9,18 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 from data.tickers import IMPORTANT_TICKERS
+from scipy.stats import ttest_rel
+from scipy.stats import linregress
+from scipy.stats import ttest_1samp
+
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVEL = 0.05
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.99]
 
 # %%
 # Select whether to only filter on important tickers
-FILTER_ON_IMPORTANT_TICKERS = False
+FILTER_ON_IMPORTANT_TICKERS = True
 
 # %%
 # Exclude uninteresting models
@@ -35,6 +40,9 @@ df = pd.read_csv(DATA_PATH)
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
+
+# Remove .O suffix from tickers
+df["Symbol"] = df["Symbol"].str.replace(".O", "")
 
 # Sort the dataframe by both Date and Symbol
 df = df.sort_values(["Symbol", "Date"])
@@ -88,19 +96,33 @@ try:
     ]
     combined_df = df_validation.join(garch_df, how="left", rsuffix="_GARCH")
     garch_vol_pred = combined_df["GARCH_Vol"].values
-    preds_per_model.append(
-        {
-            "name": "GARCH",
-            "mean_pred": np.zeros_like(garch_vol_pred),
-            "volatility_pred": garch_vol_pred,
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            "nll": nll_loss_mean_and_vol(
-                combined_df["LogReturn"].values,
-                np.zeros_like(garch_vol_pred),
-                garch_vol_pred,
-            ),
-        }
-    )
+    y_true = combined_df["LogReturn"].values
+    mus = np.zeros_like(garch_vol_pred)
+
+    entry = {
+        "name": "GARCH",
+        "mean_pred": mus,
+        "volatility_pred": garch_vol_pred,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "nll": nll_loss_mean_and_vol(
+            y_true,
+            mus,
+            garch_vol_pred,
+        ),
+        "crps": crps_normal_univariate(y_true, mus, garch_vol_pred),
+    }
+
+    for cl in CONFIDENCE_LEVELS:
+        alpha = 1 - cl
+        z_alpha = norm.ppf(1 - alpha / 2)
+        entry[f"LB_{format_cl(cl)}"] = (
+            entry["mean_pred"] - z_alpha * entry["volatility_pred"]
+        )
+        entry[f"UB_{format_cl(cl)}"] = (
+            entry["mean_pred"] + z_alpha * entry["volatility_pred"]
+        )
+
+    preds_per_model.append(entry)
     nans = np.isnan(garch_vol_pred).sum()
     if nans > 0:
         print(f"GARCH has {nans} NaN predictions")
@@ -122,11 +144,15 @@ for version in [
     # "crps-2",
     # "nll-crps-mix",
     3,
+    "rv-data",
+    "rv-data-2",
+    "rv-data-3",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
         )
+        lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
@@ -142,19 +168,26 @@ for version in [
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "LB_67": combined_df["LB_67"].values,
                 "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df.get("LB_90"),
+                "UB_90": combined_df.get("UB_90"),
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
+                "LB_97.5": combined_df.get("LB_97.5"),
+                "UB_97.5": combined_df.get("UB_97.5"),
                 "LB_99": combined_df["LB_99"].values,
                 "UB_99": combined_df["UB_99"].values,
-                "nll": np.nanmean(
-                    combined_df.get("NLL", combined_df.get("loss")).values
-                ),
+                "LB_99.5": combined_df.get("LB_99.5"),
+                "UB_99.5": combined_df.get("UB_99.5"),
+                "LB_99.9": combined_df.get("LB_99.9"),
+                "UB_99.9": combined_df.get("UB_99.9"),
+                "nll": combined_df.get("NLL", combined_df.get("loss")).values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "crps": (
-                    np.nanmean(crps.values)
+                    crps.values
                     if (crps := combined_df.get("CRPS")) is not None
                     else None
                 ),
+                "p_up": combined_df.get("Prob_Increase"),
             }
         )
         nans = combined_df["Mean_SP"].isnull().sum()
@@ -188,11 +221,11 @@ for version in ["v2", "v3", "v4"]:
                 "UB_90": combined_df["UB_90"].values,
                 "LB_95": combined_df["LB_95"].values,
                 "UB_95": combined_df["UB_95"].values,
-                "LB_97": combined_df["LB_97"].values,
-                "UB_97": combined_df["UB_97"].values,
+                "LB_97.5": combined_df["LB_97"].values,
+                "UB_97.5": combined_df["UB_97"].values,
                 "LB_99": combined_df["LB_99"].values,
                 "UB_99": combined_df["UB_99"].values,
-                "nll": np.nanmean(combined_df["NLL"].values),
+                "nll": combined_df["NLL"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
@@ -203,13 +236,48 @@ for version in ["v2", "v3", "v4"]:
     except FileNotFoundError:
         print(f"LSTM MAF {version} predictions not found")
 
+for version in ["v1"]:
+    try:
+        vae = pd.read_csv(f"predictions/vae_lstm_{version}{SUFFIX}.csv")
+        vae["Date"] = pd.to_datetime(vae["Date"])
+        vae = vae.set_index(["Date", "Symbol"])
+        vae_dates = vae.index.get_level_values("Date")
+        vae = vae[(vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)]
+        combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
+        preds_per_model.append(
+            {
+                "name": f"VAE {version}",
+                "mean_pred": combined_df["Mean_SP"].values,
+                "volatility_pred": combined_df["Vol_SP"].values,
+                "LB_67": combined_df["LB_67"].values,
+                "UB_67": combined_df["UB_67"].values,
+                "LB_90": combined_df["LB_90"].values,
+                "UB_90": combined_df["UB_90"].values,
+                "LB_95": combined_df["LB_95"].values,
+                "UB_95": combined_df["UB_95"].values,
+                "LB_99": combined_df["LB_99"].values,
+                "UB_99": combined_df["UB_99"].values,
+                "nll": nll_loss_mean_and_vol(
+                            y_true,
+                            mus,
+                            garch_vol_pred,
+                                        ),
+                "symbols": combined_df.index.get_level_values("Symbol"),
+                # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+            }
+        )
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"VAE {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"VAE {version} predictions not found")
 
 try:
     maf_entry = next(
         entry for entry in preds_per_model if entry["name"] == "LSTM MAF v2"
     )
     mdn_entry = next(
-        entry for entry in preds_per_model if entry["name"] == "LSTM MDN pireg"
+        entry for entry in preds_per_model if entry["name"] == "LSTM MDN rv-data-3"
     )
     preds_per_model.append(
         {
@@ -219,8 +287,14 @@ try:
                 maf_entry["volatility_pred"] + mdn_entry["volatility_pred"]
             )
             / 2,
+            "LB_67": (maf_entry["LB_67"] + mdn_entry["LB_67"]) / 2,
+            "UB_67": (maf_entry["UB_67"] + mdn_entry["UB_67"]) / 2,
+            "LB_90": (maf_entry["LB_90"] + mdn_entry["LB_90"]) / 2,
+            "UB_90": (maf_entry["UB_90"] + mdn_entry["UB_90"]) / 2,
             "LB_95": (maf_entry["LB_95"] + mdn_entry["LB_95"]) / 2,
             "UB_95": (maf_entry["UB_95"] + mdn_entry["UB_95"]) / 2,
+            "LB_99": (maf_entry["LB_99"] + mdn_entry["LB_99"]) / 2,
+            "UB_99": (maf_entry["UB_99"] + mdn_entry["UB_99"]) / 2,
             "nll": (maf_entry["nll"] + mdn_entry["nll"]) / 2,
             "symbols": maf_entry["symbols"],
         }
@@ -235,53 +309,59 @@ preds_per_model = [
 ]
 
 # %%
-# Add ensemble of every included model
-try:
-    filtered = [
-        model
-        for model in preds_per_model
-        if all(
-            prop in model
-            for prop in ["mean_pred", "volatility_pred", "LB_95", "UB_95", "nll"]
-        )
-    ]
-    print("Ensembling", [model["name"] for model in filtered])
-    ensemble_mean_pred = np.mean([model["mean_pred"] for model in filtered], axis=0)
-    ensemble_vol_pred = np.mean(
-        [model["volatility_pred"] for model in filtered], axis=0
-    )
-    ensemble_lb_95 = np.mean([model["LB_95"] for model in filtered], axis=0)
-    ensemble_ub_95 = np.mean([model["UB_95"] for model in filtered], axis=0)
-    ensemble_nll = np.mean([model["nll"] for model in filtered])
-    ensemble_symbols = filtered[0]["symbols"]
-    preds_per_model.append(
-        {
-            "name": "Ensemble of everything",
-            "mean_pred": ensemble_mean_pred,
-            "volatility_pred": ensemble_vol_pred,
-            "LB_95": ensemble_lb_95,
-            "UB_95": ensemble_ub_95,
-            "nll": ensemble_nll,
-            "symbols": ensemble_symbols,
-        }
-    )
-except ValueError as e:
-    print(f"Could not create ensemble: {str(e)}")
+# # Add ensemble of every included model
+# try:
+#     filtered = [
+#         model
+#         for model in preds_per_model
+#         if all(
+#             prop in model
+#             for prop in [
+#                 "mean_pred",
+#                 "volatility_pred",
+#                 "nll",
+#                 "LB_67",
+#                 "UB_67",
+#                 "LB_95",
+#                 "UB_95",
+#                 "LB_99",
+#                 "UB_99",
+#             ]
+#         )
+#     ]
+#     print("Ensembling", [model["name"] for model in filtered])
+#     ensemble_mean_pred = np.mean([model["mean_pred"] for model in filtered], axis=0)
+#     ensemble_vol_pred = np.mean(
+#         [model["volatility_pred"] for model in filtered], axis=0
+#     )
+#     ensemble_lb_67 = np.mean([model["LB_67"] for model in filtered], axis=0)
+#     ensemble_ub_67 = np.mean([model["UB_67"] for model in filtered], axis=0)
+#     ensemble_lb_95 = np.mean([model["LB_95"] for model in filtered], axis=0)
+#     ensemble_ub_95 = np.mean([model["UB_95"] for model in filtered], axis=0)
+#     ensemble_lb_99 = np.mean([model["LB_99"] for model in filtered], axis=0)
+#     ensemble_ub_99 = np.mean([model["UB_99"] for model in filtered], axis=0)
+#     ensemble_nll = np.mean([model["nll"] for model in filtered])
+#     ensemble_symbols = filtered[0]["symbols"]
+#     preds_per_model.append(
+#         {
+#             "name": "Ensemble of everything",
+#             "mean_pred": ensemble_mean_pred,
+#             "volatility_pred": ensemble_vol_pred,
+#             "LB_67": ensemble_lb_67,
+#             "UB_67": ensemble_ub_67,
+#             "LB_95": ensemble_lb_95,
+#             "UB_95": ensemble_ub_95,
+#             "LB_99": ensemble_lb_99,
+#             "UB_99": ensemble_ub_99,
+#             "nll": ensemble_nll,
+#             "symbols": ensemble_symbols,
+#         }
+#     )
+# except ValueError as e:
+#     print(f"Could not create ensemble: {str(e)}")
 
 
 # %%
-def calculate_prediction_intervals(model, alpha):
-    cl = int((1 - alpha) * 100)
-    if f"LB_{cl}" in model and f"UB_{cl}" in model:
-        model["lower_bounds"] = model[f"LB_{cl}"]
-        model["upper_bounds"] = model[f"UB_{cl}"]
-        return
-    print(f"Assuming normal distribution for {model['name']} prediction intervals")
-    z_alpha = norm.ppf(1 - alpha / 2)
-    model["lower_bounds"] = model["mean_pred"] - z_alpha * model["volatility_pred"]
-    model["upper_bounds"] = model["mean_pred"] + z_alpha * model["volatility_pred"]
-
-
 def calculate_picp(y_true, lower_bounds, upper_bounds):
     invalid = np.isnan(lower_bounds) | np.isnan(upper_bounds)
     # Mark entries with any NaN bounds as NaN so they don't contribute to the average.
@@ -467,51 +547,144 @@ abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Calculate prediction intervals
-    calculate_prediction_intervals(entry, CONFIDENCE_LEVEL)
+    for cl in CONFIDENCE_LEVELS:
+        cl_str = format_cl(cl)
+        if entry.get(f"LB_{cl_str}") is None or entry.get(f"UB_{cl_str}") is None:
+            continue
 
-    # Calculate PICP and MPIW
-    picp, within_bounds = calculate_picp(
-        y_test_actual, entry["lower_bounds"], entry["upper_bounds"]
-    )
-    mpiw = calculate_mpiw(entry["lower_bounds"], entry["upper_bounds"])
-    entry["picp"] = picp
-    entry["mpiw"] = mpiw
-    entry["within_bounds"] = within_bounds
+        # Calculate PICP and MPIW
+        picp, within_bounds = calculate_picp(
+            y_test_actual, entry[f"LB_{cl_str}"], entry[f"UB_{cl_str}"]
+        )
+        mpiw = calculate_mpiw(entry[f"LB_{cl_str}"], entry[f"UB_{cl_str}"])
+        entry[f"picp_{cl_str}"] = picp
+        entry[f"mpiw_{cl_str}"] = mpiw
+        entry[f"within_bounds_{cl_str}"] = within_bounds
 
-    # Calculate Interval Scores
-    interval_score = calculate_interval_score(
-        y_test_actual, entry["lower_bounds"], entry["upper_bounds"], CONFIDENCE_LEVEL
-    )
-    entry["interval_score"] = interval_score
+        # Calculate Interval Scores
+        interval_score = calculate_interval_score(
+            y_test_actual, entry[f"LB_{cl_str}"], entry[f"UB_{cl_str}"], cl
+        )
+        entry[f"interval_score_{cl_str}"] = interval_score
+
+        # Calculate quantile loss
+        entry[f"quantile_loss_{cl_str}"] = np.nanmean(
+            np.maximum(
+                y_test_actual - entry[f"UB_{cl_str}"],
+                entry[f"LB_{cl_str}"] - y_test_actual,
+            )
+        )
+
+        # Calculate Lopez loss function
+        entry[f"lopez_loss_{cl_str}"] = np.nanmean(
+            np.where(
+                y_test_actual < entry[f"LB_{cl_str}"],
+                1 + (entry[f"LB_{cl_str}"] - y_test_actual) ** 2,
+                0,
+            )
+        )
+
+        # Uncertainty-Error Correlation
+        interval_width = entry[f"UB_{cl_str}"] - entry[f"LB_{cl_str}"]
+
+        exceedance_df = pd.DataFrame(
+            {
+                "Symbol": entry["symbols"],
+                "Within Bounds": entry[f"within_bounds_{cl_str}"],
+            }
+        )
+        exceedance_df = exceedance_df.dropna(subset=["Within Bounds"])
+
+        pooled_exceedances_list = []
+        reset_indices = []
+        start_index = 0
+
+        # Group by symbol in original order.
+        exceedance_df.sort_values("Symbol", inplace=True)
+        for symbol, group in exceedance_df.groupby("Symbol", sort=False):
+            asset_exceedances = (
+                ~group["Within Bounds"].astype(bool)
+            ).values  # 1 if exceedance, 0 otherwise.
+            pooled_exceedances_list.append(asset_exceedances)
+            reset_indices.append(start_index)  # mark start of this asset's series.
+            start_index += len(asset_exceedances)
+
+        if len(pooled_exceedances_list) == 0:
+            print("No valid data to run Christoffersen test.")
+        else:
+            pooled_exceedances = np.concatenate(pooled_exceedances_list)
+            pooled_result = christoffersen_test(
+                pooled_exceedances, 1 - cl, reset_indices=reset_indices
+            )
+            entry[f"christoffersen_test_{cl_str}"] = interpret_christoffersen_test(
+                pooled_result
+            )
+
+        print(f"\n{entry['name']} Pooled Christoffersen's Test Results ({cl_str}%):")
+        try:
+            display(entry[f"christoffersen_test_{cl_str}"])
+        except NameError:
+            print(entry[f"christoffersen_test_{cl_str}"])
+
+        chr_results = []
+        for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
+            if within_bounds.isna().any():
+                print(f"Skipping {symbol} due to NaN values")
+                continue
+            exceedances = ~within_bounds.astype(bool)
+            result = christoffersen_test(exceedances, 1 - cl)
+            chr_results.append(
+                {**result, "Symbol": symbol, "Coverage": within_bounds.mean()}
+            )
+        chr_results_df = pd.DataFrame(chr_results).set_index("Symbol")
+        chr_results_df["uc_pass"] = np.where(
+            chr_results_df["p_value_uc"].isna(),
+            np.nan,
+            chr_results_df["p_value_uc"] > 0.05,
+        )
+        chr_results_df["ind_pass"] = np.where(
+            chr_results_df["p_value_ind"].isna(),
+            np.nan,
+            chr_results_df["p_value_ind"] > 0.05,
+        )
+        chr_results_df["cc_pass"] = np.where(
+            chr_results_df["p_value_cc"].isna(),
+            np.nan,
+            chr_results_df["p_value_cc"] > 0.05,
+        )
+        chr_results_df["all_pass"] = np.where(
+            np.isnan(chr_results_df["uc_pass"])
+            | np.isnan(chr_results_df["ind_pass"])
+            | np.isnan(chr_results_df["cc_pass"]),
+            np.nan,
+            chr_results_df["uc_pass"].astype(bool)
+            & chr_results_df["ind_pass"].astype(bool)
+            & chr_results_df["cc_pass"].astype(bool),
+        )
+
+        # Print Christoffersen's Test Results
+        print(f"\n{entry['name']} Average Christoffersen's Test Results ({cl_str}%):")
+
+        entry[f"chr_results_df_{cl_str}"] = chr_results_df
+        entry[f"uc_passes_{cl_str}"] = int(chr_results_df["uc_pass"].sum())
+        entry[f"uc_fails_{cl_str}"] = (chr_results_df["uc_pass"] == 0).sum()
+        entry[f"uc_nans_{cl_str}"] = chr_results_df["uc_pass"].isna().sum()
+        entry[f"ind_passes_{cl_str}"] = int(chr_results_df["ind_pass"].sum())
+        entry[f"ind_fails_{cl_str}"] = (chr_results_df["ind_pass"] == 0).sum()
+        entry[f"ind_nans_{cl_str}"] = chr_results_df["ind_pass"].isna().sum()
+        entry[f"cc_passes_{cl_str}"] = int(chr_results_df["cc_pass"].sum())
+        entry[f"cc_fails_{cl_str}"] = (chr_results_df["cc_pass"] == 0).sum()
+        entry[f"cc_nans_{cl_str}"] = chr_results_df["cc_pass"].isna().sum()
+        print(
+            f"Unconditional Coverage:\t{entry[f'uc_passes_{cl_str}']} passes,\t{entry[f'uc_fails_{cl_str}']} fails,\t{entry[f'uc_nans_{cl_str}']} indeterminate\n"
+            f"Independence:\t\t{entry[f'ind_passes_{cl_str}']} passes,\t{entry[f'ind_fails_{cl_str}']} fails,\t{entry[f'ind_nans_{cl_str}']} indeterminate\n"
+            f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
+        )
 
     # Calculate RMSE
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
     entry["rmse"] = rmse
-    # Calculate NLL
-    if "nll" not in entry:
-        entry["nll"] = nll_loss_mean_and_vol(
-            y_test_actual, entry["mean_pred"], entry["volatility_pred"]
-        )
 
-    # Calculate quantile loss
-    entry["quantile_loss"] = np.nanmean(
-        np.maximum(
-            y_test_actual - entry["upper_bounds"],
-            entry["lower_bounds"] - y_test_actual,
-        )
-    )
-
-    # Calculate Lopez loss function
-    entry["lopez_loss"] = np.nanmean(
-        np.where(
-            y_test_actual < entry["lower_bounds"],
-            1 + (entry["lower_bounds"] - y_test_actual) ** 2,
-            0,
-        )
-    )
-
-    # Uncertainty-Error Correlation
-    interval_width = entry["upper_bounds"] - entry["lower_bounds"]
     correlation = calculate_uncertainty_error_correlation(
         y_test_actual, entry["mean_pred"], interval_width
     )
@@ -521,167 +694,153 @@ for entry in preds_per_model:
     sign_accuracy = np.nanmean(np.sign(y_test_actual) == np.sign(entry["mean_pred"]))
     entry["sign_accuracy"] = sign_accuracy
 
-    exceedance_df = pd.DataFrame(
-        {
-            "Symbol": entry["symbols"],
-            "Within Bounds": entry["within_bounds"],
-        }
-    )
-    exceedance_df = exceedance_df.dropna(subset=["Within Bounds"])
-
-    pooled_exceedances_list = []
-    reset_indices = []
-    start_index = 0
-
-    # Group by symbol in original order.
-    for symbol, group in exceedance_df.groupby("Symbol", sort=False):
-        asset_exceedances = (
-            ~group["Within Bounds"].astype(bool)
-        ).values  # 1 if exceedance, 0 otherwise.
-        pooled_exceedances_list.append(asset_exceedances)
-        reset_indices.append(start_index)  # mark start of this asset's series.
-        start_index += len(asset_exceedances)
-
-    if len(pooled_exceedances_list) == 0:
-        print("No valid data to run Christoffersen test.")
-    else:
-        pooled_exceedances = np.concatenate(pooled_exceedances_list)
-        pooled_result = christoffersen_test(
-            pooled_exceedances, CONFIDENCE_LEVEL, reset_indices=reset_indices
-        )
-        entry["christoffersen_test"] = interpret_christoffersen_test(pooled_result)
-
-    print(f"\n{entry['name']} Pooled Christoffersen's Test Results:")
-    try:
-        display(entry["christoffersen_test"])
-    except NameError:
-        print(entry["christoffersen_test"])
-
-    chr_results = []
-    for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
-        if within_bounds.isna().any():
-            print(f"Skipping {symbol} due to NaN values")
-            continue
-        exceedances = ~within_bounds.astype(bool)
-        result = christoffersen_test(exceedances, CONFIDENCE_LEVEL)
-        chr_results.append(
-            {**result, "Symbol": symbol, "Coverage": within_bounds.mean()}
-        )
-    chr_results_df = pd.DataFrame(chr_results).set_index("Symbol")
-    chr_results_df["uc_pass"] = np.where(
-        chr_results_df["p_value_uc"].isna(), np.nan, chr_results_df["p_value_uc"] > 0.05
-    )
-    chr_results_df["ind_pass"] = np.where(
-        chr_results_df["p_value_ind"].isna(),
-        np.nan,
-        chr_results_df["p_value_ind"] > 0.05,
-    )
-    chr_results_df["cc_pass"] = np.where(
-        chr_results_df["p_value_cc"].isna(), np.nan, chr_results_df["p_value_cc"] > 0.05
-    )
-    chr_results_df["all_pass"] = np.where(
-        np.isnan(chr_results_df["uc_pass"])
-        | np.isnan(chr_results_df["ind_pass"])
-        | np.isnan(chr_results_df["cc_pass"]),
-        np.nan,
-        chr_results_df["uc_pass"].astype(bool)
-        & chr_results_df["ind_pass"].astype(bool)
-        & chr_results_df["cc_pass"].astype(bool),
-    )
-    entry["christoffersen_test"] = interpret_christoffersen_test(
-        chr_results_df.replace([np.inf, -np.inf], np.nan).mean()
-    )
-
-    # Print Christoffersen's Test Results
-    print(f"\n{entry['name']} Average Christoffersen's Test Results:")
-
-    entry["chr_results_df"] = chr_results_df
-    entry["uc_pass_pct"] = chr_results_df["uc_pass"].mean() * 100
-    entry["ind_pass_pct"] = chr_results_df["ind_pass"].mean() * 100
-    entry["cc_pass_pct"] = chr_results_df["cc_pass"].mean() * 100
-    entry["chr_pass_pct"] = chr_results_df["all_pass"].mean() * 100
-    print(
-        f"Unconditional Coverage Pass Rate: {entry['uc_pass_pct']:.2f}%\n"
-        f"Independence Pass Rate: {entry['ind_pass_pct']:.2f}%\n"
-        f"Conditional Coverage Pass Rate: {entry['cc_pass_pct']:.2f}%\n"
-        f"All Pass Rate: {entry['chr_pass_pct']:.2f}%"
-    )
-
-    # # Calculate CRPS
-    # if "crps" not in entry:
-    #     print("Calculating CRPS for", entry["name"])
-    #     entry["crps"] = crps_loss_mean_and_vol(
-    #         y_test_actual, entry["mean_pred"], entry["volatility_pred"]
-    #     ).mean()
-
 # %%
 # Compile results into DataFrame
+pd.set_option("display.max_rows", 500)
+quantile_metric_keys = [
+    "PICP",
+    "PICP Miss",
+    "Mean width (MPIW)",
+    "Interval Score",
+    "QL",
+    "Lopez Loss",
+    "Pooled UC p-value",
+    "Pooled UC pass?",
+    "Pooled Ind p-value",
+    "Pooled Ind pass?",
+    "Pooled CC p-value",
+    "Pooled CC pass?",
+    "UC pass pct",
+    "UC passes",
+    "UC fails",
+    "UC indeterminate",
+    "Ind passes",
+    "Ind fails",
+    "Ind indeterminate",
+    "CC passes",
+    "CC fails",
+    "CC indeterminate",
+]
 results = {
     "Model": [],
-    "PICP": [],
-    "PICP Miss": [],
-    "Mean width (MPIW)": [],
-    "Interval Score": [],
-    "Correlation (vol. vs. errors)": [],
-    # "PICP/MPIW": [],
+    # Non-quantile-based metrics
     "NLL": [],
-    "QL": [],
     "CRPS": [],
-    "Lopez Loss": [],
     "RMSE": [],
     "Sign accuracy": [],
-    "UC Pass %": [],
-    "Ind Pass %": [],
-    "CC Pass %": [],
-    "CHR Pass %": [],
+    "Correlation (vol. vs. errors)": [],
+    # Quantile based metrics
+    **(
+        {
+            f"[{format_cl(cl)}] {key}": []
+            for cl in CONFIDENCE_LEVELS
+            for key in quantile_metric_keys
+        }
+    ),
 }
 
 for entry in preds_per_model:
-    picp_miss = 1 - CONFIDENCE_LEVEL - entry["picp"]
     results["Model"].append(entry["name"])
-    results["PICP"].append(entry["picp"])
-    results["PICP Miss"].append(picp_miss)
-    results["Mean width (MPIW)"].append(entry["mpiw"])
-    results["Interval Score"].append(entry["interval_score"])
+    results["NLL"].append(np.nanmean(entry["nll"]))
+    results["CRPS"].append(
+        np.nanmean(crps) if (crps := entry.get("crps")) is not None else None
+    )
+    results["RMSE"].append(entry["rmse"])
+    results["Sign accuracy"].append(entry["sign_accuracy"])
     results["Correlation (vol. vs. errors)"].append(
         entry["uncertainty_error_correlation"]
     )
-    # results["PICP/MPIW"].append(entry["picp"] / entry["mpiw"])
-    results["NLL"].append(np.mean(entry["nll"]))
-    results["QL"].append(entry["quantile_loss"])
-    results["CRPS"].append(entry.get("crps"))
-    results["Lopez Loss"].append(entry["lopez_loss"])
-    results["RMSE"].append(entry["rmse"])
-    results["Sign accuracy"].append(entry["sign_accuracy"])
-    results["UC Pass %"].append(entry["uc_pass_pct"])
-    results["Ind Pass %"].append(entry["ind_pass_pct"])
-    results["CC Pass %"].append(entry["cc_pass_pct"])
-    results["CHR Pass %"].append(entry["chr_pass_pct"])
+    for cl in CONFIDENCE_LEVELS:
+        cl_str = format_cl(cl)
+        if entry.get(f"picp_{cl_str}") is None:
+            for key in quantile_metric_keys:
+                results[f"[{cl_str}] {key}"].append(np.nan)
+            continue
+        picp_miss = entry[f"picp_{cl_str}"] - cl
+        results[f"[{cl_str}] PICP"].append(entry[f"picp_{cl_str}"])
+        results[f"[{cl_str}] PICP Miss"].append(picp_miss)
+        results[f"[{cl_str}] Mean width (MPIW)"].append(entry[f"mpiw_{cl_str}"])
+        results[f"[{cl_str}] Interval Score"].append(entry[f"interval_score_{cl_str}"])
+        results[f"[{cl_str}] QL"].append(entry[f"quantile_loss_{cl_str}"])
+        results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
+        pooled_results = entry[f"christoffersen_test_{cl_str}"]["p-value"]
+        for i, test in enumerate(["UC", "Ind", "CC"]):
+            results[f"[{cl_str}] Pooled {test} p-value"].append(pooled_results[i])
+            results[f"[{cl_str}] Pooled {test} pass?"].append(
+                interpret_christoffersen_stat(pooled_results[i])
+            )
+        uc_passes = entry[f"uc_passes_{cl_str}"]
+        uc_fails = entry[f"uc_fails_{cl_str}"]
+        uc_pass_pct = uc_passes / (uc_passes + uc_fails)
+        results[f"[{cl_str}] UC pass pct"].append(uc_pass_pct)
+        results[f"[{cl_str}] UC passes"].append(uc_passes)
+        results[f"[{cl_str}] UC fails"].append(uc_fails)
+        results[f"[{cl_str}] UC indeterminate"].append(entry[f"uc_nans_{cl_str}"])
+        results[f"[{cl_str}] Ind passes"].append(entry[f"ind_passes_{cl_str}"])
+        results[f"[{cl_str}] Ind fails"].append(entry[f"ind_fails_{cl_str}"])
+        results[f"[{cl_str}] Ind indeterminate"].append(entry[f"ind_nans_{cl_str}"])
+        results[f"[{cl_str}] CC passes"].append(entry[f"cc_passes_{cl_str}"])
+        results[f"[{cl_str}] CC fails"].append(entry[f"cc_fails_{cl_str}"])
+        results[f"[{cl_str}] CC indeterminate"].append(entry[f"cc_nans_{cl_str}"])
+
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
 
+# %%
+# Remove inadequate models
+for model in results_df.index:
+    if "GARCH" in model:
+        continue
+    passes = 0
+    for cl in CONFIDENCE_LEVELS:
+        if results_df.loc[model, f"[{format_cl(cl)}] Pooled CC p-value"] > 0.05:
+            passes += 1
+    if passes == 0:
+        results_df.drop(model, inplace=True)
+
+# %%
 # Identify winners
-results_df.loc["Winner", "PICP"] = results_df["PICP Miss"].abs().idxmin()
-results_df.loc["Winner", "PICP Miss"] = results_df["PICP Miss"].abs().idxmin()
-results_df.loc["Winner", "Mean width (MPIW)"] = results_df["Mean width (MPIW)"].idxmin()
-results_df.loc["Winner", "Interval Score"] = results_df["Interval Score"].idxmin()
+results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
+results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
     "Correlation (vol. vs. errors)"
 ].idxmax()
-# results_df.loc["Winner", "PICP/MPIW"] = results_df["PICP/MPIW"].idxmax()
-results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
-results_df.loc["Winner", "QL"] = results_df["QL"].idxmax()
-results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
-results_df.loc["Winner", "Lopez Loss"] = results_df["Lopez Loss"].idxmin()
 results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
 results_df.loc["Winner", "Sign accuracy"] = results_df["Sign accuracy"].idxmax()
-results_df.loc["Winner", "UC Pass %"] = results_df["UC Pass %"].idxmax()
-results_df.loc["Winner", "Ind Pass %"] = results_df["Ind Pass %"].idxmax()
-results_df.loc["Winner", "CC Pass %"] = results_df["CC Pass %"].idxmax()
-results_df.loc["Winner", "CHR Pass %"] = results_df["CHR Pass %"].idxmax()
+for cl in CONFIDENCE_LEVELS:
+    cl_str = format_cl(cl)
+    results_df.loc["Winner", f"[{cl_str}] PICP"] = (
+        results_df[f"[{cl_str}] PICP Miss"].abs().idxmin()
+    )
+    results_df.loc["Winner", f"[{cl_str}] PICP Miss"] = (
+        results_df[f"[{cl_str}] PICP Miss"].abs().idxmin()
+    )
+    results_df.loc["Winner", f"[{cl_str}] Mean width (MPIW)"] = results_df[
+        f"[{cl_str}] Mean width (MPIW)"
+    ].idxmin()
+    results_df.loc["Winner", f"[{cl_str}] Interval Score"] = results_df[
+        f"[{cl_str}] Interval Score"
+    ].idxmin()
+    results_df.loc["Winner", f"[{cl_str}] QL"] = results_df[f"[{cl_str}] QL"].idxmax()
+    results_df.loc["Winner", f"[{cl_str}] Lopez Loss"] = results_df[
+        f"[{cl_str}] Lopez Loss"
+    ].idxmin()
+    for chr_test in ["UC", "Ind", "CC"]:
+        results_df.loc["Winner", f"[{cl_str}] Pooled {chr_test} p-value"] = results_df[
+            f"[{cl_str}] Pooled {chr_test} p-value"
+        ].idxmin()
+        results_df.loc["Winner", f"[{cl_str}] {chr_test} passes"] = results_df[
+            f"[{cl_str}] {chr_test} passes"
+        ].idxmax()
+        results_df.loc["Winner", f"[{cl_str}] {chr_test} fails"] = results_df[
+            f"[{cl_str}] {chr_test} fails"
+        ].idxmin()
+    results_df.loc["Winner", f"[{cl_str}] UC pass pct"] = results_df[
+        f"[{cl_str}] UC pass pct"
+    ].idxmax()
 results_df = results_df.T
-results_df.to_csv(f"results/comp_results_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
+results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
 results_df
 
 # %%
@@ -696,33 +855,39 @@ winner_name
 # Each metric’s ranking is computed such that rank 1 is best.
 rankings = {}
 model_cols = results_df.columns.drop("Winner")
-picp_target = (
-    1 - CONFIDENCE_LEVEL
-)  # e.g. if CONFIDENCE_LEVEL = 0.05, then target = 0.95
 
 for metric in results_df.index:
     # Get the values for this metric for each model.
     values = results_df.loc[metric, model_cols]
 
     # Skip PICP Miss because it is redundant with PICP.
-    if metric == "PICP Miss" or metric == "Sign accuracy":
+    if (
+        "PICP Miss" in metric
+        or "indeterminate" in metric
+        or "pass?" in metric
+        # Temporarily remove CRPS from ranking because it is not available for all models
+        or "CRPS" in metric
+    ):
         continue
 
     # Determine ranking rule for each metric.
-    if metric == "PICP":
+    if "PICP" in metric:
         # Rank by closeness to the target coverage.
         # Since picp_miss = target - picp, |picp - target| is equivalent.
+        cl_str = metric.split(" ")[0].strip("[]")
+        picp_target = float(cl_str) / 100
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
-    elif metric in [
-        "Correlation (vol. vs. errors)",
-        "QL",
-        "Sign Accuracy",
-        "UC Pass %",
-        "Ind Pass %",
-        "CC Pass %",
-        "CHR Pass %",
-    ]:
+    elif any(
+        s in metric
+        for s in [
+            "Correlation (vol. vs. errors)",
+            "QL",
+            "Sign Accuracy",
+            "p-value",
+            "passes",
+        ]
+    ):
         # For these, higher is better.
         key = values
         ascending = False
@@ -732,6 +897,7 @@ for metric in results_df.index:
         ascending = True
 
     # Compute the ranking; ties get the minimum rank.
+    print(metric, "lower is better" if ascending else "higher is better")
     rankings[metric] = key.rank(method="min", ascending=ascending)
 
 # Create a DataFrame of rankings with models as the index and metrics as columns.
@@ -743,158 +909,386 @@ rankings_df.loc["Rank Sum"] = rankings_df.sum()
 rankings_df
 
 # %%
+print("Lowest total rank:", rankings_df.loc["Rank Sum"].idxmin())
+
+# %%
 # Save rankings to CSV
-rankings_df.to_csv(f"results/comp_rankings_{CONFIDENCE_LEVEL}{SUFFIX}.csv")
+rankings_df.to_csv(f"results/comp_ranking{SUFFIX}.csv")
 
 # %%
 # Analyze which sectors each model passes/fails for
-sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
-meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
-meta_df = meta_df.set_index("Symbol")
-unique_sectors = set()
+for test_name, key_prefix in [
+    ("Unconditional Coverage", "uc_"),
+    ("Independence", "ind_"),
+    ("Conditional Coverage", "cc_"),
+]:
+    for cl in CONFIDENCE_LEVELS:
+        cl_str = format_cl(cl)
+        sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+        meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+        meta_df = meta_df.set_index("Symbol")
+        unique_sectors = set()
 
-for entry in preds_per_model:
-    chr_results_df = entry["chr_results_df"]
-    chr_results_df = chr_results_df.join(meta_df, how="left")
-    chr_results_df = chr_results_df.dropna(subset="all_pass")
-    passes = (
-        chr_results_df[chr_results_df["all_pass"].astype(bool)]
-        .groupby(sector_key)["all_pass"]
-        .count()
-        .sort_values(ascending=False)
-    )
-    fails = (
-        chr_results_df[~chr_results_df["all_pass"].astype(bool)]
-        .groupby(sector_key)["all_pass"]
-        .count()
-        .sort_values(ascending=False)
-    )
-    pass_pct = passes / (passes + fails)
-    pass_pct = pass_pct.sort_values()
-    entry["sector_pass_pct"] = pass_pct
-    unique_sectors.update(passes.index)
+        passing_models = [
+            entry for entry in preds_per_model if entry["name"] in results_df.columns
+        ]
 
-# Get the union of sectors from both datasets
-sectors = sorted(
-    unique_sectors,
-    key=lambda sector: sum(
-        entry["sector_pass_pct"].get(sector, 0)
-        for entry in preds_per_model
-        if entry["name"] != "GARCH"
-    ),
-)
-y = np.arange(len(sectors))
+        for entry in passing_models:
+            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            if chr_results_df is None:
+                continue
+            chr_results_df = chr_results_df.join(meta_df, how="left")
+            chr_results_df = chr_results_df.dropna(subset=f"{key_prefix}pass")
+            passes = (
+                chr_results_df[chr_results_df[f"{key_prefix}pass"].astype(bool)]
+                .groupby(sector_key)[f"{key_prefix}pass"]
+                .count()
+                .sort_values(ascending=False)
+            )
+            fails = (
+                chr_results_df[~chr_results_df[f"{key_prefix}pass"].astype(bool)]
+                .groupby(sector_key)[f"{key_prefix}pass"]
+                .count()
+                .sort_values(ascending=False)
+            )
+            pass_pct = passes / (passes + fails)
+            pass_pct = pass_pct.sort_values()
+            entry["sector_pass_pct"] = pass_pct
+            unique_sectors.update(passes.index)
 
-num_models = len(preds_per_model)
-group_height = 0.8  # total vertical space for each sector's bars
-bar_height = group_height / num_models
-# create evenly spaced offsets that place bars side by side
-offsets = np.linspace(
-    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
-)
+        # Get the union of sectors from both datasets
+        sectors = sorted(
+            unique_sectors,
+            key=lambda sector: sum(
+                entry["sector_pass_pct"].get(sector, 0)
+                for entry in passing_models
+                if entry["name"] != "GARCH"
+            ),
+        )
+        y = np.arange(len(sectors))
 
-plt.figure(figsize=(10, len(sectors) * 0.7))
+        num_models = len(passing_models)
+        group_height = 0.8  # total vertical space for each sector's bars
+        bar_height = group_height / num_models
+        # create evenly spaced offsets that place bars side by side
+        offsets = np.linspace(
+            -group_height / 2 + bar_height / 2,
+            group_height / 2 - bar_height / 2,
+            num_models,
+        )
 
-plt.title("Pass Rate (all 3 Christoffersen's tests) by Sector")
+        plt.figure(figsize=(10, len(sectors) * 0.7))
 
-for i, entry in enumerate(preds_per_model):
-    pass_pct = entry["sector_pass_pct"].reindex(sectors, fill_value=0)
-    plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+        plt.title(f"Pass Rate ({test_name} at {cl_str}% interval) by Sector")
 
-plt.yticks(y, sectors)
-plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
-plt.legend()
-plt.show()
+        for i, entry in enumerate(passing_models):
+            pass_pct = entry["sector_pass_pct"].reindex(sectors, fill_value=0)
+            plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+
+        plt.yticks(y, sectors)
+        plt.gca().set_xticklabels(
+            ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+        )
+        plt.legend()
+        plt.show()
 
 # %%
 # Analyze coverage by sector
-sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
-meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
-meta_df = meta_df.set_index("Symbol")
-unique_sectors = set()
+for cl in CONFIDENCE_LEVELS:
+    sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+    meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+    meta_df = meta_df.set_index("Symbol")
+    unique_sectors = set()
 
-for entry in preds_per_model:
-    chr_results_df = entry["chr_results_df"]
-    chr_results_df = chr_results_df.join(meta_df, how="left")
-    chr_results_df = chr_results_df.dropna(subset="all_pass")
-    entry["sector_coverage"] = (
-        chr_results_df.groupby(sector_key)["Coverage"]
-        .mean()
-        .sort_values(ascending=False)
+    for entry in passing_models:
+        chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
+        chr_results_df = chr_results_df.join(meta_df, how="left")
+        chr_results_df = chr_results_df.dropna(subset="all_pass")
+        entry["sector_coverage"] = (
+            chr_results_df.groupby(sector_key)["Coverage"]
+            .mean()
+            .sort_values(ascending=False)
+        )
+        unique_sectors.update(passes.index)
+
+    # Get the union of sectors from both datasets
+    sectors = sorted(
+        unique_sectors,
+        key=lambda sector: sum(
+            entry["sector_coverage"].get(sector, 0)
+            for entry in passing_models
+            if entry["name"] != "GARCH"
+        ),
     )
-    unique_sectors.update(passes.index)
+    y = np.arange(len(sectors))
 
-# Get the union of sectors from both datasets
-sectors = sorted(
-    unique_sectors,
-    key=lambda sector: sum(
-        entry["sector_coverage"].get(sector, 0)
-        for entry in preds_per_model
-        if entry["name"] != "GARCH"
-    ),
-)
-y = np.arange(len(sectors))
+    num_models = len(passing_models)
+    group_height = 0.8  # total vertical space for each sector's bars
+    bar_height = group_height / num_models
+    # create evenly spaced offsets that place bars side by side
+    offsets = np.linspace(
+        -group_height / 2 + bar_height / 2,
+        group_height / 2 - bar_height / 2,
+        num_models,
+    )
 
-num_models = len(preds_per_model)
-group_height = 0.8  # total vertical space for each sector's bars
-bar_height = group_height / num_models
-# create evenly spaced offsets that place bars side by side
-offsets = np.linspace(
-    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
-)
+    plt.figure(figsize=(10, len(sectors) * 0.7))
 
-plt.figure(figsize=(10, len(sectors) * 0.7))
+    plt.title(f"PICP by Sector ({format_cl(cl)}%)")
 
-plt.title("PICP by Sector")
+    for i, entry in enumerate(passing_models):
+        pass_pct = entry["sector_coverage"].reindex(sectors, fill_value=0)
+        plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
 
-for i, entry in enumerate(preds_per_model):
-    pass_pct = entry["sector_coverage"].reindex(sectors, fill_value=0)
-    plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
-
-plt.xlim(1 - CONFIDENCE_LEVEL - 0.05, 1 - CONFIDENCE_LEVEL + 0.05)
-plt.axvline(1 - CONFIDENCE_LEVEL, color="black", linestyle="--", label="Target")
-plt.yticks(y, sectors)
-plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
-plt.legend()
-plt.show()
+    x_from = cl - 0.15
+    x_to = min(cl + 0.15, 1)
+    plt.xlim(x_from, x_to)
+    plt.axvline(cl, color="black", linestyle="--", label="Target")
+    plt.yticks(y, sectors)
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.legend()
+    plt.show()
 
 # %%
 # Plot PICP for all the important tickers
-existing_tickers = sorted(
-    set(df_validation.index.get_level_values("Symbol")).intersection(IMPORTANT_TICKERS)
-)
-y = np.arange(len(existing_tickers))
-
-plt.figure(figsize=(10, len(existing_tickers) * 0.5))
-plt.title("PICP by ticker")
-
-num_models = len(preds_per_model)
-offsets = np.linspace(
-    -group_height / 2 + bar_height / 2, group_height / 2 - bar_height / 2, num_models
-)
-
-for i, entry in enumerate(preds_per_model):
-    results_df = entry["chr_results_df"]
-    results_df = results_df.loc[np.isin(results_df.index.values, IMPORTANT_TICKERS)]
-    results_df = results_df.reindex(IMPORTANT_TICKERS, fill_value=0)
-    plt.barh(
-        y + offsets[i], results_df["Coverage"], height=bar_height, label=entry["name"]
-    )
-    # Add a check mark or cross to indicate if the model passes or fails
-    for idx, row in results_df.iterrows():
-        plt.text(
-            row["Coverage"] - 0.002,
-            y[existing_tickers.index(idx)] + offsets[i],
-            "✓" if row["all_pass"] else "✗",
-            verticalalignment="center",
-            color="white",
+for cl in CONFIDENCE_LEVELS:
+    existing_tickers = sorted(
+        set(df_validation.index.get_level_values("Symbol")).intersection(
+            IMPORTANT_TICKERS
         )
+    )
+    y = np.arange(len(existing_tickers))
 
-plt.xlim(1 - CONFIDENCE_LEVEL - 0.05, 1 - CONFIDENCE_LEVEL + 0.05)
-plt.axvline(1 - CONFIDENCE_LEVEL, color="black", linestyle="--", label="Target")
-plt.yticks(y, existing_tickers)
-plt.gca().set_xticklabels(["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()])
-plt.legend()
-plt.show()
+    plt.figure(figsize=(10, len(existing_tickers) * 0.5))
+    plt.title("PICP by ticker ({:.0f}% interval)".format(cl * 100))
+    x_from = cl - 0.05
+    x_to = cl + 0.05
+
+    num_models = len(passing_models)
+    offsets = np.linspace(
+        -group_height / 2 + bar_height / 2,
+        group_height / 2 - bar_height / 2,
+        num_models,
+    )
+
+    for i, entry in enumerate(passing_models):
+        chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
+        chr_results_df = chr_results_df.loc[
+            np.isin(chr_results_df.index.values, IMPORTANT_TICKERS)
+        ]
+        chr_results_df = chr_results_df.reindex(IMPORTANT_TICKERS, fill_value=0)
+        plt.barh(
+            y + offsets[i],
+            chr_results_df["Coverage"],
+            height=bar_height,
+            label=entry["name"],
+        )
+        # Add a check mark or cross to indicate if the model passes or fails
+        for idx, row in chr_results_df.iterrows():
+            picp = row["Coverage"]
+            if x_from < picp < x_to:
+                plt.text(
+                    row["Coverage"] - 0.002,
+                    y[existing_tickers.index(idx)] + offsets[i],
+                    "✓" if row["uc_pass"] else "✗",
+                    verticalalignment="center",
+                    color="white",
+                )
+
+    plt.xlim(x_from, x_to)
+    plt.axvline(cl, color="black", linestyle="--", label="Target")
+    plt.yticks(y, existing_tickers)
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.legend()
+    plt.savefig(f"results/picp_by_ticker_{cl}.svg")
+    plt.show()
+
+# %%
+# Calculate p-value of outperformance in terms of NLL
+passing_model_names = [entry["name"] for entry in passing_models]
+p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+p_value_df.index.name = "Benchmark"
+p_value_df.columns.name = "Challenger"
+
+for benchmark in passing_model_names:
+    for challenger in passing_model_names:
+        if benchmark == challenger:
+            continue
+        benchmark_entry = next(
+            entry for entry in passing_models if entry["name"] == benchmark
+        )
+        challenger_entry = next(
+            entry for entry in passing_models if entry["name"] == challenger
+        )
+        benchmark_nll = benchmark_entry["nll"]
+        challenger_nll = challenger_entry["nll"]
+        mask = ~np.isnan(benchmark_nll) & ~np.isnan(challenger_nll)
+        benchmark_nll = benchmark_nll[mask]
+        challenger_nll = challenger_nll[mask]
+
+        # Paired one-sided t-test
+        t_stat, p_value = ttest_rel(challenger_nll, benchmark_nll, alternative="less")
+
+        # Store the p-value in the dataframe
+        p_value_df.loc[benchmark, challenger] = p_value
+
+p_value_df
+
+# %%
+# Calculate p-value of outperformance in terms of CRPS
+p_value_df_crps = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+p_value_df_crps.index.name = "Benchmark"
+p_value_df_crps.columns.name = "Challenger"
+
+for benchmark in passing_model_names:
+    for challenger in passing_model_names:
+        if benchmark == challenger:
+            continue
+        benchmark_entry = next(
+            entry for entry in passing_models if entry["name"] == benchmark
+        )
+        challenger_entry = next(
+            entry for entry in passing_models if entry["name"] == challenger
+        )
+        benchmark_crps = benchmark_entry.get("crps")
+        challenger_crps = challenger_entry.get("crps")
+        if benchmark_crps is None or challenger_crps is None:
+            p_value_df_crps.loc[benchmark, challenger] = np.nan
+            continue
+        mask = ~np.isnan(benchmark_crps) & ~np.isnan(challenger_crps)
+        benchmark_crps = benchmark_crps[mask]
+        challenger_crps = challenger_crps[mask]
+
+        # Paired one-sided t-test
+        t_stat, p_value = ttest_rel(challenger_crps, benchmark_crps, alternative="less")
+
+        # Store the p-value in the dataframe
+        p_value_df_crps.loc[benchmark, challenger] = p_value
+
+p_value_df_crps
+
+# %%
+# Examine correlation between probability of increase and actual increase
+for entry in preds_per_model:
+    p_up = entry.get("p_up")
+    if p_up is None:
+        continue
+    df_copy = df_validation.copy()
+    df_copy["p_up"] = p_up
+    df_copy = df_copy.dropna()
+
+    x = df_copy["p_up"]
+    y = df_copy["LogReturn"]
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(df_copy["p_up"], y, alpha=0.5)
+    plt.xlabel("Predicted probability of increase")
+    plt.ylabel("Actual return")
+    plt.title(entry["name"])
+
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+    plt.plot(x, slope * x + intercept, color="red")
+    plt.text(
+        0.05,
+        0.95,
+        f"Correlation: {slope:.2f} ($p$ = {p_value:.4f})",
+        transform=plt.gca().transAxes,
+    )
+    plt.show()
+
+# %%
+# Examine correlation between predicted mean and actual return
+for entry in preds_per_model:
+    mean_pred = entry.get("mean_pred")
+    if mean_pred is None or (mean_pred == 0).all():
+        continue
+    df_copy = df_validation.copy()
+    df_copy["mean_pred"] = mean_pred
+    df_copy = df_copy.dropna()
+
+    x = df_copy["mean_pred"]
+    y = df_copy["LogReturn"]
+
+    plt.figure(figsize=(10, 5))
+    plt.scatter(df_copy["mean_pred"], y, alpha=0.5)
+    plt.xlabel("Predicted mean return")
+    plt.ylabel("Actual return")
+    plt.title(entry["name"])
+
+    slope, intercept, r_value, p_value, std_err = linregress(x, y)
+    plt.plot(x, slope * x + intercept, color="red")
+    plt.text(
+        0.05,
+        0.95,
+        f"Correlation: {slope:.2f} ($p$ = {p_value:.4f})",
+        transform=plt.gca().transAxes,
+    )
+    plt.show()
+
+# %%
+# Test trading strategy: for every model that estimates p_up, buy the 10% of stocks with the highest p_up
+# and sell the 10% of stocks with the lowest p_up
+for entry in preds_per_model:
+    p_up = entry.get("p_up")
+    if p_up is None:
+        continue
+    decisions_df = df_validation.copy()
+    decisions_df["p_up"] = p_up
+    decisions_df = decisions_df.dropna()
+    decisions_df["p_up decile"] = decisions_df.groupby("Date")["p_up"].transform(
+        lambda x: pd.qcut(x, 10, labels=False, duplicates="drop")
+    )
+    decisions_df["p_up decile"] = decisions_df["p_up decile"].astype(int)
+    decisions_df["Decision"] = 0
+    decisions_df.loc[decisions_df["p_up decile"] == 0, "Decision"] = -1
+    decisions_df.loc[decisions_df["p_up decile"] == 9, "Decision"] = 1
+    decisions_df["Return"] = decisions_df["LogReturn"] * decisions_df["Decision"]
+    returns_df = decisions_df.groupby("Date")["Return"].mean()
+    returns_df = returns_df.to_frame()
+    returns_df["Cumulative Return"] = (1 + returns_df["Return"]).cumprod() - 1
+    entry["p_up_strat_returns_df"] = returns_df
+    returns_df["Cumulative Return"].plot(title=entry["name"])
+    plt.show()
+
+# %%
+# Test trading strategy: buy the 10% of stocks with the highest predicted mean
+# and sell the 10% of stocks with the lowest
+strat_results_df = pd.DataFrame(
+    columns=["Mean return", "p-value (H1: mean return > 0)", "Cumulative return"]
+)
+
+for entry in preds_per_model:
+    mean_pred = entry.get("mean_pred")
+    if mean_pred is None or (mean_pred == 0).all():
+        continue
+    decisions_df = df_validation.copy()
+    decisions_df["mean_pred"] = mean_pred
+    decisions_df = decisions_df.dropna()
+    decisions_df["mean_pred decile"] = decisions_df.groupby("Date")[
+        "mean_pred"
+    ].transform(lambda x: pd.qcut(x, 2, labels=False, duplicates="drop"))
+    decisions_df["mean_pred decile"] = decisions_df["mean_pred decile"].astype(int)
+    decisions_df["Decision"] = 0
+    decisions_df.loc[decisions_df["mean_pred decile"] == 0, "Decision"] = -1
+    decisions_df.loc[decisions_df["mean_pred decile"] == 1, "Decision"] = 1
+    decisions_df["Return"] = decisions_df["LogReturn"] * decisions_df["Decision"]
+    returns_df = decisions_df.groupby("Date")["Return"].mean()
+    returns_df = returns_df.to_frame()
+    returns_df["Cumulative Return"] = (1 + returns_df["Return"]).cumprod() - 1
+    entry["mean_strat_returns_df"] = returns_df
+    returns_df["Cumulative Return"].plot(title=entry["name"])
+    plt.show()
+
+    mean_return = returns_df["Return"].mean()
+    cumulative_return = returns_df["Cumulative Return"].iloc[-1]
+
+    t_stat, p_value = ttest_1samp(returns_df["Return"], 0)
+    strat_results_df.loc[entry["name"]] = [mean_return, p_value, cumulative_return]
+
+strat_results_df
 
 # %%

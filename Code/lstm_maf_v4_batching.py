@@ -40,7 +40,7 @@ import warnings
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new()
+data = get_lstm_train_test_new(multiply_by_beta=True, include_fng=False, include_spx_data=True, include_returns=True)
 data
 
 
@@ -221,7 +221,7 @@ input_dim = 300  # 10 features * 30 lookback days
 feature_dim = X_train.shape[-1]
 extractor_num_layers = 1
 extractor_dropout = 0.5
-flow_dropout = 0.5
+flow_dropout = 0.3
 print("Input dimension:", input_dim)
 
 
@@ -256,7 +256,7 @@ val_losses = []
 
 # %%
 # Train the model
-epochs = 5
+epochs = 40
 l2_lambda = 1e-4  # Regularization strength
 for epoch in range(epochs):
     model.train()
@@ -310,6 +310,12 @@ for epoch in range(epochs):
     # Print loss per epoch
     print(f"Epoch {epoch+1}: Train Loss = {avg_train_loss:.4f}, Val Loss = {avg_val_loss:.4f}")
 
+    # Stop if validation loss does not improve for 3 epochs
+    if len(val_losses) > 3 and all(
+        val_losses[-1] >= val_losses[i] for i in range(-3, 0)
+    ):
+        print("Validation loss did not improve for 3 epochs. Stopping training.")
+        break
 
 # %%
 # Predicting the Distribution for 10 Random Test Samples
@@ -317,7 +323,7 @@ model.eval()
 np.random.seed(42)
 
 
-example_tickers = ["GOOG", "AON", "WMT"] # change these based on data
+example_tickers = ["AAPL", "GS", "WMT"] # change these based on data
 
 # %%
 # Print smooted distributions
@@ -365,6 +371,7 @@ for ticker in example_tickers:
         plt.legend()
         plt.show()
 
+
 # %%
 # Predicting the Distribution for the Entire Validation Period
 batch_size = 64
@@ -400,6 +407,9 @@ with torch.no_grad():
         # calculate predicted return and std
         predicted_return = samples.mean(dim=1).numpy().flatten()
         predicted_std = samples.std(dim=1).numpy().flatten()
+
+        # calculate nll loss based on kernal density estimation
+        nll_loss[batch_start:batch_start + batch_size] = 
 
         # calculate nll loss
         nll_loss[batch_start:batch_start + batch_size] = - model.log_prob(y_val[batch_start:batch_start + batch_size], X_batch).numpy()
@@ -481,8 +491,7 @@ print("Number of NaN values in predicted returns:", nan_values.sum())
 print("Last predicted return:", predicted_returns[-1])
 
 # %%
-# Calculate NLL - this value should be the same as in the on in compare models
-# print("NLL Loss:", nll_loss_maf(model, X_val, y_val))
+# Based on the 
 
 # %%
 # Check lenghts of the predicted returns and stds

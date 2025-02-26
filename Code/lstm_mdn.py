@@ -3,11 +3,13 @@
 import subprocess
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "nll-crps-mix"
+VERSION = "rv-data-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
-MU_PENALTY = True
+MU_PENALTY = False
 SIGMA_PENALTY = False
+INCLUDE_MARKET_FEATURES = True
+INCLUDE_RETURNS = True
 HIDDEN_UNITS = 20
 N_MIXTURES = 5
 DROPOUT = 0.4
@@ -18,6 +20,7 @@ MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # Imports from code shared across models
 from shared.mdn import (
     calculate_intervals_vectorized,
+    calculate_prob_above_zero_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
@@ -30,6 +33,7 @@ from shared.loss import (
     mdn_nll_numpy,
     mean_mdn_loss_numpy,
     mean_mdn_crps_tf,
+    mdn_nll_tf,
 )
 from shared.crps import crps_mdn_numpy
 from shared.processing import get_lstm_train_test_new
@@ -66,7 +70,11 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new(multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA)
+data = get_lstm_train_test_new(
+    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+    include_returns=INCLUDE_RETURNS,
+    include_spx_data=INCLUDE_MARKET_FEATURES,
+)
 
 # %%
 # Garbage collection
@@ -145,7 +153,7 @@ lstm_mdn_model = build_lstm_mdn(
 
 # %%
 # 4) Load existing model if it exists
-load_best_val_loss_model = True
+load_best_val_loss_model = False
 best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
 model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
 already_trained = False
@@ -301,7 +309,7 @@ while True:
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
         optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
@@ -324,9 +332,10 @@ while True:
             print(
                 f"Validation loss has not decreased for {max_increases_since_best} iterations. "
                 "Stopping training. \n"
-                "If you want to restore the best model, type:\n"
-                "lstm_mdn_model.set_weights(best_model_weights)"
+                # "If you want to restore the best model, type:\n"
+                # "lstm_mdn_model.set_weights(best_model_weights)"
             )
+            lstm_mdn_model.set_weights(best_model_weights)
             break
     else:
         best_model_weights = lstm_mdn_model.get_weights()
@@ -336,39 +345,39 @@ while True:
     weight_per_ticker = calculate_weight_per_ticker()
 
 # %%
-# Train one epoch with CRPS loss
-print("Training one epoch with CRPS loss...")
-lstm_mdn_model.compile(
-    optimizer=Adam(learning_rate=1e-7, weight_decay=1e-7),
-    loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY, MU_PENALTY, SIGMA_PENALTY, npts=64),
-)
-history = lstm_mdn_model.fit(
-    [data.train.X, data.train_ticker_ids],
-    data.train.y,
-    epochs=1,
-    batch_size=32,
-    verbose=1,
-    validation_data=(
-        [data.validation.X, data.validation_ticker_ids],
-        data.validation.y,
-    ),
-)
-histories.append(history)
+# # Train one epoch with CRPS loss
+# print("Training one epoch with CRPS loss...")
+# lstm_mdn_model.compile(
+#     optimizer=Adam(learning_rate=1e-7, weight_decay=1e-7),
+#     loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY, MU_PENALTY, SIGMA_PENALTY, npts=64),
+# )
+# history = lstm_mdn_model.fit(
+#     [data.train.X, data.train_ticker_ids],
+#     data.train.y,
+#     epochs=1,
+#     batch_size=32,
+#     verbose=1,
+#     validation_data=(
+#         [data.validation.X, data.validation_ticker_ids],
+#         data.validation.y,
+#     ),
+# )
+# histories.append(history)
 
 # %%
 # 6) Save both current model and the model with the best validation loss
 lstm_mdn_model.save(model_fname)
-best_model = build_lstm_mdn(
-    lookback_days=LOOKBACK_DAYS,
-    num_features=data.train.X.shape[2],
-    dropout=DROPOUT,
-    n_mixtures=N_MIXTURES,
-    hidden_units=HIDDEN_UNITS,
-    embed_dim=EMBEDDING_DIMENSIONS,
-    ticker_ids_dim=data.ticker_ids_dim,
-)
-best_model.set_weights(best_model_weights)
-best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
+# best_model = build_lstm_mdn(
+#     lookback_days=LOOKBACK_DAYS,
+#     num_features=data.train.X.shape[2],
+#     dropout=DROPOUT,
+#     n_mixtures=N_MIXTURES,
+#     hidden_units=HIDDEN_UNITS,
+#     embed_dim=EMBEDDING_DIMENSIONS,
+#     ticker_ids_dim=data.ticker_ids_dim,
+# )
+# best_model.set_weights(best_model_weights)
+# best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
 
 # %%
 # 7) Commit and push
@@ -395,7 +404,7 @@ pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
 # 9) Plot 10 charts with the distributions for 10 random days
-example_tickers = ["GOOG", "AON", "WMT", "GS"]
+example_tickers = ["AAPL", "WMT", "GS"]
 for ticker in example_tickers:
     s = data.validation.sets[ticker]
     from_idx, to_idx = data.validation.get_range(ticker)
@@ -407,6 +416,7 @@ for ticker in example_tickers:
         sigma_pred[from_idx:to_idx],
         N_MIXTURES,
         ticker=ticker,
+        save_to=f"results/distributions/{ticker}_lstm_mdn_v{VERSION}.svg",
     )
 
 # %%
@@ -440,12 +450,13 @@ handles = list(legend_dict.values())
 labels = list(legend_dict.keys())
 fig.legend(handles, labels, loc="center left")
 plt.tight_layout(rect=[0, 0, 1, 0.95])
+plt.savefig(f"results/lstm_mdn_v{VERSION}_mixture_weights.svg")
 plt.show()
 
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.67, 0.95, 0.99]
+confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.99, 0.995, 0.999]
 intervals = calculate_intervals_vectorized(
     pi_pred, mu_pred, sigma_pred, confidence_levels
 )
@@ -475,7 +486,7 @@ for ticker in example_tickers:
     )
     plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
     median = filtered_intervals[:, 0, 0]
-    plt.plot(dates, median, label="Median", color="blue")
+    plt.plot(dates, median, label="Median", color="green")
     for i, cl in enumerate(confidence_levels):
         if cl == 0:
             continue
@@ -485,7 +496,7 @@ for ticker in example_tickers:
             filtered_intervals[:, i, 1],
             color="blue",
             alpha=0.7 - i * 0.1,
-            label=f"{int(100*cl)}% Interval",
+            label=f"{100*cl:.1f}% Interval",
         )
     plt.axhline(
         actual_return.mean(),
@@ -501,6 +512,7 @@ for ticker in example_tickers:
     plt.xlabel("Date")
     plt.ylabel("LogReturn")
     plt.legend()
+    plt.savefig(f"results/time_series/{ticker}_lstm_mdn_v{VERSION}.svg")
     plt.show()
 
 # %%
@@ -531,8 +543,14 @@ df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 # %%
 # Add confidence intervals
 for i, cl in enumerate(confidence_levels):
-    df_validation[f"LB_{int(100*cl)}"] = intervals[:, i, 0]
-    df_validation[f"UB_{int(100*cl)}"] = intervals[:, i, 1]
+    df_validation[f"LB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 0]
+    df_validation[f"UB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 1]
+
+# %%
+# Calculate probability of price increase
+df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
+    pi_pred, mu_pred, sigma_pred
+)
 
 # %%
 # Save
@@ -570,3 +588,5 @@ df_validation["Epistemic_Unc_Mean"] = mc_results[
 ]
 
 df_validation.to_csv(f"predictions/lstm_mdn_mc_predictions{SUFFIX}_days_v{VERSION}.csv")
+
+# %%
