@@ -300,7 +300,7 @@ best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=0,  # number of epochs with no improvement to wait
+        patience=2,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
