@@ -1,6 +1,7 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
+from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
 VERSION = "rv-data-2"
@@ -19,6 +20,7 @@ MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # %%
 # Imports from code shared across models
 from shared.mdn import (
+    calculate_es_for_quantile,
     calculate_intervals_vectorized,
     calculate_prob_above_zero_vectorized,
     get_mdn_bias_initializer,
@@ -456,7 +458,7 @@ plt.show()
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.99, 0.995, 0.999]
+confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.98, 0.99, 0.995, 0.999]
 intervals = calculate_intervals_vectorized(
     pi_pred, mu_pred, sigma_pred, confidence_levels
 )
@@ -495,7 +497,7 @@ for ticker in example_tickers:
             filtered_intervals[:, i, 0],
             filtered_intervals[:, i, 1],
             color="blue",
-            alpha=0.7 - i * 0.1,
+            alpha=0.7 - i * 0.07,
             label=f"{100*cl:.1f}% Interval",
         )
     plt.axhline(
@@ -543,8 +545,34 @@ df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 # %%
 # Add confidence intervals
 for i, cl in enumerate(confidence_levels):
-    df_validation[f"LB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 0]
-    df_validation[f"UB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 1]
+    df_validation[f"LB_{format_cl(cl)}"] = intervals[:, i, 0]
+    df_validation[f"UB_{format_cl(cl)}"] = intervals[:, i, 1]
+
+# %%
+# Calculate expected shortfall
+for i, cl in enumerate(confidence_levels):
+    alpha = (1 - cl) / 2  # The lower quantile of the confidence interval
+    var_estimates = intervals[:, i, 0]
+    es = calculate_es_for_quantile(pi_pred, mu_pred, sigma_pred, var_estimates)
+    df_validation[f"ES_{format_cl(cl)}"] = es
+
+# %%
+# Example plot of ES
+df_validation.set_index(["Date", "Symbol"]).xs("AAPL", level="Symbol").sort_index()[
+    ["LB_90", "ES_95", "LB_98", "ES_99"]
+].rename(
+    columns={
+        "LB_90": "95% VaR",
+        "ES_95": "95% ES",
+        "LB_98": "99% VaR",
+        "ES_99": "99% ES",
+    }
+).plot(
+    title="99% VaR and ES for AAPL",
+    # Color appropriately
+    color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
+    figsize=(12, 6),
+)
 
 # %%
 # Calculate probability of price increase

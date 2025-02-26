@@ -492,3 +492,67 @@ def calculate_prob_above_zero_vectorized(pis, mus, sigmas):
 
     # Probability above zero
     return 1 - mixture_cdf_zero
+
+
+def calculate_es_for_quantile(pis, mus, sigmas, var_values):
+    """
+    Vectorized computation of Expected Shortfall (ES).
+
+    Parameters:
+    - pis: (B, n) Mixture weights
+    - mus: (B, n) Mixture means
+    - sigmas: (B, n) Mixture standard deviations
+    - var_values: (B,) Precomputed Value-at-Risk (VaR) for each sample
+
+    Returns:
+    - es_values: (B,) Expected Shortfall for each sample
+    """
+    # Compute z-scores for VaR
+    z = (var_values[:, None] - mus) / sigmas  # Shape: (B, n)
+
+    # Compute normal PDF and CDF for all components at once
+    phi_z = norm.pdf(z)  # Shape: (B, n)
+    Phi_z = norm.cdf(z)  # Shape: (B, n)
+
+    # Compute numerator and denominator in vectorized form
+    numerator = np.sum(pis * (mus * Phi_z - sigmas * phi_z), axis=1)  # (B,)
+    denominator = np.sum(pis * Phi_z, axis=1)  # (B,)
+
+    # Avoid division by zero
+    denominator = np.where(denominator > 1e-12, denominator, 1.0)
+
+    # Compute ES
+    es_values = numerator / denominator
+
+    return es_values
+
+
+def calculate_es_for_quantiles(pis, mus, sigmas, quantiles):
+    """
+    Fully vectorized Expected Shortfall (ES) calculation.
+
+    Parameters:
+    - pis: (B, n) Mixture weights
+    - mus: (B, n) Mixture means
+    - sigmas: (B, n) Mixture standard deviations
+    - quantiles: List of quantiles to compute ES for
+
+    Returns:
+    - es_results: (B, len(quantiles)) Expected Shortfall values
+    """
+    pis = np.asarray(pis)
+    mus = np.asarray(mus)
+    sigmas = np.asarray(sigmas)
+    quantiles = np.asarray(quantiles)
+
+    n_samples = pis.shape[0]
+    n_q = len(quantiles)
+    es_results = np.empty((n_samples, n_q))
+
+    for j, q in enumerate(quantiles):
+        print(f"Computing VaR for quantile {q}...")
+        var_values = bracket_and_bisect(pis, mus, sigmas, q)
+        print(f"Computing ES for quantile {q}...")
+        es_results[:, j] = calculate_es_for_quantile(pis, mus, sigmas, var_values)
+
+    return es_results

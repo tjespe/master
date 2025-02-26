@@ -242,7 +242,9 @@ for version in ["v1"]:
         vae["Date"] = pd.to_datetime(vae["Date"])
         vae = vae.set_index(["Date", "Symbol"])
         vae_dates = vae.index.get_level_values("Date")
-        vae = vae[(vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)]
+        vae = vae[
+            (vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)
+        ]
         combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
         preds_per_model.append(
             {
@@ -258,10 +260,10 @@ for version in ["v1"]:
                 "LB_99": combined_df["LB_99"].values,
                 "UB_99": combined_df["UB_99"].values,
                 "nll": nll_loss_mean_and_vol(
-                            y_true,
-                            mus,
-                            garch_vol_pred,
-                                        ),
+                    y_true,
+                    mus,
+                    garch_vol_pred,
+                ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
@@ -897,7 +899,6 @@ for metric in results_df.index:
         ascending = True
 
     # Compute the ranking; ties get the minimum rank.
-    print(metric, "lower is better" if ascending else "higher is better")
     rankings[metric] = key.rank(method="min", ascending=ascending)
 
 # Create a DataFrame of rankings with models as the index and metrics as columns.
