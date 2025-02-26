@@ -21,7 +21,7 @@ from tensorflow.keras.optimizers import Adam
 import os
 import warnings
 
-from shared.processing import get_lstm_train_test_old
+from shared.processing import get_lstm_train_test_new
 
 warnings.filterwarnings("ignore")
 
@@ -33,17 +33,30 @@ from scipy.stats import norm
 # improt paprameters from settings.py
 from settings import LOOKBACK_DAYS, TEST_ASSET, SUFFIX
 
-VERSION = 1
+VERSION = 2
 MODEL_NAME = f"vae_lstm_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 
 # %% [markdown]
 # # 1) Load and preprocess data (abbreviated)
 
-# In practice, reuse your own code to produce:
-# X_train, X_test, y_train, y_test
+# Load and preprocess data
+processed_data = get_lstm_train_test_new()
 
-df, X_train, X_test, y_train, y_test = get_lstm_train_test_old()
+# Extract train, validation, and test datasets
+train_data = processed_data.train
+validation_data = processed_data.validation
+test_data = processed_data.test
+
+# Extract features (X) and labels (y)
+X_train, y_train = train_data.X, train_data.y
+X_test, y_test = test_data.X, test_data.y
+
+# Debugging - print shapes
+print(f"X_train.shape: {X_train.shape}")
+print(f"X_test.shape: {X_test.shape}")
+print(f"y_train.shape: {y_train.shape}")
+print(f"y_test.shape: {y_test.shape}")
 
 # %% [markdown]
 # # 2) Variational Autoencoder (VAE)
