@@ -147,7 +147,11 @@ class VAE(tf.keras.Model):
     
 
     def test_step(self, data): # TODO: check if this is correct (added afterwards)
-        x = data
+        if isinstance(data, tuple):  # If a tuple (X, X) is passed, extract X
+            x, _ = data
+        else:
+            x = data  # Otherwise, use it directly
+        # x = data
         z_mean, z_log_var, z = self.encoder(x, training=False)
         reconstructed = self.decoder(z, training=False)
 
@@ -416,6 +420,7 @@ def compute_confidence_intervals(y_samples, confidence_levels):
 
     return intervals
 
+df_test = pd.DataFrame(index=test_dates)  # Ensure test_dates is correctly defined
 
 
 # Compute NLL for the test set
