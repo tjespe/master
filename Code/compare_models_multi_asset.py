@@ -1,5 +1,6 @@
 # %%
 # Define parameters
+from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import crps_normal_univariate, nll_loss_mean_and_vol
 from settings import (
@@ -16,7 +17,7 @@ from scipy.stats import ttest_1samp
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.99]
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99]
 
 # %%
 # Select whether to only filter on important tickers
@@ -115,12 +116,17 @@ try:
     for cl in CONFIDENCE_LEVELS:
         alpha = 1 - cl
         z_alpha = norm.ppf(1 - alpha / 2)
-        entry[f"LB_{format_cl(cl)}"] = mus - z_alpha * garch_vol_pred
-        entry[f"UB_{format_cl(cl)}"] = mus + z_alpha * garch_vol_pred
+        lb = mus - z_alpha * garch_vol_pred
+        ub = mus + z_alpha * garch_vol_pred
+        entry[f"LB_{format_cl(cl)}"] = lb
+        entry[f"UB_{format_cl(cl)}"] = ub
         es_alpha = alpha / 2
-        entry[f"ES_{format_cl(es_alpha)}"] = mus - garch_vol_pred * norm.pdf(
-            norm.ppf(es_alpha)
-        ) / (1 - es_alpha)
+        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+            np.ones_like(mus).reshape(-1, 1),
+            mus.reshape(-1, 1),
+            garch_vol_pred.reshape(-1, 1),
+            lb,
+        )
 
     preds_per_model.append(entry)
     nans = np.isnan(garch_vol_pred).sum()
@@ -179,7 +185,7 @@ for version in [
                 print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
             entry[f"LB_{format_cl(cl)}"] = lb
             entry[f"UB_{format_cl(cl)}"] = ub
-            alpha = (1 - cl) / 2
+            alpha = 1 - (1 - cl) / 2
             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
         preds_per_model.append(entry)
         nans = combined_df["Mean_SP"].isnull().sum()
@@ -1233,3 +1239,24 @@ for entry in preds_per_model:
 strat_results_df
 
 # %%
+# Plot all expected shortfalls
+for cl in CONFIDENCE_LEVELS:
+    alpha = 1 - (1 - cl) / 2
+    es_estimates = []
+    model_names = []
+    for entry in preds_per_model:
+        key = f"ES_{format_cl(alpha)}"
+        vals = entry.get(key)
+        if vals is None:
+            continue
+        es_estimates.append(np.array(vals).reshape(-1, 1))
+        model_names.append(entry["name"])
+    if not es_estimates:
+        continue
+    es_df = pd.DataFrame(
+        np.hstack(es_estimates), index=df_validation.index, columns=model_names
+    )
+    for example_stock in ["AAPL", "WMT", "GS"]:
+        es_df.xs(example_stock, level="Symbol").plot(
+            title=f"Expected Shortfall ({cl * 100}%) for {example_stock}"
+        )
