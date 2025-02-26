@@ -1260,3 +1260,5 @@ for cl in CONFIDENCE_LEVELS:
         es_df.xs(example_stock, level="Symbol").plot(
             title=f"Expected Shortfall ({cl * 100}%) for {example_stock}"
         )
+
+# %%

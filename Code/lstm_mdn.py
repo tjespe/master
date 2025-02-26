@@ -247,7 +247,7 @@ def calculate_weight_per_ticker() -> pd.Series:
     worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
     filtered_y_train_pred = y_train_pred[worst_ticker_mask]
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
-    confidence_levels = [0.95, 0.99]
+    confidence_levels = [0.67, 0.90, 0.95, 0.99]
     intervals = calculate_intervals_vectorized(
         pi_pred, mu_pred, sigma_pred, confidence_levels
     )
