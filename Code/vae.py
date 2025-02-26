@@ -36,15 +36,15 @@ print("y_val shape:", y_val.shape)
 
 # %%
 LATENT_DIM = 16      # dimension of the latent variable z
-LSTM_UNITS_ENC = [32, 16]  # LSTM units for the encoder
-LSTM_UNITS_DEC = [32, 16]  # LSTM units for the decoder
+LSTM_UNITS_ENC = [32, 32]  # LSTM units for the encoder
+LSTM_UNITS_DEC = [32, 32]  # LSTM units for the decoder
 DENSE_UNITS = 32     # size of dense layer before producing z params
-EPOCHS = 10
+EPOCHS = 100
 BATCH_SIZE = 128
-LEARNING_RATE = 1e-3
+LEARNING_RATE = 1e-4
 TIME_STEPS = 30
 FEATURE_DIM = 36
-BETA = 1             # weight for the KL
+BETA = 10             # weight for the KL
 
 
 # %%
