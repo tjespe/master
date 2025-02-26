@@ -31,8 +31,8 @@ Correlation (vol. vs. errors),2,1
 [90] UC fails,2,1
 [90] Ind passes,1,2
 [90] Ind fails,1,2
-[90] CC passes,1,1
-[90] CC fails,2,1
+[90] CC passes,1,2
+[90] CC fails,1,2
 [95] PICP,1,2
 [95] Mean width (MPIW),2,1
 [95] Interval Score,2,1
@@ -44,7 +44,7 @@ Correlation (vol. vs. errors),2,1
 [95] UC pass pct,2,1
 [95] UC passes,1,2
 [95] UC fails,1,2
-[95] Ind passes,1,2
+[95] Ind passes,1,1
 [95] Ind fails,2,1
 [95] CC passes,1,2
 [95] CC fails,1,2
@@ -63,4 +63,4 @@ Correlation (vol. vs. errors),2,1
 [99] Ind fails,1,1
 [99] CC passes,1,1
 [99] CC fails,2,1
-Rank Sum,97,89
+Rank Sum,96,90

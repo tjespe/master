@@ -115,12 +115,12 @@ try:
     for cl in CONFIDENCE_LEVELS:
         alpha = 1 - cl
         z_alpha = norm.ppf(1 - alpha / 2)
-        entry[f"LB_{format_cl(cl)}"] = (
-            entry["mean_pred"] - z_alpha * entry["volatility_pred"]
-        )
-        entry[f"UB_{format_cl(cl)}"] = (
-            entry["mean_pred"] + z_alpha * entry["volatility_pred"]
-        )
+        entry[f"LB_{format_cl(cl)}"] = mus - z_alpha * garch_vol_pred
+        entry[f"UB_{format_cl(cl)}"] = mus + z_alpha * garch_vol_pred
+        es_alpha = alpha / 2
+        entry[f"ES_{format_cl(es_alpha)}"] = mus - garch_vol_pred * norm.pdf(
+            norm.ppf(es_alpha)
+        ) / (1 - es_alpha)
 
     preds_per_model.append(entry)
     nans = np.isnan(garch_vol_pred).sum()
@@ -161,35 +161,27 @@ for version in [
             & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
-        preds_per_model.append(
-            {
-                "name": f"LSTM MDN {version}",
-                "mean_pred": combined_df["Mean_SP"].values,
-                "volatility_pred": combined_df["Vol_SP"].values,
-                "LB_67": combined_df["LB_67"].values,
-                "UB_67": combined_df["UB_67"].values,
-                "LB_90": combined_df.get("LB_90"),
-                "UB_90": combined_df.get("UB_90"),
-                "LB_95": combined_df["LB_95"].values,
-                "UB_95": combined_df["UB_95"].values,
-                "LB_97.5": combined_df.get("LB_97.5"),
-                "UB_97.5": combined_df.get("UB_97.5"),
-                "LB_99": combined_df["LB_99"].values,
-                "UB_99": combined_df["UB_99"].values,
-                "LB_99.5": combined_df.get("LB_99.5"),
-                "UB_99.5": combined_df.get("UB_99.5"),
-                "LB_99.9": combined_df.get("LB_99.9"),
-                "UB_99.9": combined_df.get("UB_99.9"),
-                "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-                "symbols": combined_df.index.get_level_values("Symbol"),
-                "crps": (
-                    crps.values
-                    if (crps := combined_df.get("CRPS")) is not None
-                    else None
-                ),
-                "p_up": combined_df.get("Prob_Increase"),
-            }
-        )
+        entry = {
+            "name": f"LSTM MDN {version}",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "crps": (
+                crps.values if (crps := combined_df.get("CRPS")) is not None else None
+            ),
+            "p_up": combined_df.get("Prob_Increase"),
+        }
+        for cl in CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
         nans = combined_df["Mean_SP"].isnull().sum()
         if nans > 0:
             print(f"LSTM MDN {version} has {nans} NaN predictions")
@@ -310,58 +302,6 @@ preds_per_model = [
     model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
 ]
 
-# %%
-# # Add ensemble of every included model
-# try:
-#     filtered = [
-#         model
-#         for model in preds_per_model
-#         if all(
-#             prop in model
-#             for prop in [
-#                 "mean_pred",
-#                 "volatility_pred",
-#                 "nll",
-#                 "LB_67",
-#                 "UB_67",
-#                 "LB_95",
-#                 "UB_95",
-#                 "LB_99",
-#                 "UB_99",
-#             ]
-#         )
-#     ]
-#     print("Ensembling", [model["name"] for model in filtered])
-#     ensemble_mean_pred = np.mean([model["mean_pred"] for model in filtered], axis=0)
-#     ensemble_vol_pred = np.mean(
-#         [model["volatility_pred"] for model in filtered], axis=0
-#     )
-#     ensemble_lb_67 = np.mean([model["LB_67"] for model in filtered], axis=0)
-#     ensemble_ub_67 = np.mean([model["UB_67"] for model in filtered], axis=0)
-#     ensemble_lb_95 = np.mean([model["LB_95"] for model in filtered], axis=0)
-#     ensemble_ub_95 = np.mean([model["UB_95"] for model in filtered], axis=0)
-#     ensemble_lb_99 = np.mean([model["LB_99"] for model in filtered], axis=0)
-#     ensemble_ub_99 = np.mean([model["UB_99"] for model in filtered], axis=0)
-#     ensemble_nll = np.mean([model["nll"] for model in filtered])
-#     ensemble_symbols = filtered[0]["symbols"]
-#     preds_per_model.append(
-#         {
-#             "name": "Ensemble of everything",
-#             "mean_pred": ensemble_mean_pred,
-#             "volatility_pred": ensemble_vol_pred,
-#             "LB_67": ensemble_lb_67,
-#             "UB_67": ensemble_ub_67,
-#             "LB_95": ensemble_lb_95,
-#             "UB_95": ensemble_ub_95,
-#             "LB_99": ensemble_lb_99,
-#             "UB_99": ensemble_ub_99,
-#             "nll": ensemble_nll,
-#             "symbols": ensemble_symbols,
-#         }
-#     )
-# except ValueError as e:
-#     print(f"Could not create ensemble: {str(e)}")
-
 
 # %%
 def calculate_picp(y_true, lower_bounds, upper_bounds):
@@ -397,7 +337,7 @@ def calculate_interval_score(y_true, lower_bounds, upper_bounds, alpha):
 
 def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     prediction_errors = np.abs(y_true - mean_pred)
-    correlation = pd.Series(prediction_errors).corr(pd.Series(interval_width))
+    correlation = pd.Series(prediction_errors).corr(pd.Series(np.array(interval_width)))
     return correlation
 
 

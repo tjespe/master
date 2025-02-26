@@ -18,6 +18,12 @@ EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
+# Settings for training
+PATIENCE = 1  # Early stopping patience
+REWEIGHT_WORST_PERFORMERS = True
+REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
+
+# %%
 # Imports from code shared across models
 from shared.mdn import (
     calculate_es_for_quantile,
@@ -152,13 +158,13 @@ lstm_mdn_model = build_lstm_mdn(
     embed_dim=EMBEDDING_DIMENSIONS,
     ticker_ids_dim=data.ticker_ids_dim,
 )
+already_trained = False
 
 # %%
 # 4) Load existing model if it exists
 load_best_val_loss_model = False
 best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
 model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
-already_trained = False
 if os.path.exists(model_fname):
     mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
     mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
@@ -296,13 +302,12 @@ if already_trained:
 # %%
 # Train until validation loss stops decreasing
 increases_since_best = 0
-max_increases_since_best = 0
 best_model_weights = lstm_mdn_model.get_weights()
 best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=0,  # number of epochs with no improvement to wait
+        patience=PATIENCE,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
@@ -328,11 +333,13 @@ while True:
         sample_weight=ticker_weights,
     )
     val_loss = np.array(history.history["val_loss"]).min()
+    if not REWEIGHT_WORST_PERFORMERS:
+        break
     if val_loss >= best_val_loss:
         increases_since_best += 1
-        if increases_since_best >= max_increases_since_best:
+        if increases_since_best >= REWEIGHT_WORST_PERFORMERS_EPOCHS:
             print(
-                f"Validation loss has not decreased for {max_increases_since_best} iterations. "
+                f"Validation loss has not decreased for {REWEIGHT_WORST_PERFORMERS_EPOCHS} iterations. "
                 "Stopping training. \n"
                 # "If you want to restore the best model, type:\n"
                 # "lstm_mdn_model.set_weights(best_model_weights)"
