@@ -3,7 +3,7 @@ NLL,-2.7030404609542478,-2.776788598586463,LSTM MDN rv-data-2
 CRPS,0.007813746109604836,0.004423627894079201,LSTM MDN rv-data-2
 RMSE,0.017386700625418628,0.01741983107893317,GARCH
 Sign accuracy,0.003054448871181939,0.49116865869853915,LSTM MDN rv-data-2
-Correlation (vol. vs. errors),0.290785208742048,0.33489173020182705,LSTM MDN rv-data-2
+Correlation (vol. vs. errors),0.29078520874204794,0.33489173020182705,LSTM MDN rv-data-2
 [67] PICP,0.7399070385126162,0.6888308833630993,LSTM MDN rv-data-2
 [67] PICP Miss,0.06990703851261615,0.018830883363099238,LSTM MDN rv-data-2
 [67] Mean width (MPIW),0.03329949321047519,0.029322669381893145,LSTM MDN rv-data-2
@@ -32,9 +32,9 @@ Correlation (vol. vs. errors),0.290785208742048,0.33489173020182705,LSTM MDN rv-
 [90] Interval Score,0.05834500961614998,0.05388366294646295,LSTM MDN rv-data-2
 [90] QL,-0.015803325815916213,-0.013462334247487492,LSTM MDN rv-data-2
 [90] Lopez Loss,0.043509120718076694,0.051079981710851645,GARCH
-[90] Pooled UC p-value,0.0,0.046,GARCH
+[90] Pooled UC p-value,0.0,0.046,LSTM MDN rv-data-2
 [90] Pooled UC pass?,❌,❌,
-[90] Pooled Ind p-value,0.001,0.0,LSTM MDN rv-data-2
+[90] Pooled Ind p-value,0.001,0.0,GARCH
 [90] Pooled Ind pass?,❌,❌,
 [90] Pooled CC p-value,0.0,0.0,GARCH
 [90] Pooled CC pass?,❌,❌,
@@ -54,11 +54,11 @@ Correlation (vol. vs. errors),0.290785208742048,0.33489173020182705,LSTM MDN rv-
 [95] Interval Score,0.0683065208462841,0.06499677830809783,LSTM MDN rv-data-2
 [95] QL,-0.02118925422746297,-0.019521613852900445,LSTM MDN rv-data-2
 [95] Lopez Loss,0.02577546503094712,0.026572041757047988,GARCH
-[95] Pooled UC p-value,0.228,0.942,GARCH
+[95] Pooled UC p-value,0.228,0.942,LSTM MDN rv-data-2
 [95] Pooled UC pass?,✅,✅,
-[95] Pooled Ind p-value,0.001,0.02,GARCH
+[95] Pooled Ind p-value,0.001,0.02,LSTM MDN rv-data-2
 [95] Pooled Ind pass?,❌,❌,
-[95] Pooled CC p-value,0.003,0.067,GARCH
+[95] Pooled CC p-value,0.003,0.067,LSTM MDN rv-data-2
 [95] Pooled CC pass?,❌,✅,
 [95] UC pass pct,0.9,0.8275862068965517,GARCH
 [95] UC passes,27.0,24.0,GARCH
@@ -76,11 +76,11 @@ Correlation (vol. vs. errors),0.290785208742048,0.33489173020182705,LSTM MDN rv-
 [98] Interval Score,0.08034407672861275,0.08331330560291213,GARCH
 [98] QL,-0.027451559964082772,-0.028985529838368662,GARCH
 [98] Lopez Loss,0.015280683865461267,0.010099473533621325,LSTM MDN rv-data-2
-[98] Pooled UC p-value,0.0,0.913,GARCH
+[98] Pooled UC p-value,0.0,0.913,LSTM MDN rv-data-2
 [98] Pooled UC pass?,❌,✅,
-[98] Pooled Ind p-value,0.003,0.236,GARCH
+[98] Pooled Ind p-value,0.003,0.236,LSTM MDN rv-data-2
 [98] Pooled Ind pass?,❌,✅,
-[98] Pooled CC p-value,0.0,0.493,GARCH
+[98] Pooled CC p-value,0.0,0.493,LSTM MDN rv-data-2
 [98] Pooled CC pass?,❌,✅,
 [98] UC pass pct,0.8,0.9310344827586207,LSTM MDN rv-data-2
 [98] UC passes,24.0,27.0,LSTM MDN rv-data-2
@@ -98,11 +98,11 @@ Correlation (vol. vs. errors),0.290785208742048,0.33489173020182705,LSTM MDN rv-
 [99] Interval Score,0.08867699927411728,0.10374155067795753,GARCH
 [99] QL,-0.031715745786546665,-0.03930448102924217,GARCH
 [99] Lopez Loss,0.010564588158713093,0.0049173558686020835,LSTM MDN rv-data-2
-[99] Pooled UC p-value,0.0,0.961,GARCH
+[99] Pooled UC p-value,0.0,0.961,LSTM MDN rv-data-2
 [99] Pooled UC pass?,❌,✅,
-[99] Pooled Ind p-value,0.001,0.39,GARCH
+[99] Pooled Ind p-value,0.001,0.39,LSTM MDN rv-data-2
 [99] Pooled Ind pass?,❌,✅,
-[99] Pooled CC p-value,0.0,0.69,GARCH
+[99] Pooled CC p-value,0.0,0.69,LSTM MDN rv-data-2
 [99] Pooled CC pass?,❌,✅,
 [99] UC pass pct,0.5666666666666667,1.0,LSTM MDN rv-data-2
 [99] UC passes,17.0,27.0,LSTM MDN rv-data-2
