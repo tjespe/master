@@ -484,6 +484,70 @@ def interpret_christoffersen_test(result):
     )
 
 
+def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
+    """
+    Test that the expected value of VaR exceedances matches the expected shortfall,
+    i.e. that
+    E[ I(y_t > VaR_t^alpha) * (y_t - ES_t^alpha) ] = 0
+    where I is the indicator function.
+
+    Returns:
+      dict with:
+        test_statistic : the standardized test statistic
+        p_value        : two-sided p-value from the standard normal distribution
+        mean_z         : average of the test variable (should be ~ 0 if well-calibrated)
+        std_z          : standard deviation of the test variable
+    """
+    # Convert inputs to np.array for safety
+    y_true = np.asarray(y_true)
+    var_pred = np.asarray(var_pred)
+    es_pred = np.asarray(es_pred)
+
+    n = len(y_true)
+    if any(len(arr) != n for arr in [var_pred, es_pred]):
+        raise ValueError("y_true, var_pred, es_pred must have the same length.")
+
+    # Indicator of exceedance: 1 if actual loss is bigger than the VaR threshold
+    exceedances = y_true < var_pred
+
+    # Define the test variable z_t
+    # z_t = I(X_t > VaR_t^alpha) * [ (X_t - ES_t^alpha) / alpha ]
+    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0)
+
+    mean_z = np.nanmean(z)
+    std_z = np.nanstd(z, ddof=1)
+
+    # If the test variable is degenerate, return NaNs
+    if std_z == 0:
+        return {
+            "test_statistic": np.nan,
+            "p_value": np.nan,
+            "mean_z": mean_z,
+            "std_z": std_z,
+        }
+
+    # Compute test statistic: T = sqrt(n) * (mean of z) / stdev(z)
+    test_statistic = np.sqrt(n) * mean_z / std_z
+    # Two-sided p-value
+    p_value = 2.0 * (1.0 - norm.cdf(abs(test_statistic)))
+
+    return {
+        "test_statistic": test_statistic,
+        "p_value": p_value,
+        "mean_z": mean_z,
+        "std_z": std_z,
+    }
+
+
+def interpret_bayer_dimitriadis_stat(p_value):
+    if p_value < 0.05:
+        return "❌"
+    elif p_value > 0.05:
+        return "✅"
+    else:
+        return "?"
+
+
 def calculate_rmse(y_true, y_pred):
     return np.sqrt(np.nanmean((y_true - y_pred) ** 2))
 
@@ -629,6 +693,22 @@ for entry in preds_per_model:
             f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
         )
 
+        es_alpha = 1 - (1 - cl) / 2
+        es_str = format_cl(es_alpha)
+        es_pred = entry.get(f"ES_{es_str}")
+        if es_pred is not None:
+            bayer_dimitriadis_result = bayer_dimitriadis_test(
+                y_test_actual, entry[f"LB_{cl_str}"], es_pred, cl
+            )
+            entry[f"bayer_dimitriadis_{es_str}"] = bayer_dimitriadis_result
+            entry[f"bd_p_value_{es_str}"] = bayer_dimitriadis_result["p_value"]
+            entry[f"bd_mean_violation_{es_str}"] = bayer_dimitriadis_result["mean_z"]
+            print(
+                f"Bayer-Dimitriadis Test ({cl_str}%):\n"
+                f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
+                f"p-value: {bayer_dimitriadis_result['p_value']}\n"
+            )
+
     # Calculate RMSE
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
     entry["rmse"] = rmse
@@ -669,6 +749,12 @@ quantile_metric_keys = [
     "CC fails",
     "CC indeterminate",
 ]
+es_metric_keys = [
+    "Bayer-Dimitriadis pass",
+    "Bayer-Dimitriadis p-value",
+    "Bayer-Dimitriadis mean violation",
+    "Bayer-Dimitriadis violation SD",
+]
 results = {
     "Model": [],
     # Non-quantile-based metrics
@@ -683,6 +769,14 @@ results = {
             f"[{format_cl(cl)}] {key}": []
             for cl in CONFIDENCE_LEVELS
             for key in quantile_metric_keys
+        }
+    ),
+    # ES metrics
+    **(
+        {
+            f"[{format_cl(1-(1-cl)/2)}] {key}": []
+            for cl in CONFIDENCE_LEVELS
+            for key in es_metric_keys
         }
     ),
 }
@@ -730,6 +824,32 @@ for entry in preds_per_model:
         results[f"[{cl_str}] CC passes"].append(entry[f"cc_passes_{cl_str}"])
         results[f"[{cl_str}] CC fails"].append(entry[f"cc_fails_{cl_str}"])
         results[f"[{cl_str}] CC indeterminate"].append(entry[f"cc_nans_{cl_str}"])
+    for cl in CONFIDENCE_LEVELS:
+        es_alpha = 1 - (1 - cl) / 2
+        es_str = format_cl(es_alpha)
+        if entry.get(f"bayer_dimitriadis_{es_str}") is None:
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
+                np.nan
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
+                np.nan
+            )
+        else:
+            bd_test_result = entry[f"bayer_dimitriadis_{es_str}"]
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(
+                interpret_bayer_dimitriadis_stat(bd_test_result["p_value"])
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(
+                bd_test_result["p_value"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
+                bd_test_result["mean_z"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
+                bd_test_result["std_z"]
+            )
 
 
 results_df = pd.DataFrame(results)
@@ -787,6 +907,14 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] UC pass pct"] = results_df[
         f"[{cl_str}] UC pass pct"
     ].idxmax()
+    es_alpha = 1 - (1 - cl) / 2
+    es_str = format_cl(es_alpha)
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis p-value"] = results_df[
+        f"[{es_str}] Bayer-Dimitriadis p-value"
+    ].idxmax()
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean violation"] = (
+        results_df[f"[{es_str}] Bayer-Dimitriadis mean violation"].abs().idxmin()
+    )
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
 results_df
