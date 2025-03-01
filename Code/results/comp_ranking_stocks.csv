@@ -78,4 +78,19 @@ Correlation (vol. vs. errors),2,1
 [99] Ind fails,1,1
 [99] CC passes,1,2
 [99] CC fails,2,1
-Rank Sum,120,110
+[83.5] Bayer-Dimitriadis pass,1,1
+[83.5] Bayer-Dimitriadis p-value,2,1
+[83.5] Bayer-Dimitriadis mean violation,2,1
+[95] Bayer-Dimitriadis pass,2,1
+[95] Bayer-Dimitriadis p-value,2,1
+[95] Bayer-Dimitriadis mean violation,2,1
+[97.5] Bayer-Dimitriadis pass,2,1
+[97.5] Bayer-Dimitriadis p-value,2,1
+[97.5] Bayer-Dimitriadis mean violation,2,1
+[99] Bayer-Dimitriadis pass,2,1
+[99] Bayer-Dimitriadis p-value,2,1
+[99] Bayer-Dimitriadis mean violation,2,1
+[99.5] Bayer-Dimitriadis pass,2,1
+[99.5] Bayer-Dimitriadis p-value,2,1
+[99.5] Bayer-Dimitriadis mean violation,2,1
+Rank Sum,149,125

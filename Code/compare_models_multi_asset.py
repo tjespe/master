@@ -519,6 +519,13 @@ def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
 
     # If the test variable is degenerate, return NaNs
     if std_z == 0:
+        print("SD[Z] was 0 for alpha", alpha, "returning NaNs")
+        print("mean_z", mean_z)
+        print("std_z", std_z)
+        print("exceedances", exceedances)
+        print("y_true", y_true)
+        print("var_pred", var_pred)
+        print("es_pred", es_pred)
         return {
             "test_statistic": np.nan,
             "p_value": np.nan,
@@ -708,6 +715,8 @@ for entry in preds_per_model:
                 f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
                 f"p-value: {bayer_dimitriadis_result['p_value']}\n"
             )
+        else:
+            print(f"No ES_{es_str} predictions available for Bayer-Dimitriadis test.")
 
     # Calculate RMSE
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
@@ -941,6 +950,7 @@ for metric in results_df.index:
         "PICP Miss" in metric
         or "indeterminate" in metric
         or "pass?" in metric
+        or "violation SD" in metric
         # Temporarily remove CRPS from ranking because it is not available for all models
         or "CRPS" in metric
     ):
@@ -954,6 +964,10 @@ for metric in results_df.index:
         picp_target = float(cl_str) / 100
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
+    elif "mean violation" in metric:
+        # Rank by closeness to zero.
+        key = values.abs()
+        ascending = True
     elif any(
         s in metric
         for s in [

@@ -561,7 +561,7 @@ for i, cl in enumerate(confidence_levels):
     alpha = (1 - cl) / 2  # The lower quantile of the confidence interval
     var_estimates = intervals[:, i, 0]
     es = calculate_es_for_quantile(pi_pred, mu_pred, sigma_pred, var_estimates)
-    df_validation[f"ES_{format_cl(cl)}"] = es
+    df_validation[f"ES_{format_cl(1-alpha)}"] = es
 
 # %%
 # Example plot of ES
