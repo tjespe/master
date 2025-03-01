@@ -11,7 +11,7 @@ Correlation (vol. vs. errors),2,1
 [67] Pooled UC p-value,1,1
 [67] Pooled Ind p-value,1,1
 [67] Pooled CC p-value,1,1
-[67] UC pass pct,1,2
+[67] UC pass pct,2,1
 [67] UC passes,2,1
 [67] UC fails,2,1
 [67] Ind passes,1,2
@@ -26,7 +26,7 @@ Correlation (vol. vs. errors),2,1
 [90] Pooled UC p-value,2,1
 [90] Pooled Ind p-value,1,2
 [90] Pooled CC p-value,1,1
-[90] UC pass pct,2,1
+[90] UC pass pct,1,2
 [90] UC passes,1,2
 [90] UC fails,1,2
 [90] Ind passes,1,2
@@ -41,7 +41,7 @@ Correlation (vol. vs. errors),2,1
 [95] Pooled UC p-value,2,1
 [95] Pooled Ind p-value,2,1
 [95] Pooled CC p-value,2,1
-[95] UC pass pct,2,1
+[95] UC pass pct,1,2
 [95] UC passes,1,2
 [95] UC fails,1,2
 [95] Ind passes,1,2
@@ -56,7 +56,7 @@ Correlation (vol. vs. errors),2,1
 [98] Pooled UC p-value,2,1
 [98] Pooled Ind p-value,2,1
 [98] Pooled CC p-value,2,1
-[98] UC pass pct,1,2
+[98] UC pass pct,2,1
 [98] UC passes,2,1
 [98] UC fails,2,1
 [98] Ind passes,1,2
@@ -71,7 +71,7 @@ Correlation (vol. vs. errors),2,1
 [99] Pooled UC p-value,2,1
 [99] Pooled Ind p-value,2,1
 [99] Pooled CC p-value,2,1
-[99] UC pass pct,1,2
+[99] UC pass pct,2,1
 [99] UC passes,2,1
 [99] UC fails,2,1
 [99] Ind passes,1,2
@@ -93,4 +93,4 @@ Correlation (vol. vs. errors),2,1
 [99.5] Bayer-Dimitriadis pass,2,1
 [99.5] Bayer-Dimitriadis p-value,2,1
 [99.5] Bayer-Dimitriadis mean violation,2,1
-Rank Sum,149,125
+Rank Sum,150,124

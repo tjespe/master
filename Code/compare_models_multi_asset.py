@@ -976,6 +976,7 @@ for metric in results_df.index:
             "Sign Accuracy",
             "p-value",
             "passes",
+            "pass pct",
         ]
     ):
         # For these, higher is better.
