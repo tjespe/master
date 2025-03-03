@@ -196,16 +196,16 @@ def combine_processed_data_into_df(window_size=1500):
     feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
     df_big = pd.DataFrame(X_all, columns=feat_cols)
     df_big["Date"] = dates_all
-    df_big["Ticker"] = tickers_all
+    df_big["Symbol"] = tickers_all
     df_big["TrueY"] = y_all
 
     # Sort by date, then ticker
-    df_big.sort_values(by=["Date", "Ticker"], inplace=True)
+    df_big.sort_values(by=["Date", "Symbol"], inplace=True)
 
     # Encode Ticker as categorical (LabelEncoder) or leave as string category
     le = LabelEncoder()
-    le.fit(df_big["Ticker"])
-    df_big["Ticker_Cat"] = le.transform(df_big["Ticker"])
+    le.fit(df_big["Symbol"])
+    df_big["Ticker_Cat"] = le.transform(df_big["Symbol"])
 
     # Return the big DF plus some info about which columns to use as features
     feature_cols = feat_cols + ["Ticker_Cat"]  # We'll pass these to CatBoost
@@ -303,7 +303,7 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
         y_val = df_val["TrueY"].values
         X_test = df_test[feature_cols]
         y_test = df_test["TrueY"].values  # for reference
-        test_tickers = df_test["Ticker"].values
+        test_tickers = df_test["Symbol"].values
         test_dates = df_test["Date"].values
 
         # 6) For each quantile alpha, train a model, predict on test
@@ -324,7 +324,7 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
         # 7) For each row in df_test, we build a dict with Ticker, Date, TrueY, and predicted quantiles
         for row_idx in range(len(df_test)):
             row_dict = {
-                "Ticker": test_tickers[row_idx],
+                "Symbol": test_tickers[row_idx],
                 "Date": test_dates[row_idx],
                 "TrueY": y_test[row_idx],
             }
@@ -336,8 +336,8 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
     df_preds = pd.DataFrame(predictions_list)
     # reorder columns
     q_cols = [c for c in df_preds.columns if c.startswith("Quantile_")]
-    final_cols = ["Ticker", "Date", "TrueY"] + sorted(q_cols)
-    df_preds = df_preds[final_cols].sort_values(["Date", "Ticker"])
+    final_cols = ["Symbol", "Date", "TrueY"] + sorted(q_cols)
+    df_preds = df_preds[final_cols].sort_values(["Date", "Symbol"])
     return df_preds
 
 
@@ -452,14 +452,6 @@ def estimate_es_from_predictions(
 es_df = estimate_es_from_predictions(final_df)
 es_df
 # %%
-# Take a copy of the ES DataFrame for storage
-es_df_copy = es_df.copy()
-# take opposite sign for values in all coloumns having ES in their name
-es_df.loc[:, es_df.columns.str.contains('ES')] = -es_df.loc[:, es_df.columns.str.contains('ES')]
-
-es_df
-
-# %%
 # Write the ES predictions to a csv file for storage
-es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES.csv", index=False)
+es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks.csv", index=False)
 # %%
