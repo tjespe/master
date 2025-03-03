@@ -4,7 +4,7 @@ import subprocess
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-data-2"
+VERSION = "w-egarch"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False

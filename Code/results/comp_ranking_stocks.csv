@@ -1,96 +1,96 @@
-,GARCH,EGARCH,LSTM MDN rv-data-2
-NLL,3,2,1
-RMSE,1,1,3
-Sign accuracy,1,1,3
-Correlation (vol. vs. errors),3,2,1
-[67] PICP,2,3,1
-[67] Mean width (MPIW),2,3,1
-[67] Interval Score,2,3,1
-[67] QL,2,3,1
-[67] Lopez Loss,2,1,3
-[67] Pooled UC p-value,1,1,1
-[67] Pooled Ind p-value,1,1,1
-[67] Pooled CC p-value,1,1,1
-[67] UC pass pct,2,3,1
-[67] UC passes,2,3,1
-[67] UC fails,2,3,1
-[67] Ind passes,1,2,3
-[67] Ind fails,1,2,3
-[67] CC passes,2,3,1
-[67] CC fails,2,3,1
-[90] PICP,2,3,1
-[90] Mean width (MPIW),2,3,1
-[90] Interval Score,2,3,1
-[90] QL,2,3,1
-[90] Lopez Loss,2,1,3
-[90] Pooled UC p-value,2,2,1
-[90] Pooled Ind p-value,1,1,3
-[90] Pooled CC p-value,1,1,1
-[90] UC pass pct,1,2,3
-[90] UC passes,1,2,3
-[90] UC fails,1,2,2
-[90] Ind passes,1,1,3
-[90] Ind fails,1,1,1
-[90] CC passes,1,2,2
-[90] CC fails,1,3,2
-[95] PICP,2,3,1
-[95] Mean width (MPIW),2,3,1
-[95] Interval Score,2,3,1
-[95] QL,2,3,1
-[95] Lopez Loss,2,1,3
-[95] Pooled UC p-value,2,3,1
-[95] Pooled Ind p-value,2,2,1
-[95] Pooled CC p-value,2,3,1
-[95] UC pass pct,1,1,3
-[95] UC passes,1,1,3
-[95] UC fails,1,1,3
-[95] Ind passes,1,3,2
-[95] Ind fails,2,2,1
-[95] CC passes,1,2,3
-[95] CC fails,2,1,2
-[98] PICP,3,2,1
-[98] Mean width (MPIW),1,2,3
-[98] Interval Score,1,2,3
-[98] QL,1,2,3
-[98] Lopez Loss,3,2,1
-[98] Pooled UC p-value,2,2,1
-[98] Pooled Ind p-value,2,3,1
-[98] Pooled CC p-value,2,2,1
-[98] UC pass pct,2,2,1
-[98] UC passes,2,2,1
-[98] UC fails,2,2,1
-[98] Ind passes,1,1,3
-[98] Ind fails,1,3,2
-[98] CC passes,2,1,3
-[98] CC fails,2,3,1
-[99] PICP,3,2,1
-[99] Mean width (MPIW),1,2,3
-[99] Interval Score,1,2,3
-[99] QL,1,2,3
-[99] Lopez Loss,3,2,1
-[99] Pooled UC p-value,2,2,1
-[99] Pooled Ind p-value,3,2,1
-[99] Pooled CC p-value,2,2,1
-[99] UC pass pct,3,2,1
-[99] UC passes,3,2,1
-[99] UC fails,3,2,1
-[99] Ind passes,2,1,3
-[99] Ind fails,1,1,1
-[99] CC passes,2,1,3
-[99] CC fails,2,2,1
-[83.5] Bayer-Dimitriadis pass,1,1,1
-[83.5] Bayer-Dimitriadis p-value,3,2,1
-[83.5] Bayer-Dimitriadis mean violation,3,2,1
-[95] Bayer-Dimitriadis pass,2,2,1
-[95] Bayer-Dimitriadis p-value,2,2,1
-[95] Bayer-Dimitriadis mean violation,3,2,1
-[97.5] Bayer-Dimitriadis pass,2,2,1
-[97.5] Bayer-Dimitriadis p-value,2,2,1
-[97.5] Bayer-Dimitriadis mean violation,3,2,1
-[99] Bayer-Dimitriadis pass,2,2,1
-[99] Bayer-Dimitriadis p-value,2,3,1
-[99] Bayer-Dimitriadis mean violation,3,2,1
-[99.5] Bayer-Dimitriadis pass,2,2,1
-[99.5] Bayer-Dimitriadis p-value,2,3,1
-[99.5] Bayer-Dimitriadis mean violation,3,2,1
-Rank Sum,173,192,150
+,GARCH,EGARCH,LSTM MDN rv-data-2,LSTM MDN w-egarch
+NLL,4,3,2,1
+RMSE,1,1,3,4
+Sign accuracy,1,1,3,4
+Correlation (vol. vs. errors),4,3,2,1
+[67] PICP,3,4,2,1
+[67] Mean width (MPIW),3,4,2,1
+[67] Interval Score,3,4,2,1
+[67] QL,3,4,2,1
+[67] Lopez Loss,2,1,3,4
+[67] Pooled UC p-value,2,2,2,1
+[67] Pooled Ind p-value,1,1,1,1
+[67] Pooled CC p-value,1,1,1,1
+[67] UC pass pct,3,4,1,1
+[67] UC passes,3,4,1,1
+[67] UC fails,3,4,1,1
+[67] Ind passes,1,2,3,3
+[67] Ind fails,1,2,3,3
+[67] CC passes,3,4,1,1
+[67] CC fails,3,4,1,1
+[90] PICP,3,4,2,1
+[90] Mean width (MPIW),3,4,2,1
+[90] Interval Score,3,4,2,1
+[90] QL,3,4,2,1
+[90] Lopez Loss,2,1,3,4
+[90] Pooled UC p-value,3,3,2,1
+[90] Pooled Ind p-value,1,1,4,1
+[90] Pooled CC p-value,2,2,2,1
+[90] UC pass pct,2,3,4,1
+[90] UC passes,2,3,4,1
+[90] UC fails,2,3,3,1
+[90] Ind passes,1,1,3,4
+[90] Ind fails,1,1,1,4
+[90] CC passes,1,3,3,2
+[90] CC fails,1,4,3,1
+[95] PICP,3,4,2,1
+[95] Mean width (MPIW),3,4,1,2
+[95] Interval Score,3,4,1,2
+[95] QL,3,4,1,2
+[95] Lopez Loss,2,1,3,4
+[95] Pooled UC p-value,3,4,2,1
+[95] Pooled Ind p-value,3,3,2,1
+[95] Pooled CC p-value,3,4,2,1
+[95] UC pass pct,1,1,3,4
+[95] UC passes,1,1,3,4
+[95] UC fails,1,1,3,4
+[95] Ind passes,1,3,2,4
+[95] Ind fails,3,3,1,1
+[95] CC passes,1,2,3,4
+[95] CC fails,2,1,2,4
+[98] PICP,4,3,1,2
+[98] Mean width (MPIW),1,2,3,4
+[98] Interval Score,1,2,3,4
+[98] QL,1,2,3,4
+[98] Lopez Loss,4,3,2,1
+[98] Pooled UC p-value,3,3,1,2
+[98] Pooled Ind p-value,3,4,2,1
+[98] Pooled CC p-value,3,3,1,2
+[98] UC pass pct,3,3,2,1
+[98] UC passes,3,3,2,1
+[98] UC fails,3,3,2,1
+[98] Ind passes,1,1,4,3
+[98] Ind fails,1,4,3,1
+[98] CC passes,2,1,4,3
+[98] CC fails,3,4,2,1
+[99] PICP,4,3,1,2
+[99] Mean width (MPIW),1,2,3,4
+[99] Interval Score,1,2,3,4
+[99] QL,1,2,3,4
+[99] Lopez Loss,4,3,2,1
+[99] Pooled UC p-value,3,3,1,2
+[99] Pooled Ind p-value,4,3,2,1
+[99] Pooled CC p-value,3,3,1,2
+[99] UC pass pct,4,3,1,2
+[99] UC passes,4,3,1,2
+[99] UC fails,4,3,1,2
+[99] Ind passes,2,1,3,3
+[99] Ind fails,1,1,1,1
+[99] CC passes,2,1,3,3
+[99] CC fails,3,3,1,1
+[83.5] Bayer-Dimitriadis pass,2,2,2,1
+[83.5] Bayer-Dimitriadis p-value,4,3,2,1
+[83.5] Bayer-Dimitriadis mean violation,4,3,2,1
+[95] Bayer-Dimitriadis pass,3,3,1,1
+[95] Bayer-Dimitriadis p-value,3,3,1,2
+[95] Bayer-Dimitriadis mean violation,4,3,1,2
+[97.5] Bayer-Dimitriadis pass,3,3,1,1
+[97.5] Bayer-Dimitriadis p-value,3,3,1,2
+[97.5] Bayer-Dimitriadis mean violation,4,3,1,2
+[99] Bayer-Dimitriadis pass,3,3,1,1
+[99] Bayer-Dimitriadis p-value,3,4,1,2
+[99] Bayer-Dimitriadis mean violation,4,3,1,2
+[99.5] Bayer-Dimitriadis pass,3,3,1,1
+[99.5] Bayer-Dimitriadis p-value,3,4,1,2
+[99.5] Bayer-Dimitriadis mean violation,4,3,1,2
+Rank Sum,235,257,187,184
