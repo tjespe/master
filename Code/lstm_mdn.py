@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "ffnn"
+VERSION = "seq_tickers"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -77,6 +77,8 @@ from tensorflow.keras.layers import (
     concatenate,
     Flatten,
     Lambda,
+    Concatenate,
+    RepeatVector,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -116,30 +118,45 @@ def build_lstm_mdn(
     # Sequence input (time series)
     seq_input = Input(shape=(LOOKBACK_DAYS, num_features), name="seq_input")
 
-    # Ticker input (integer-encoded)
+    inputs = [seq_input]  # We'll append ticker_input if we have tickers
+
+    # If we have ticker IDs, embed them
     if ticker_ids_dim is not None:
-        ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
+        ticker_input = Input(shape=(), dtype="int32", name="ticker_input")
+        inputs.append(ticker_input)
+
+        # 1) Embed the ticker ID -> shape: (batch, embed_dim)
         ticker_embed = Embedding(
             input_dim=ticker_ids_dim,
             output_dim=EMBEDDING_DIMENSIONS,
             name="ticker_embedding",
-        )(ticker_input)
-        ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
+        )(
+            ticker_input
+        )  # shape: (batch, 1, embed_dim)
 
-    # Process the sequence with LSTM
+        ticker_embed = Flatten()(ticker_embed)  # shape: (batch, embed_dim)
+
+        # 2) Repeat the embedding across time -> shape: (batch, lookback_days, embed_dim)
+        ticker_embed = RepeatVector(LOOKBACK_DAYS)(ticker_embed)
+
+        # 3) Concatenate with the input features -> shape: (batch, lookback_days, num_features + embed_dim)
+        x = Concatenate(axis=-1, name="concat_seq_ticker")([seq_input, ticker_embed])
+    else:
+        # No ticker input
+        x = seq_input
+
+    # 4) Pass through LSTM
     x = LSTM(
         units=HIDDEN_UNITS,
         activation="tanh",
         kernel_regularizer=l2(1e-3),
         name="lstm_layer",
-    )(seq_input)
+    )(x)
+
     if DROPOUT > 0:
-        x = Dropout(DROPOUT, name="dropout_layer")(x)
+        x = Dropout(DROPOUT, name="dropout_lstm")(x)
 
-    # Combine LSTM output and ticker embedding
-    if ticker_ids_dim is not None:
-        x = concatenate([x, ticker_embed], name="concat_layer")
-
+    # 5) Optionally pass through additional Dense layers
     for i in range(NUM_HIDDEN_LAYERS):
         x = Dense(
             units=HIDDEN_UNITS,
