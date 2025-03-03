@@ -147,6 +147,7 @@ for version in [
     "rv-data-2",
     "rv-data-3",
     "w-egarch",
+    "w-egarch-2",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
