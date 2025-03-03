@@ -87,53 +87,46 @@ if FILTER_ON_IMPORTANT_TICKERS:
 preds_per_model = []
 
 # GARCH Model
-try:
-    garch_df = pd.read_csv(f"data/sp500_stocks_garch.csv")
-    garch_df["Date"] = pd.to_datetime(garch_df["Date"])
-    garch_df = garch_df.set_index(["Date", "Symbol"])
-    garch_dates = garch_df.index.get_level_values("Date")
-    garch_df = garch_df[
-        (garch_dates >= TRAIN_VALIDATION_SPLIT) & (garch_dates < VALIDATION_TEST_SPLIT)
-    ]
-    combined_df = df_validation.join(garch_df, how="left", rsuffix="_GARCH")
-    garch_vol_pred = combined_df["GARCH_Vol"].values
-    y_true = combined_df["LogReturn"].values
-    mus = np.zeros_like(garch_vol_pred)
+for garch_type in ["GARCH", "EGARCH"]:
+    try:
+        garch_vol_pred = df_validation[f"{garch_type}_Vol"].values
+        y_true = df_validation["LogReturn"].values
+        mus = np.zeros_like(garch_vol_pred)
 
-    entry = {
-        "name": "GARCH",
-        "mean_pred": mus,
-        "volatility_pred": garch_vol_pred,
-        "symbols": combined_df.index.get_level_values("Symbol"),
-        "nll": nll_loss_mean_and_vol(
-            y_true,
-            mus,
-            garch_vol_pred,
-        ),
-        "crps": crps_normal_univariate(y_true, mus, garch_vol_pred),
-    }
+        entry = {
+            "name": garch_type,
+            "mean_pred": mus,
+            "volatility_pred": garch_vol_pred,
+            "symbols": df_validation.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                y_true,
+                mus,
+                garch_vol_pred,
+            ),
+            "crps": crps_normal_univariate(y_true, mus, garch_vol_pred),
+        }
 
-    for cl in CONFIDENCE_LEVELS:
-        alpha = 1 - cl
-        z_alpha = norm.ppf(1 - alpha / 2)
-        lb = mus - z_alpha * garch_vol_pred
-        ub = mus + z_alpha * garch_vol_pred
-        entry[f"LB_{format_cl(cl)}"] = lb
-        entry[f"UB_{format_cl(cl)}"] = ub
-        es_alpha = alpha / 2
-        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
-            np.ones_like(mus).reshape(-1, 1),
-            mus.reshape(-1, 1),
-            garch_vol_pred.reshape(-1, 1),
-            lb,
-        )
+        for cl in CONFIDENCE_LEVELS:
+            alpha = 1 - cl
+            z_alpha = norm.ppf(1 - alpha / 2)
+            lb = mus - z_alpha * garch_vol_pred
+            ub = mus + z_alpha * garch_vol_pred
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            es_alpha = alpha / 2
+            entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+                np.ones_like(mus).reshape(-1, 1),
+                mus.reshape(-1, 1),
+                garch_vol_pred.reshape(-1, 1),
+                lb,
+            )
 
-    preds_per_model.append(entry)
-    nans = np.isnan(garch_vol_pred).sum()
-    if nans > 0:
-        print(f"GARCH has {nans} NaN predictions")
-except FileNotFoundError:
-    print("GARCH predictions not found")
+        preds_per_model.append(entry)
+        nans = np.isnan(garch_vol_pred).sum()
+        if nans > 0:
+            print(f"{garch_type} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"{garch_type} predictions not found")
 
 # LSTM MDN
 for version in [
@@ -150,9 +143,14 @@ for version in [
     # "crps-2",
     # "nll-crps-mix",
     3,
+    "basic",
+    "basic-w-tickers",
     "rv-data",
     "rv-data-2",
     "rv-data-3",
+    "w-egarch",
+    "w-egarch-2",
+    "ffnn",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -271,6 +269,34 @@ for version in ["v1"]:
             print(f"VAE {version} has {nans} NaN predictions")
     except FileNotFoundError:
         print(f"VAE {version} predictions not found")
+
+# BENCHMARK MODELS
+#############################################
+try:
+    catboost_preds = pd.read_csv(
+        "fpredictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv"
+    )
+    catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
+    catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
+    catboost_dates = catboost_preds.index.get_level_values("Date")
+    catboost_preds = catboost_preds[
+        (catboost_dates >= TRAIN_VALIDATION_SPLIT)
+        & (catboost_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(catboost_preds, how="left", rsuffix="_Catboost")
+    preds_per_model.append(
+        {
+            "name": "Catboost",
+        }
+    )
+    nans = combined_df["Mean_SP"].isnull().sum()
+    if nans > 0:
+        print(f"Catboost has {nans} NaN predictions")
+except FileNotFoundError:
+    print("Catboost predictions not found")
+
+
+###########################################
 
 try:
     maf_entry = next(

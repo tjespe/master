@@ -1,25 +1,34 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
+from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-data-2"
+VERSION = "seq_tickers"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
 SIGMA_PENALTY = False
 INCLUDE_MARKET_FEATURES = True
 INCLUDE_RETURNS = True
-HIDDEN_UNITS = 20
-N_MIXTURES = 5
-DROPOUT = 0.4
+INCLUDE_FNG = False
+INCLUDE_RETURNS = True
+INCLUDE_INDUSTRY = False
+INCLUDE_GARCH = True
+INCLUDE_BETA = True
+INCLUDE_OTHERS = True
+INCLUDE_TICKERS = True
+HIDDEN_UNITS = 40
+N_MIXTURES = 10
+DROPOUT = 0.5
+NUM_HIDDEN_LAYERS = 2
 EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
-PATIENCE = 1  # Early stopping patience
+PATIENCE = 3  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
 
@@ -68,6 +77,8 @@ from tensorflow.keras.layers import (
     concatenate,
     Flatten,
     Lambda,
+    Concatenate,
+    RepeatVector,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -82,6 +93,11 @@ data = get_lstm_train_test_new(
     multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
     include_returns=INCLUDE_RETURNS,
     include_spx_data=INCLUDE_MARKET_FEATURES,
+    include_others=INCLUDE_OTHERS,
+    include_beta=INCLUDE_BETA,
+    include_fng=INCLUDE_FNG,
+    include_garch=INCLUDE_GARCH,
+    include_industry=INCLUDE_INDUSTRY,
 )
 
 # %%
@@ -91,13 +107,8 @@ gc.collect()
 
 # %%
 def build_lstm_mdn(
-    lookback_days,
     num_features: int,
-    dropout: float,
-    n_mixtures: int,
-    hidden_units: int,
-    embed_dim: int,
-    ticker_ids_dim: int,
+    ticker_ids_dim: Optional[int],
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
@@ -105,40 +116,72 @@ def build_lstm_mdn(
     Then outputs 3*n_mixtures for MDN (univariate).
     """
     # Sequence input (time series)
-    seq_input = Input(shape=(lookback_days, num_features), name="seq_input")
+    seq_input = Input(shape=(LOOKBACK_DAYS, num_features), name="seq_input")
 
-    # Ticker input (integer-encoded)
-    ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
-    ticker_embed = Embedding(
-        input_dim=ticker_ids_dim, output_dim=embed_dim, name="ticker_embedding"
-    )(ticker_input)
-    ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
+    inputs = [seq_input]  # We'll append ticker_input if we have tickers
 
-    # Process the sequence with LSTM
+    # If we have ticker IDs, embed them
+    if ticker_ids_dim is not None:
+        ticker_input = Input(shape=(), dtype="int32", name="ticker_input")
+        inputs.append(ticker_input)
+
+        # 1) Embed the ticker ID -> shape: (batch, embed_dim)
+        ticker_embed = Embedding(
+            input_dim=ticker_ids_dim,
+            output_dim=EMBEDDING_DIMENSIONS,
+            name="ticker_embedding",
+        )(
+            ticker_input
+        )  # shape: (batch, 1, embed_dim)
+
+        ticker_embed = Flatten()(ticker_embed)  # shape: (batch, embed_dim)
+
+        # 2) Repeat the embedding across time -> shape: (batch, lookback_days, embed_dim)
+        ticker_embed = RepeatVector(LOOKBACK_DAYS)(ticker_embed)
+
+        # 3) Concatenate with the input features -> shape: (batch, lookback_days, num_features + embed_dim)
+        x = Concatenate(axis=-1, name="concat_seq_ticker")([seq_input, ticker_embed])
+    else:
+        # No ticker input
+        x = seq_input
+
+    # 4) Pass through LSTM
     x = LSTM(
-        units=hidden_units,
+        units=HIDDEN_UNITS,
         activation="tanh",
         kernel_regularizer=l2(1e-3),
         name="lstm_layer",
-    )(seq_input)
-    if dropout > 0:
-        x = Dropout(dropout, name="dropout_layer")(x)
+    )(x)
 
-    # Combine LSTM output and ticker embedding
-    x = concatenate([x, ticker_embed], name="concat_layer")
+    if DROPOUT > 0:
+        x = Dropout(DROPOUT, name="dropout_lstm")(x)
+
+    # 5) Optionally pass through additional Dense layers
+    for i in range(NUM_HIDDEN_LAYERS):
+        x = Dense(
+            units=HIDDEN_UNITS,
+            activation="relu",
+            kernel_regularizer=l2(1e-3),
+            name=f"dense_layer_{i}",
+        )(x)
+        if DROPOUT > 0:
+            x = Dropout(DROPOUT, name=f"dropout_layer_{i}")(x)
 
     # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_sigma])
-    mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
-    mdn_bias_init = get_mdn_bias_initializer(n_mixtures)
+    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
+    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
     mdn_output = Dense(
-        3 * n_mixtures,
+        3 * N_MIXTURES,
         activation=None,
         kernel_initializer=mdn_kernel_init,
         bias_initializer=mdn_bias_init,
         name="mdn_output",
     )(x)
 
-    model = Model(inputs=[seq_input, ticker_input], outputs=mdn_output)
+    model = Model(
+        inputs=[seq_input, ticker_input] if ticker_ids_dim is not None else [seq_input],
+        outputs=mdn_output,
+    )
     return model
 
 
@@ -150,13 +193,8 @@ print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shap
 # %%
 # 2) Build model
 lstm_mdn_model = build_lstm_mdn(
-    lookback_days=LOOKBACK_DAYS,
     num_features=data.train.X.shape[2],
-    dropout=DROPOUT,
-    n_mixtures=N_MIXTURES,
-    hidden_units=HIDDEN_UNITS,
-    embed_dim=EMBEDDING_DIMENSIONS,
-    ticker_ids_dim=data.ticker_ids_dim,
+    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
 )
 already_trained = False
 
@@ -188,7 +226,9 @@ if os.path.exists(model_fname):
 # 5) Train
 val_loss = (
     lstm_mdn_model.evaluate(
-        [data.validation.X, data.validation_ticker_ids], data.validation.y, verbose=0
+        [data.validation.X, data.validation_ticker_ids] if INCLUDE_TICKERS else None,
+        data.validation.y,
+        verbose=0,
     )
     if already_trained
     else np.inf
@@ -208,7 +248,9 @@ def calculate_weight_per_ticker() -> pd.Series:
     gc.collect()  # We need a lot of memory to make a prediction on the entire training set
     ## Calculate loss per ticker
     print("Calculating loss per ticker...")
-    y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
+    y_train_pred = lstm_mdn_model.predict(
+        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X
+    )
     nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
     train_dates = np.array(data.train.dates)
     train_tickers = np.array(data.train.tickers)
@@ -320,13 +362,17 @@ while True:
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
-        [data.train.X, data.train_ticker_ids],
+        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
         data.train.y,
         epochs=50,
         batch_size=32,
         verbose=1,
         validation_data=(
-            [data.validation.X, data.validation_ticker_ids],
+            (
+                [data.validation.X, data.validation_ticker_ids]
+                if INCLUDE_TICKERS
+                else data.validation.X
+            ),
             data.validation.y,
         ),
         callbacks=[early_stop],
@@ -408,7 +454,11 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict([data.validation.X, data.validation_ticker_ids])
+y_pred_mdn = lstm_mdn_model.predict(
+    [data.validation.X, data.validation_ticker_ids]
+    if INCLUDE_TICKERS
+    else data.validation.X
+)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
