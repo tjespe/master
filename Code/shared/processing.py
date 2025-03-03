@@ -136,6 +136,10 @@ def get_lstm_train_test_new(
     include_fng=False,
     include_spx_data=False,
     include_returns=False,
+    include_industry=True,
+    include_garch=True,
+    include_beta=True,
+    include_others=True,
 ) -> ProcessedData:
     """
     Prepare data for LSTM
@@ -249,28 +253,44 @@ def get_lstm_train_test_new(
     )
     df[["Close", "LogReturn", "DownsideVol"]]
 
+    # Define columns that must be non-nan
+    important_cols = [
+        "LogReturn",
+        "Close_RVOL",
+        "Close_VIX",
+        "RVOL_Std",
+        "Beta_5y",
+    ]
+
     # %%
-    # If we have GARCH predictions, calculate skewness and kurtosis based on GARCH residuals
-    if "GARCH_Vol" in df.columns:
-        df["GARCH_Resid"] = df["LogReturn"] / df["GARCH_Vol"]
+    # If we have GARCH predictions, calculate skewness nd kurtosis based on GARCH residuals
+    for garch_type in ["GARCH", "EGARCH"]:
+        if f"{garch_type}_Vol" in df.columns:
+            df[f"{garch_type}_Resid"] = df["LogReturn"] / df[f"{garch_type}_Vol"]
 
-        # Apply to each Symbol group
-        ewm_stats = df.groupby(level="Symbol")["GARCH_Resid"].apply(
-            compute_ewm_skew_kurt
-        )
+            # Apply to each Symbol group
+            ewm_stats = df.groupby(level="Symbol")[f"{garch_type}_Resid"].apply(
+                compute_ewm_skew_kurt
+            )
 
-        # Remove extra level in the multi-index
-        ewm_stats = ewm_stats.droplevel(0)
+            # Remove extra level in the multi-index
+            ewm_stats = ewm_stats.droplevel(0)
 
-        # `ewm_stats` now has a multi-index: (Symbol, Date).
-        # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
-        df = df.join(ewm_stats)
+            # `ewm_stats` now has a multi-index: (Symbol, Date).
+            # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
+            df = df.join(ewm_stats.add_suffix(f"_{garch_type}"))
 
-        # Drop first 20 rows for each instrument
-        df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
+            # Drop first 20 rows for each instrument
+            df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
 
-        # Remove extra level in the multi-index
-        df = df.droplevel(0)
+            # Remove extra level in the multi-index
+            df = df.droplevel(0)
+
+            important_cols += [
+                f"{garch_type}_Vol",
+                f"Skew_EWM_{garch_type}",
+                f"Kurt_EWM_{garch_type}",
+            ]
     df
 
     # %%
@@ -354,23 +374,14 @@ def get_lstm_train_test_new(
         # Check for nans
         nan_mask = df[["GICS Sector"]].isnull().sum(axis=1).gt(0)
         nan_rows = df[nan_mask]
-        print(
-            "NaNs:", nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count()
-        )
+        if nan_rows.shape[0] > 0:
+            print(
+                "NaNs:",
+                nan_rows.groupby(nan_rows.index.get_level_values("Symbol")).count(),
+            )
 
     # %%
     # Check for NaN values
-    important_cols = [
-        "LogReturn",
-        "Close_RVOL",
-        "Close_VIX",
-        "GARCH_Vol",
-        "RVOL_Std",
-        "DownsideVol",
-        "Beta_5y",
-        "Skew_EWM",
-        "Kurt_EWM",
-    ]
     important_cols = [col for col in important_cols if col in df.columns]
     nan_mask = df[important_cols].isnull().sum(axis=1).gt(0)
     df[important_cols].loc[nan_mask]
@@ -519,16 +530,27 @@ def get_lstm_train_test_new(
 
         # Stack returns and squared returns together
         market_feature_factor = beta_5y if multiply_by_beta else 1
-        data = np.hstack(
-            (
-                log_sq_returns,
-                sign_return,
-                # next_day_trading_day,
-                # downside_log_var,
-                beta_5y,
-                beta_60d,
+
+        # Start out with an empty data array
+        data = np.zeros((len(group), 0))
+
+        if include_others:
+            data = np.hstack(
+                (
+                    log_sq_returns,
+                    sign_return,
+                    next_day_trading_day,
+                )
             )
-        )
+
+        if include_beta:
+            data = np.hstack(
+                (
+                    data,
+                    beta_5y,
+                    beta_60d,
+                )
+            )
 
         if include_returns:
             data = np.hstack(
@@ -592,44 +614,46 @@ def get_lstm_train_test_new(
                 )
 
             # 3) Estimate realized skewness and kurtosis
-            daily_good_var = (group["Good"].values / 100) / 252.0
-            daily_bad_var = (group["Bad"].values / 100) / 252.0
-            daily_rv = (group["RV"].values / 100) / 252.0
-            daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
-            daily_skew = (
-                (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
-            ).reshape(-1, 1)
-            daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
+            if include_others:
+                daily_good_var = (group["Good"].values / 100) / 252.0
+                daily_bad_var = (group["Bad"].values / 100) / 252.0
+                daily_rv = (group["RV"].values / 100) / 252.0
+                daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+                daily_skew = (
+                    (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
+                ).reshape(-1, 1)
+                daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
 
-            data = np.hstack(
-                (
-                    data,
-                    daily_skew / 100,
-                    daily_kurt / 10,
+                data = np.hstack(
+                    (
+                        data,
+                        daily_skew / 100,
+                        daily_kurt / 10,
+                    )
                 )
-            )
 
-        # If we have GICS sectors, add them as a feature
-        if "IDY_CODE" in group.columns:
+        if include_industry and "IDY_CODE" in group.columns:
+            # If we have GICS sectors, add them as a feature
             num_sectors = 11  # There are 11 GICS sectors
             one_hot_sector = np.zeros((len(group), num_sectors))
             one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
             data = np.hstack((data, one_hot_sector))
 
         # If we have GARCH predictions, add them as a feature
-        if "GARCH_Vol" in group.columns:
-            garch = group["GARCH_Vol"].values.reshape(-1, 1)
-            log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
-            garch_skewness = group["Skew_EWM"].values.reshape(-1, 1)
-            garch_kurtosis = group["Kurt_EWM"].values.reshape(-1, 1)
-            data = np.hstack(
-                (
-                    data,
-                    log_sq_garch,
-                    garch_skewness,
-                    garch_kurtosis / 10,  # Divide by 10 to scale it down
+        for garch_type in ["GARCH", "EGARCH"]:
+            if include_garch and f"{garch_type}_Vol" in group.columns:
+                garch = group[f"{garch_type}_Vol"].values.reshape(-1, 1)
+                log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
+                garch_skewness = group[f"Skew_EWM_{garch_type}"].values.reshape(-1, 1)
+                garch_kurtosis = group[f"Kurt_EWM_{garch_type}"].values.reshape(-1, 1)
+                data = np.hstack(
+                    (
+                        data,
+                        log_sq_garch,
+                        garch_skewness,
+                        garch_kurtosis,
+                    )
                 )
-            )
 
         # Include relative high-low difference as a feature if available to indicate volatility
         if (
@@ -637,6 +661,7 @@ def get_lstm_train_test_new(
             and "Low" in group.columns
             and not pd.isna(group["High"]).any()
             and not pd.isna(group["Low"]).any()
+            and include_others
         ):
             high_low_diff = (
                 (group["High"] - group["Low"]) / group["Close"]
@@ -708,6 +733,7 @@ def get_lstm_train_test_new(
         print("Means:\n", list(float(n) for n in np.mean(X_train[:, -1, :], axis=0)))
         print("Stds:\n", list(float(n) for n in np.std(X_train[:, -1, :], axis=0)))
 
+    # %%
     gc.collect()
 
     # %%
@@ -1171,11 +1197,21 @@ def get_cgan_train_test():
 
 # %%
 # Define a helper that returns a DataFrame of skew and kurt for a given residual series
-def compute_ewm_skew_kurt(series: pd.Series, alpha=0.06):
+def compute_ewm_skew_kurt(series: pd.Series, alpha=0.06, clip=5) -> pd.DataFrame:
     """
-    alpha is the smoothing factor for the exponentially weighted moments.
-    Adjust it to put more (or less) weight on recent data.
+    Compute exponentially weighted skewness and kurtosis for a given residual series.
+
+    Parameters:
+    - series: the residual series to compute skewness and kurtosis for. Calculated as the
+        true log return divided by the GARCH volatility.
+    - alpha is the smoothing factor for the exponentially weighted moments. Adjust
+        it to put more (or less) weight on recent data.
+    - clip is the maximum value for the residuals. This is used to clip extreme values
+        that could skew the results.
     """
+    # Clip extreme residuals
+    series = series.clip(lower=-clip, upper=clip)
+
     ewm_mean = series.ewm(alpha=alpha).mean()
     ewm_mean2 = (series**2).ewm(alpha=alpha).mean()
     ewm_mean3 = (series**3).ewm(alpha=alpha).mean()

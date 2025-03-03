@@ -1,16 +1,24 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
+from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-data-2"
+VERSION = "basic"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
 SIGMA_PENALTY = False
-INCLUDE_MARKET_FEATURES = True
-INCLUDE_RETURNS = True
+INCLUDE_MARKET_FEATURES = False
+INCLUDE_RETURNS = False
+INCLUDE_FNG = False
+INCLUDE_RETURNS = False
+INCLUDE_INDUSTRY = False
+INCLUDE_GARCH = False
+INCLUDE_BETA = False
+INCLUDE_OTHERS = False
+INCLUDE_TICKERS = False
 HIDDEN_UNITS = 20
 N_MIXTURES = 5
 DROPOUT = 0.4
@@ -82,6 +90,11 @@ data = get_lstm_train_test_new(
     multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
     include_returns=INCLUDE_RETURNS,
     include_spx_data=INCLUDE_MARKET_FEATURES,
+    include_others=INCLUDE_OTHERS,
+    include_beta=INCLUDE_BETA,
+    include_fng=INCLUDE_FNG,
+    include_garch=INCLUDE_GARCH,
+    include_industry=INCLUDE_INDUSTRY,
 )
 
 # %%
@@ -97,7 +110,7 @@ def build_lstm_mdn(
     n_mixtures: int,
     hidden_units: int,
     embed_dim: int,
-    ticker_ids_dim: int,
+    ticker_ids_dim: Optional[int],
 ):
     """
     Creates a lstm-based encoder for sequences of shape:
@@ -108,11 +121,12 @@ def build_lstm_mdn(
     seq_input = Input(shape=(lookback_days, num_features), name="seq_input")
 
     # Ticker input (integer-encoded)
-    ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
-    ticker_embed = Embedding(
-        input_dim=ticker_ids_dim, output_dim=embed_dim, name="ticker_embedding"
-    )(ticker_input)
-    ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
+    if ticker_ids_dim is not None:
+        ticker_input = Input(shape=(1,), dtype="int32", name="ticker_input")
+        ticker_embed = Embedding(
+            input_dim=ticker_ids_dim, output_dim=embed_dim, name="ticker_embedding"
+        )(ticker_input)
+        ticker_embed = Flatten()(ticker_embed)  # now shape: (None, embed_dim)
 
     # Process the sequence with LSTM
     x = LSTM(
@@ -125,7 +139,8 @@ def build_lstm_mdn(
         x = Dropout(dropout, name="dropout_layer")(x)
 
     # Combine LSTM output and ticker embedding
-    x = concatenate([x, ticker_embed], name="concat_layer")
+    if ticker_ids_dim is not None:
+        x = concatenate([x, ticker_embed], name="concat_layer")
 
     # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_sigma])
     mdn_kernel_init = get_mdn_kernel_initializer(n_mixtures)
@@ -138,7 +153,10 @@ def build_lstm_mdn(
         name="mdn_output",
     )(x)
 
-    model = Model(inputs=[seq_input, ticker_input], outputs=mdn_output)
+    model = Model(
+        inputs=[seq_input, ticker_input] if ticker_ids_dim is not None else [seq_input],
+        outputs=mdn_output,
+    )
     return model
 
 
@@ -156,7 +174,7 @@ lstm_mdn_model = build_lstm_mdn(
     n_mixtures=N_MIXTURES,
     hidden_units=HIDDEN_UNITS,
     embed_dim=EMBEDDING_DIMENSIONS,
-    ticker_ids_dim=data.ticker_ids_dim,
+    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
 )
 already_trained = False
 
@@ -188,7 +206,9 @@ if os.path.exists(model_fname):
 # 5) Train
 val_loss = (
     lstm_mdn_model.evaluate(
-        [data.validation.X, data.validation_ticker_ids], data.validation.y, verbose=0
+        [data.validation.X, data.validation_ticker_ids] if INCLUDE_TICKERS else None,
+        data.validation.y,
+        verbose=0,
     )
     if already_trained
     else np.inf
@@ -208,7 +228,9 @@ def calculate_weight_per_ticker() -> pd.Series:
     gc.collect()  # We need a lot of memory to make a prediction on the entire training set
     ## Calculate loss per ticker
     print("Calculating loss per ticker...")
-    y_train_pred = lstm_mdn_model.predict([data.train.X, data.train_ticker_ids])
+    y_train_pred = lstm_mdn_model.predict(
+        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X
+    )
     nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
     train_dates = np.array(data.train.dates)
     train_tickers = np.array(data.train.tickers)
@@ -320,13 +342,17 @@ while True:
     )
     print("Fitting model...", flush=True)
     history = lstm_mdn_model.fit(
-        [data.train.X, data.train_ticker_ids],
+        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
         data.train.y,
         epochs=50,
         batch_size=32,
         verbose=1,
         validation_data=(
-            [data.validation.X, data.validation_ticker_ids],
+            (
+                [data.validation.X, data.validation_ticker_ids]
+                if INCLUDE_TICKERS
+                else data.validation.X
+            ),
             data.validation.y,
         ),
         callbacks=[early_stop],
@@ -408,7 +434,11 @@ except subprocess.CalledProcessError as e:
 
 # %%
 # 8) Single-pass predictions
-y_pred_mdn = lstm_mdn_model.predict([data.validation.X, data.validation_ticker_ids])
+y_pred_mdn = lstm_mdn_model.predict(
+    [data.validation.X, data.validation_ticker_ids]
+    if INCLUDE_TICKERS
+    else data.validation.X
+)
 pi_pred, mu_pred, sigma_pred = parse_mdn_output(y_pred_mdn, N_MIXTURES)
 
 # %%
