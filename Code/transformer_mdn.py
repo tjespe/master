@@ -31,9 +31,10 @@ MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
-PATIENCE = 3  # Early stopping patience
+REDUCE_LR_PATIENCE = 4  # Patience before halving learning rate
+PATIENCE = 10  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
-REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
+REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
 
 # %%
 # Imports from code shared across models
@@ -82,7 +83,7 @@ from tensorflow.keras.layers import (
     RepeatVector,
 )
 from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
@@ -347,24 +348,29 @@ if already_trained:
     weight_per_ticker = calculate_weight_per_ticker()
 
 # %%
+# Define learning rate and callbacks once
+optimizer = Adam(learning_rate=3e-4, weight_decay=1e-2)
+transformer_model.compile(
+    optimizer=optimizer,
+    loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+)
+reduce_lr = ReduceLROnPlateau(
+    monitor="val_loss", factor=0.5, patience=REDUCE_LR_PATIENCE, min_lr=1e-6
+)
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=PATIENCE,
+    restore_best_weights=True,
+)
+
+# %%
 # Train until validation loss stops decreasing
 increases_since_best = 0
 best_model_weights = transformer_model.get_weights()
 best_val_loss = val_loss
 while True:
-    early_stop = EarlyStopping(
-        monitor="val_loss",
-        patience=PATIENCE,  # number of epochs with no improvement to wait
-        restore_best_weights=True,
-    )
-
     print("Aligning ticker weights...")
     ticker_weights = weight_per_ticker.loc[data.train.tickers].values
-    print("Compiling model...", flush=True)
-    transformer_model.compile(
-        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
-    )
     print("Fitting model...", flush=True)
     history = transformer_model.fit(
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
@@ -380,7 +386,7 @@ while True:
             ),
             data.validation.y,
         ),
-        callbacks=[early_stop],
+        callbacks=[early_stop, reduce_lr],
         sample_weight=ticker_weights,
     )
     val_loss = np.array(history.history["val_loss"]).min()

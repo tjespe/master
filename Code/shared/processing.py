@@ -163,7 +163,7 @@ def get_lstm_train_test_new(
 
     # %%
     # Read the S&P 500 data
-    spx_df = pd.read_csv(f"{BASEDIR}/data/spx.csv")
+    spx_df = pd.read_csv(f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv")
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
 
@@ -760,7 +760,7 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Join in the S&P 500 data
-    spx_df = pd.read_csv(f"{BASEDIR}/data/spx.csv")
+    spx_df = pd.read_csv(f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv")
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
     df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values

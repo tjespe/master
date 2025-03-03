@@ -17,7 +17,7 @@ from scipy.stats import ttest_1samp
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99]
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
 
 # %%
 # Select whether to only filter on important tickers
@@ -273,7 +273,9 @@ for version in ["v1"]:
 # BENCHMARK MODELS
 #############################################
 try:
-    catboost_preds = pd.read_csv(f"predictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv")
+    catboost_preds = pd.read_csv(
+        f"predictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv"
+    )
     catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
     catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
     catboost_dates = catboost_preds.index.get_level_values("Date")
@@ -291,7 +293,7 @@ try:
 
     preds_per_model.append(
         {
-            "name": "Benchmark Catboost", 
+            "name": "Benchmark Catboost",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
@@ -310,7 +312,7 @@ try:
             "ES_0.01": combined_df["ES_0.990"].values,
         }
     )
-    #nans = combined_df["Mean_SP"].isnull().sum()
+    # nans = combined_df["Mean_SP"].isnull().sum()
     nans = 0
     if nans > 0:
         print(f"Catboost has {nans} NaN predictions")
