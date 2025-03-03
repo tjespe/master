@@ -2,7 +2,7 @@
 # ========================= CATBOOST MODEL ==============================
 # =============================================================================
 
-
+MODEL_NAME = "CatBoost_Benchmark_Dynamic_ES_stocks"
 
 # %%
 # =============================================================================
@@ -20,6 +20,16 @@ import matplotlib.pyplot as plt
 from joblib import Parallel, delayed
 import os
 import sys
+from tqdm import tqdm
+
+
+# %%
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'shared')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from processing import get_lstm_train_test_new
+
+
 # %%
 # Define all ES Quantiles and sub-quantiles of interest
 
@@ -134,6 +144,17 @@ def combine_processed_data_into_df(window_size=1500):
     dates_train = data.train.dates
     dates_val = data.validation.dates
 
+    print()
+    print("Shapes after loading data:")
+    print("X_train shape: ", X_train.shape)
+    print("y_train shape: ", y_train.shape)
+    print("X_val shape: ", X_val.shape)
+    print("y_val shape: ", y_val.shape)
+    print("tickers_train shape: ", tickers_train.shape)
+    print("tickers_val shape: ", tickers_val.shape)
+    print("dates_train shape: ", dates_train.shape)
+    print("dates_val shape: ", dates_val.shape)
+
     # Changing shape to not take in lags as features
     X_train = X_train[:, -1, : ]
     X_val = X_val[:, -1, : ]
@@ -143,17 +164,37 @@ def combine_processed_data_into_df(window_size=1500):
     tickers_train = tickers_train[-window_size:]
     dates_train = dates_train[-window_size:]
 
+    # print the shapes of the data
+    print()
+    print("Shapes after changing:")
+    print("X_train shape: ", X_train.shape)
+    print("y_train shape: ", y_train.shape)
+    print("X_val shape: ", X_val.shape)
+    print("y_val shape: ", y_val.shape)
+    print("tickers_train shape: ", tickers_train.shape)
+    print("tickers_val shape: ", tickers_val.shape)
+    print("dates_train shape: ", dates_train.shape)
+    print("dates_val shape: ", dates_val.shape)
+
     X_all = np.concatenate((X_train, X_val), axis=0)
     y_all = np.concatenate((y_train, y_val), axis=0)
     tickers_all = np.concatenate((tickers_train, tickers_val), axis=0)
     dates_all = np.concatenate((dates_train, dates_val), axis=0)
 
-    N, lookback, num_feats = X_all.shape
-    X_all_2d = X_all.reshape(N, lookback * num_feats)
+    # print the shapes of the data
+    print()
+    print("Final shapes:")
+    print("X_all shape: ", X_all.shape)
+    print("y_all shape: ", y_all.shape)
+    print("tickers_all shape: ", tickers_all.shape)
+    print("dates_all shape: ", dates_all.shape)
+
+    
+    
 
     # Build a DataFrame
-    feat_cols = [f"feat_{i}" for i in range(X_all_2d.shape[1])]
-    df_big = pd.DataFrame(X_all_2d, columns=feat_cols)
+    feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
+    df_big = pd.DataFrame(X_all, columns=feat_cols)
     df_big["Date"] = dates_all
     df_big["Ticker"] = tickers_all
     df_big["TrueY"] = y_all
@@ -192,7 +233,9 @@ def train_and_predict_catboost(X_train, y_train, X_val, y_val, X_test, quantile_
     )
 
     model.fit(X_train, y_train, eval_set=(X_val, y_val), early_stopping_rounds=50, cat_features=cat_features_indices)
-    return model.predict(X_test)[0]
+    preds = model.predict(X_test)
+    preds
+    return preds
 
 #    loss_function='Quantile',
 #    alpha=quantile_alpha,
@@ -223,7 +266,7 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
     predictions_list = []
 
     # 3) Iterate over the dates
-    for i in range(window_size, len(unique_dates) - horizon + 1, step):
+    for i in tqdm(range(window_size, len(unique_dates) - horizon + 1, step), desc="Rolling Window Steps"):
         # The training window covers unique_dates in the range [i-window_size, i)
         train_start_idx = i - window_size  # inclusive
         train_end_idx = i  # exclusive
@@ -266,14 +309,14 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
         # 6) For each quantile alpha, train a model, predict on test
         #    (Or you could build a single multi-quantile model, but typically we do one per alpha.)
         pred_quantiles = {}
-        for alpha in quantiles:
+        for alpha in tqdm(quantiles, desc="Quantiles", leave=False):
             y_pred = train_and_predict_catboost(
                 X_train=X_train, 
                 y_train=y_train, 
                 X_val=X_val, 
                 y_val=y_val, 
                 X_test=X_test,
-                alpha=alpha,
+                quantile_alpha=alpha,
                 cat_features_indices=cat_feature_index
             )
             pred_quantiles[alpha] = y_pred
@@ -304,15 +347,10 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
 # =============================================================================
 def main_global_rolling_example_preds():
     # 1) Obtain your ProcessedData object with all your tickers/time series
-    processed_data = get_lstm_train_test_new(
-        multiply_by_beta=False,
-        include_fng=True,
-        include_spx_data=True,
-        include_returns=False,
-    )
 
     # 2) Combine into a single DataFrame
-    df_big, feature_cols, cat_feature_idx = combine_processed_data_into_df(processed_data)
+    df_big, feature_cols, cat_feature_idx = combine_processed_data_into_df(window_size=1500)
+    print(df_big.head())
 
     # 3) Define desired quantiles
     ES_quantiles = [0.01, 0.025, 0.05, 0.95, 0.975, 0.99]
@@ -342,6 +380,11 @@ def main_global_rolling_example_preds():
 final_df = main_global_rolling_example_preds()
 # %%
 final_df
+
+# %%
+# Write the quantile predictions to a csv file for storage
+predictions_copy = final_df.copy()
+final_df.to_csv("Benchmark_Catboost_Dynamic_ES_quantiles.csv", index=False)
 
 # %%
 # =============================================================================
@@ -408,3 +451,15 @@ def estimate_es_from_predictions(
 
 es_df = estimate_es_from_predictions(final_df)
 es_df
+# %%
+# Take a copy of the ES DataFrame for storage
+es_df_copy = es_df.copy()
+# take opposite sign for values in all coloumns having ES in their name
+es_df.loc[:, es_df.columns.str.contains('ES')] = -es_df.loc[:, es_df.columns.str.contains('ES')]
+
+es_df
+
+# %%
+# Write the ES predictions to a csv file for storage
+es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES.csv", index=False)
+# %%

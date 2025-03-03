@@ -272,6 +272,31 @@ for version in ["v1"]:
     except FileNotFoundError:
         print(f"VAE {version} predictions not found")
 
+# BENCHMARK MODELS
+#############################################
+try:
+    catboost_preds = pd.read_csv("fpredictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv")
+    catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
+    catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
+    catboost_dates = catboost_preds.index.get_level_values("Date")
+    catboost_preds = catboost_preds[
+        (catboost_dates >= TRAIN_VALIDATION_SPLIT) & (catboost_dates < VALIDATION_TEST_SPLIT)]
+    combined_df = df_validation.join(catboost_preds, how="left", rsuffix="_Catboost")
+    preds_per_model.append(
+        {
+            "name": "Catboost",
+            
+        }
+    )
+    nans = combined_df["Mean_SP"].isnull().sum()
+    if nans > 0:
+        print(f"Catboost has {nans} NaN predictions")
+except FileNotFoundError:
+    print("Catboost predictions not found")
+
+
+###########################################
+
 try:
     maf_entry = next(
         entry for entry in preds_per_model if entry["name"] == "LSTM MAF v2"
