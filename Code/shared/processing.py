@@ -12,15 +12,12 @@ from settings import (
     DATA_PATH,
     TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
+    BASEDIR,
 )
 
 
-
-_basedir = os.path.abspath(os.path.dirname(__file__))
-# remove "\\shared" from the path
-_basedir = _basedir.replace("\\shared", "")
-RVOL_DATA_PATH = f"{_basedir}/data/RVOL.csv"
-VIX_DATA_PATH = f"{_basedir}/data/VIX.csv"
+RVOL_DATA_PATH = f"{BASEDIR}/data/RVOL.csv"
+VIX_DATA_PATH = f"{BASEDIR}/data/VIX.csv"
 
 # %%
 import numpy as np
@@ -166,8 +163,7 @@ def get_lstm_train_test_new(
 
     # %%
     # Read the S&P 500 data
-    print(_basedir)
-    spx_df = pd.read_csv(f"{_basedir}/data/spx.csv")
+    spx_df = pd.read_csv(f"{BASEDIR}/data/spx.csv")
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
 
@@ -295,9 +291,9 @@ def get_lstm_train_test_new(
 
     # %%
     # If we are using the Dow Jones dataset, read in the realized volatility data
-    if DATA_PATH.startswith(f"{_basedir}/data/dow_jones"):
+    if DATA_PATH.startswith(f"{BASEDIR}/data/dow_jones"):
         capire_df = pd.read_csv(
-            f"{_basedir}/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv"
+            f"{BASEDIR}/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv"
         )
         capire_df["Date"] = pd.to_datetime(capire_df["Date"]).dt.date
         capire_df.set_index(["Date", "Symbol"], inplace=True)
@@ -321,7 +317,7 @@ def get_lstm_train_test_new(
 
     # %%
     # Read Fear & Greed Index data
-    fng_df = pd.read_csv(f"{_basedir}/data/fear-greed.csv")
+    fng_df = pd.read_csv(f"{BASEDIR}/data/fear-greed.csv")
     fng_df["Date"] = pd.to_datetime(fng_df["Date"]).dt.date
     fng_df = fng_df.set_index("Date")
     fng_df
@@ -363,11 +359,11 @@ def get_lstm_train_test_new(
 
     # %%
     # If we are looking at stocks, enrich with industry codes
-    if DATA_PATH.startswith(f"{_basedir}/data/sp500_stocks") or DATA_PATH.startswith(
-        f"{_basedir}/data/dow_jones"
+    if DATA_PATH.startswith(f"{BASEDIR}/data/sp500_stocks") or DATA_PATH.startswith(
+        f"{BASEDIR}/data/dow_jones"
     ):
         print("Adding industry codes")
-        meta_df = pd.read_csv(f"{_basedir}/data/sp500_stocks_meta.csv")
+        meta_df = pd.read_csv(f"{BASEDIR}/data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         df = df.join(meta_df, how="left", rsuffix="_META")
 
@@ -764,7 +760,7 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Join in the S&P 500 data
-    spx_df = pd.read_csv(f"{_basedir}/data/spx.csv")
+    spx_df = pd.read_csv(f"{BASEDIR}/data/spx.csv")
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
     df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values
@@ -877,7 +873,7 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Read Fear & Greed Index data
-    fng_df = pd.read_csv(f"{_basedir}/data/fear-greed.csv")
+    fng_df = pd.read_csv(f"{BASEDIR}/data/fear-greed.csv")
     fng_df["Date"] = pd.to_datetime(fng_df["Date"]).dt.date
     fng_df = fng_df.set_index("Date")
     fng_df
@@ -921,8 +917,8 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # If we are looking at stocks, enrich with industry codes
-    if DATA_PATH.startswith(f"{_basedir}/data/sp500_stocks"):
-        meta_df = pd.read_csv(f"{_basedir}/data/sp500_stocks_meta.csv")
+    if DATA_PATH.startswith(f"{BASEDIR}/data/sp500_stocks"):
+        meta_df = pd.read_csv(f"{BASEDIR}/data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         df = df.join(meta_df, how="left", rsuffix="_META")
 

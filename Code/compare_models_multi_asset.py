@@ -150,6 +150,7 @@ for version in [
     "rv-data-3",
     "w-egarch",
     "w-egarch-2",
+    "ffnn",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -277,7 +278,9 @@ try:
     catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
     catboost_dates = catboost_preds.index.get_level_values("Date")
     catboost_preds = catboost_preds[
-        (catboost_dates >= TRAIN_VALIDATION_SPLIT) & (catboost_dates < VALIDATION_TEST_SPLIT)]
+        (catboost_dates >= TRAIN_VALIDATION_SPLIT)
+        & (catboost_dates < VALIDATION_TEST_SPLIT)
+    ]
     combined_df = df_validation.join(catboost_preds, how="left", rsuffix="_Catboost")
     # make a Mean_SP column full of 0s for now
     combined_df["Mean_SP"] = 0
