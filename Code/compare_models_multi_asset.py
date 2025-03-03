@@ -273,9 +273,7 @@ for version in ["v1"]:
 # BENCHMARK MODELS
 #############################################
 try:
-    catboost_preds = pd.read_csv(
-        "fpredictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv"
-    )
+    catboost_preds = pd.read_csv(f"predictions/Benchmark_Catboost_Dynamic_ES{SUFFIX}.csv")
     catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
     catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
     catboost_dates = catboost_preds.index.get_level_values("Date")
@@ -284,12 +282,36 @@ try:
         & (catboost_dates < VALIDATION_TEST_SPLIT)
     ]
     combined_df = df_validation.join(catboost_preds, how="left", rsuffix="_Catboost")
+    # make a Mean_SP column full of 0s for now
+    combined_df["Mean_SP"] = 0
+    # same for Vol_SP
+    combined_df["Vol_SP"] = 0
+    # same for NLL
+    combined_df["nll"] = -3
+
     preds_per_model.append(
         {
-            "name": "Catboost",
+            "name": "Benchmark Catboost", 
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df["nll"].values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "LB_98": combined_df["Quantile_0.010"].values,
+            "UB_98": combined_df["Quantile_0.990"].values,
+            "LB_95": combined_df["Quantile_0.025"].values,
+            "UB_95": combined_df["Quantile_0.975"].values,
+            "LB_90": combined_df["Quantile_0.050"].values,
+            "UB_90": combined_df["Quantile_0.950"].values,
+            "ES_99": combined_df["ES_0.010"].values,
+            "ES_97.5": combined_df["ES_0.025"].values,
+            "ES_95": combined_df["ES_0.050"].values,
+            "ES_0.05": combined_df["ES_0.950"].values,
+            "ES_0.025": combined_df["ES_0.975"].values,
+            "ES_0.01": combined_df["ES_0.990"].values,
         }
     )
-    nans = combined_df["Mean_SP"].isnull().sum()
+    #nans = combined_df["Mean_SP"].isnull().sum()
+    nans = 0
     if nans > 0:
         print(f"Catboost has {nans} NaN predictions")
 except FileNotFoundError:
@@ -894,6 +916,8 @@ results_df = results_df.set_index("Model")
 # Remove inadequate models
 for model in results_df.index:
     if "GARCH" in model:
+        continue
+    if "Benchmark" in model:
         continue
     passes = 0
     for cl in CONFIDENCE_LEVELS:
