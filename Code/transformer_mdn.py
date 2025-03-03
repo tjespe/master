@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "ffnn"
+VERSION = 3
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -23,10 +23,11 @@ D_MODEL = 64
 HIDDEN_UNITS_FF = 256
 N_MIXTURES = 10
 DROPOUT = 0.5
+L2_REGULARIZATION = 1e-5
 NUM_ENCODERS = 2
 NUM_HEADS = 8
 EMBEDDING_DIMENSIONS = 4
-MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
+MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
@@ -78,6 +79,7 @@ from tensorflow.keras.layers import (
     GlobalAveragePooling1D,
     MultiHeadAttention,
     Concatenate,
+    RepeatVector,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
@@ -105,24 +107,31 @@ gc.collect()
 
 
 # %%
-def transformer_encoder(inputs, d_model, num_heads, ff_dim, rate):
+def transformer_encoder(inputs):
     """
     A single block of Transformer encoder:
       1) MHA + residual + LayerNorm
       2) FFN + residual + LayerNorm
     """
     # Multi-head self-attention
-    attn_output = MultiHeadAttention(num_heads=num_heads, key_dim=d_model)(
+    attn_output = MultiHeadAttention(num_heads=NUM_HEADS, key_dim=D_MODEL)(
         inputs, inputs
     )
-    attn_output = Dropout(rate)(attn_output)
+    attn_output = Dropout(DROPOUT)(attn_output)
     out1 = LayerNormalization(epsilon=1e-6)(inputs + attn_output)
 
     # Feed-forward
-    ffn = Dense(ff_dim, activation="relu")(out1)
-    ffn = Dropout(rate)(ffn)
-    ffn = Dense(d_model)(ffn)
-    ffn = Dropout(rate)(ffn)
+    ffn = Dense(
+        HIDDEN_UNITS_FF,
+        activation="relu",
+        kernel_regularizer=l2(L2_REGULARIZATION),
+    )(out1)
+    ffn = Dropout(DROPOUT)(ffn)
+    ffn = Dense(
+        D_MODEL,
+        kernel_regularizer=l2(L2_REGULARIZATION),
+    )(ffn)
+    ffn = Dropout(DROPOUT)(ffn)
 
     out2 = LayerNormalization(epsilon=1e-6)(out1 + ffn)
     return out2
@@ -150,21 +159,16 @@ def build_transformer_mdn(
     )(ticker_inputs)
 
     # Expand and concatenate with input features
-    ticker_embedding_expanded = tf.expand_dims(
-        ticker_embedding, axis=1
-    )  # (batch, 1, embed_dim)
-    ticker_embedding_expanded = tf.repeat(
-        ticker_embedding_expanded, LOOKBACK_DAYS, axis=1
-    )  # (batch, lookback_days, embed_dim)
+    ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
 
-    x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_expanded])
+    x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
 
     # Project inputs to d_model
     x = Dense(D_MODEL, activation=None)(x)
 
     # Stack multiple Transformer encoder blocks
     for _ in range(NUM_ENCODERS):
-        x = transformer_encoder(x, D_MODEL, NUM_HEADS, HIDDEN_UNITS_FF, rate=DROPOUT)
+        x = transformer_encoder(x)
 
     # Global average pooling (or take last time step)
     x = GlobalAveragePooling1D()(x)
@@ -185,6 +189,19 @@ def build_transformer_mdn(
     model = Model(inputs=[feature_inputs, ticker_inputs], outputs=mdn_output)
     return model
 
+
+# %%
+# 1) Inspect shapes
+print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
+print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shape}")
+
+# %%
+# 2) Build model
+transformer_model = build_transformer_mdn(
+    num_features=data.train.X.shape[2],
+    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
+)
+already_trained = False
 
 # %%
 # 4) Load existing model if it exists
@@ -376,7 +393,7 @@ while True:
                 f"Validation loss has not decreased for {REWEIGHT_WORST_PERFORMERS_EPOCHS} iterations. "
                 "Stopping training. \n"
                 # "If you want to restore the best model, type:\n"
-                # "lstm_mdn_model.set_weights(best_model_weights)"
+                # "transformer_model.set_weights(best_model_weights)"
             )
             transformer_model.set_weights(best_model_weights)
             break
@@ -397,7 +414,7 @@ try:
     subprocess.run(["git", "pull"], check=True)
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
-    commit_header = f"Train LSTM MDN {VERSION}"
+    commit_header = f"Train Transformer MDN {VERSION}"
     commit_body = f"Training history:\n" + "\n".join(
         [str(h.history) for h in histories]
     )
@@ -432,7 +449,7 @@ for ticker in example_tickers:
         sigma_pred[from_idx:to_idx],
         N_MIXTURES,
         ticker=ticker,
-        save_to=f"results/distributions/{ticker}_lstm_mdn_v{VERSION}.svg",
+        save_to=f"results/distributions/{ticker}_transformer_mdn_v{VERSION}.svg",
     )
 
 # %%
@@ -466,7 +483,7 @@ handles = list(legend_dict.values())
 labels = list(legend_dict.keys())
 fig.legend(handles, labels, loc="center left")
 plt.tight_layout(rect=[0, 0, 1, 0.95])
-plt.savefig(f"results/lstm_mdn_v{VERSION}_mixture_weights.svg")
+plt.savefig(f"results/transformer_mdn_v{VERSION}_mixture_weights.svg")
 plt.show()
 
 
@@ -524,11 +541,11 @@ for ticker in example_tickers:
     plt.gca().set_yticklabels(
         ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
     )
-    plt.title(f"LSTM w MDN predictions for {ticker}, {days} days")
+    plt.title(f"Transformer w MDN predictions for {ticker}, {days} days")
     plt.xlabel("Date")
     plt.ylabel("LogReturn")
     plt.legend()
-    plt.savefig(f"results/time_series/{ticker}_lstm_mdn_v{VERSION}.svg")
+    plt.savefig(f"results/time_series/{ticker}_transformer_mdn_v{VERSION}.svg")
     plt.show()
 
 # %%
@@ -597,15 +614,17 @@ df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
 # %%
 # Save
 df_validation.set_index(["Date", "Symbol"]).to_csv(
-    f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}.csv"
+    f"predictions/transformer_mdn_predictions{SUFFIX}_v{VERSION}.csv"
 )
 
 # %%
 # Commit predictions
 try:
     subprocess.run(["git", "pull"], check=True)
-    subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
-    commit_header = f"Add predictions for LSTM MDN {VERSION}"
+    subprocess.run(
+        ["git", "add", f"predictions/*transformer_mdn*{SUFFIX}*"], check=True
+    )
+    commit_header = f"Add predictions for Transformer MDN {VERSION}"
     commit_body = f"Validation loss: {val_loss}"
     subprocess.run(
         ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
