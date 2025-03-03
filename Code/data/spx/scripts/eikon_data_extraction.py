@@ -19,12 +19,12 @@ ek.set_app_key('55d2b9814cee4ffdbc517b89b372b0a5436f3492')
 ek.set_port_number(36036)
 
 # %% 2) Define SPX sumbol
-spx_symbol = ".SPX"
+spx_symbol = ".SPXTR"
 
 
 # %% 3) Define start and end
 start_date = datetime(1990, 1, 1)
-end_date = datetime.now()
+end_date = datetime(2025, 2, 19)
 
 chunk_size = relativedelta(months=3) # We'll fetch data in  chunks to avoid hitting row limits
 all_chunks = [] # List to accumulate each chunk's DataFrame
@@ -92,8 +92,8 @@ if all_chunks:
         df_spx.columns = ['_'.join(col).strip() for col in df_spx.columns.values]
 
     # Save or inspect the final DataFrame
-    df_spx.to_csv("data/spx/raw_data/spx_19900101_20220301.csv", index=True)
-    print("Data saved to data/spx/raw_data/spx_19900101_20220301.csv")
+    df_spx.to_csv("data/spx/raw_data/spx_19900101_to_today_20250219.csv")
+    print("Data saved to data/spx/raw_data/spx_19900101_to_today_20250219.csv")
     print(df_spx.head())
 
 else:
