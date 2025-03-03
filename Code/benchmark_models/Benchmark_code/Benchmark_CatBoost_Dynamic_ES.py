@@ -2,8 +2,6 @@
 # ========================= CATBOOST MODEL ==============================
 # =============================================================================
 
-MODEL_NAME = "CatBoost_Benchmark_Dynamic_ES_stocks"
-
 # %%
 # =============================================================================
 # 1 Functions
@@ -11,7 +9,7 @@ MODEL_NAME = "CatBoost_Benchmark_Dynamic_ES_stocks"
 # Importing required libraries
 from typing import List
 import pandas as pd
-from sklearn.calibration import LabelEncoder
+from sklearn.calibration import LabelEncoder    
 import pandas as pd
 import numpy as np
 from catboost import CatBoostRegressor, Pool
@@ -64,69 +62,26 @@ def remove_suffix(input_string, suffix):
 
 
 # Function to ensure no quantile crossing - adapted for multi-asset
-def ensure_non_crossing_multiasset(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Enforce non-crossing quantiles in-place, row by row.
-    For each row, we ensure that if alpha_i < alpha_j, then
-        Quantile_alpha_i <= Quantile_alpha_j  (for alphas < 0.5)
-    and similarly if alpha_i < alpha_j but alpha_i >= 0.5, we ensure
-        Quantile_alpha_i >= Quantile_alpha_j
-    (or whichever logic you prefer).
-
-    This is adapted from your old single-asset code, but it applies
-    exactly the same for multi-asset. Each row is unique Ticker + Date,
-    with multiple Quantile_ columns. We do the correction row by row.
-    """
-
-    # Identify columns that start with "Quantile_"
+def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
     quantile_columns = [col for col in df.columns if col.startswith("Quantile_")]
 
-    # Sort them by alpha so we know the order
-    # e.g. "Quantile_0.010" -> alpha = 0.010
-    # We parse the floating alpha from the column name
     def get_alpha(col_name):
-        # e.g. col_name = "Quantile_0.025"
         return float(col_name.split("_")[-1])
 
+    # Sort columns by numeric alpha
     quantile_columns_sorted = sorted(quantile_columns, key=get_alpha)
 
-    # We'll do a row-by-row fix
-    for idx in df.index:  # or df.itertuples() if you want performance
-        # We do two passes: one forward pass for alphas < 0.5,
-        # and one backward pass for alphas >= 0.5
-        # (similar to your old code logic).
-
-        # Forward pass: ensure that for alpha_i < 0.5,
-        # Q_{alpha_i} >= Q_{alpha_{i+1}} if alpha_{i+1} is also < 0.5
-        # (You had logic that if the 'lower' alpha was crossing
-        # we fix it by adjusting the next quantile.)
+    # Single forward pass for each row
+    for idx in df.index:
         for i in range(len(quantile_columns_sorted) - 1):
-            col_current = quantile_columns_sorted[i]
-            col_next = quantile_columns_sorted[i+1]
+            col_cur = quantile_columns_sorted[i]
+            col_nxt = quantile_columns_sorted[i+1]
+            val_cur = df.at[idx, col_cur]
+            val_nxt = df.at[idx, col_nxt]
 
-            alpha_current = get_alpha(col_current)
-            alpha_next = get_alpha(col_next)
-
-            # If both are < 0.5, we want Q_{alpha_current} >= Q_{alpha_next}
-            # (since for left tail, the smaller alpha should be *lower* or more negative).
-            if alpha_current < 0.5 and alpha_next < 0.5:
-                if df.at[idx, col_current] < df.at[idx, col_next]:
-                    # crossing => fix
-                    df.at[idx, col_next] = df.at[idx, col_current] - 1e-4
-
-        # Backward pass: ensure that for alpha_i >= 0.5,
-        # Q_{alpha_i} <= Q_{alpha_{i-1}} if alpha_{i-1} >= 0.5
-        for i in range(len(quantile_columns_sorted) - 1, 0, -1):
-            col_current = quantile_columns_sorted[i]
-            col_prev = quantile_columns_sorted[i-1]
-
-            alpha_current = get_alpha(col_current)
-            alpha_prev = get_alpha(col_prev)
-
-            if alpha_current >= 0.5 and alpha_prev >= 0.5:
-                if df.at[idx, col_current] > df.at[idx, col_prev]:
-                    # crossing => fix
-                    df.at[idx, col_prev] = df.at[idx, col_current] + 1e-4
+            # if Q_cur > Q_nxt => crossing => fix
+            if val_cur > val_nxt:
+                df.at[idx, col_nxt] = val_cur  # or val_cur + small_epsilon
 
     return df
 
@@ -370,7 +325,7 @@ def main_global_rolling_example_preds():
     print(df_predictions.head(20))
 
     # 5) If you have ensure_non_crossing or ES calculation, apply it now:
-    df_no_cross = ensure_non_crossing_multiasset(df_predictions)
+    df_no_cross = ensure_non_crossing_unified(df_predictions)
     # ...
     # df_no_cross.to_excel("global_rolling_predictions.xlsx", index=False)
 
