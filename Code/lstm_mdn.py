@@ -1,6 +1,7 @@
 # %%
 # Define parameters (based on settings)
 import subprocess
+from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
 VERSION = "rv-data-2"
@@ -17,8 +18,15 @@ EMBEDDING_DIMENSIONS = 4
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
+# Settings for training
+PATIENCE = 1  # Early stopping patience
+REWEIGHT_WORST_PERFORMERS = True
+REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
+
+# %%
 # Imports from code shared across models
 from shared.mdn import (
+    calculate_es_for_quantile,
     calculate_intervals_vectorized,
     calculate_prob_above_zero_vectorized,
     get_mdn_bias_initializer,
@@ -150,13 +158,13 @@ lstm_mdn_model = build_lstm_mdn(
     embed_dim=EMBEDDING_DIMENSIONS,
     ticker_ids_dim=data.ticker_ids_dim,
 )
+already_trained = False
 
 # %%
 # 4) Load existing model if it exists
 load_best_val_loss_model = False
 best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
 model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
-already_trained = False
 if os.path.exists(model_fname):
     mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
     mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
@@ -239,7 +247,7 @@ def calculate_weight_per_ticker() -> pd.Series:
     worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
     filtered_y_train_pred = y_train_pred[worst_ticker_mask]
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
-    confidence_levels = [0.95, 0.99]
+    confidence_levels = [0.67, 0.90, 0.95, 0.99]
     intervals = calculate_intervals_vectorized(
         pi_pred, mu_pred, sigma_pred, confidence_levels
     )
@@ -294,13 +302,12 @@ if already_trained:
 # %%
 # Train until validation loss stops decreasing
 increases_since_best = 0
-max_increases_since_best = 0
 best_model_weights = lstm_mdn_model.get_weights()
 best_val_loss = val_loss
 while True:
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=0,  # number of epochs with no improvement to wait
+        patience=PATIENCE,  # number of epochs with no improvement to wait
         restore_best_weights=True,
     )
 
@@ -326,11 +333,13 @@ while True:
         sample_weight=ticker_weights,
     )
     val_loss = np.array(history.history["val_loss"]).min()
+    if not REWEIGHT_WORST_PERFORMERS:
+        break
     if val_loss >= best_val_loss:
         increases_since_best += 1
-        if increases_since_best >= max_increases_since_best:
+        if increases_since_best >= REWEIGHT_WORST_PERFORMERS_EPOCHS:
             print(
-                f"Validation loss has not decreased for {max_increases_since_best} iterations. "
+                f"Validation loss has not decreased for {REWEIGHT_WORST_PERFORMERS_EPOCHS} iterations. "
                 "Stopping training. \n"
                 # "If you want to restore the best model, type:\n"
                 # "lstm_mdn_model.set_weights(best_model_weights)"
@@ -456,7 +465,7 @@ plt.show()
 
 # %%
 # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
-confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.99, 0.995, 0.999]
+confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.98, 0.99, 0.995, 0.999]
 intervals = calculate_intervals_vectorized(
     pi_pred, mu_pred, sigma_pred, confidence_levels
 )
@@ -495,7 +504,7 @@ for ticker in example_tickers:
             filtered_intervals[:, i, 0],
             filtered_intervals[:, i, 1],
             color="blue",
-            alpha=0.7 - i * 0.1,
+            alpha=0.7 - i * 0.07,
             label=f"{100*cl:.1f}% Interval",
         )
     plt.axhline(
@@ -543,8 +552,34 @@ df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 # %%
 # Add confidence intervals
 for i, cl in enumerate(confidence_levels):
-    df_validation[f"LB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 0]
-    df_validation[f"UB_{100*cl:1f}".rstrip("0").rstrip(".")] = intervals[:, i, 1]
+    df_validation[f"LB_{format_cl(cl)}"] = intervals[:, i, 0]
+    df_validation[f"UB_{format_cl(cl)}"] = intervals[:, i, 1]
+
+# %%
+# Calculate expected shortfall
+for i, cl in enumerate(confidence_levels):
+    alpha = (1 - cl) / 2  # The lower quantile of the confidence interval
+    var_estimates = intervals[:, i, 0]
+    es = calculate_es_for_quantile(pi_pred, mu_pred, sigma_pred, var_estimates)
+    df_validation[f"ES_{format_cl(1-alpha)}"] = es
+
+# %%
+# Example plot of ES
+df_validation.set_index(["Date", "Symbol"]).xs("AAPL", level="Symbol").sort_index()[
+    ["LB_90", "ES_95", "LB_98", "ES_99"]
+].rename(
+    columns={
+        "LB_90": "95% VaR",
+        "ES_95": "95% ES",
+        "LB_98": "99% VaR",
+        "ES_99": "99% ES",
+    }
+).plot(
+    title="99% VaR and ES for AAPL",
+    # Color appropriately
+    color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
+    figsize=(12, 6),
+)
 
 # %%
 # Calculate probability of price increase

@@ -1,5 +1,6 @@
 # %%
 # Define parameters
+from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import crps_normal_univariate, nll_loss_mean_and_vol
 from settings import (
@@ -16,7 +17,7 @@ from scipy.stats import ttest_1samp
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.99]
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99]
 
 # %%
 # Select whether to only filter on important tickers
@@ -115,11 +116,16 @@ try:
     for cl in CONFIDENCE_LEVELS:
         alpha = 1 - cl
         z_alpha = norm.ppf(1 - alpha / 2)
-        entry[f"LB_{format_cl(cl)}"] = (
-            entry["mean_pred"] - z_alpha * entry["volatility_pred"]
-        )
-        entry[f"UB_{format_cl(cl)}"] = (
-            entry["mean_pred"] + z_alpha * entry["volatility_pred"]
+        lb = mus - z_alpha * garch_vol_pred
+        ub = mus + z_alpha * garch_vol_pred
+        entry[f"LB_{format_cl(cl)}"] = lb
+        entry[f"UB_{format_cl(cl)}"] = ub
+        es_alpha = alpha / 2
+        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+            np.ones_like(mus).reshape(-1, 1),
+            mus.reshape(-1, 1),
+            garch_vol_pred.reshape(-1, 1),
+            lb,
         )
 
     preds_per_model.append(entry)
@@ -161,35 +167,27 @@ for version in [
             & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
-        preds_per_model.append(
-            {
-                "name": f"LSTM MDN {version}",
-                "mean_pred": combined_df["Mean_SP"].values,
-                "volatility_pred": combined_df["Vol_SP"].values,
-                "LB_67": combined_df["LB_67"].values,
-                "UB_67": combined_df["UB_67"].values,
-                "LB_90": combined_df.get("LB_90"),
-                "UB_90": combined_df.get("UB_90"),
-                "LB_95": combined_df["LB_95"].values,
-                "UB_95": combined_df["UB_95"].values,
-                "LB_97.5": combined_df.get("LB_97.5"),
-                "UB_97.5": combined_df.get("UB_97.5"),
-                "LB_99": combined_df["LB_99"].values,
-                "UB_99": combined_df["UB_99"].values,
-                "LB_99.5": combined_df.get("LB_99.5"),
-                "UB_99.5": combined_df.get("UB_99.5"),
-                "LB_99.9": combined_df.get("LB_99.9"),
-                "UB_99.9": combined_df.get("UB_99.9"),
-                "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-                "symbols": combined_df.index.get_level_values("Symbol"),
-                "crps": (
-                    crps.values
-                    if (crps := combined_df.get("CRPS")) is not None
-                    else None
-                ),
-                "p_up": combined_df.get("Prob_Increase"),
-            }
-        )
+        entry = {
+            "name": f"LSTM MDN {version}",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "crps": (
+                crps.values if (crps := combined_df.get("CRPS")) is not None else None
+            ),
+            "p_up": combined_df.get("Prob_Increase"),
+        }
+        for cl in CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = 1 - (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
         nans = combined_df["Mean_SP"].isnull().sum()
         if nans > 0:
             print(f"LSTM MDN {version} has {nans} NaN predictions")
@@ -242,7 +240,9 @@ for version in ["v1"]:
         vae["Date"] = pd.to_datetime(vae["Date"])
         vae = vae.set_index(["Date", "Symbol"])
         vae_dates = vae.index.get_level_values("Date")
-        vae = vae[(vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)]
+        vae = vae[
+            (vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)
+        ]
         combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
         preds_per_model.append(
             {
@@ -258,10 +258,10 @@ for version in ["v1"]:
                 "LB_99": combined_df["LB_99"].values,
                 "UB_99": combined_df["UB_99"].values,
                 "nll": nll_loss_mean_and_vol(
-                            y_true,
-                            mus,
-                            garch_vol_pred,
-                                        ),
+                    y_true,
+                    mus,
+                    garch_vol_pred,
+                ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
@@ -308,58 +308,6 @@ preds_per_model = [
     model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
 ]
 
-# %%
-# # Add ensemble of every included model
-# try:
-#     filtered = [
-#         model
-#         for model in preds_per_model
-#         if all(
-#             prop in model
-#             for prop in [
-#                 "mean_pred",
-#                 "volatility_pred",
-#                 "nll",
-#                 "LB_67",
-#                 "UB_67",
-#                 "LB_95",
-#                 "UB_95",
-#                 "LB_99",
-#                 "UB_99",
-#             ]
-#         )
-#     ]
-#     print("Ensembling", [model["name"] for model in filtered])
-#     ensemble_mean_pred = np.mean([model["mean_pred"] for model in filtered], axis=0)
-#     ensemble_vol_pred = np.mean(
-#         [model["volatility_pred"] for model in filtered], axis=0
-#     )
-#     ensemble_lb_67 = np.mean([model["LB_67"] for model in filtered], axis=0)
-#     ensemble_ub_67 = np.mean([model["UB_67"] for model in filtered], axis=0)
-#     ensemble_lb_95 = np.mean([model["LB_95"] for model in filtered], axis=0)
-#     ensemble_ub_95 = np.mean([model["UB_95"] for model in filtered], axis=0)
-#     ensemble_lb_99 = np.mean([model["LB_99"] for model in filtered], axis=0)
-#     ensemble_ub_99 = np.mean([model["UB_99"] for model in filtered], axis=0)
-#     ensemble_nll = np.mean([model["nll"] for model in filtered])
-#     ensemble_symbols = filtered[0]["symbols"]
-#     preds_per_model.append(
-#         {
-#             "name": "Ensemble of everything",
-#             "mean_pred": ensemble_mean_pred,
-#             "volatility_pred": ensemble_vol_pred,
-#             "LB_67": ensemble_lb_67,
-#             "UB_67": ensemble_ub_67,
-#             "LB_95": ensemble_lb_95,
-#             "UB_95": ensemble_ub_95,
-#             "LB_99": ensemble_lb_99,
-#             "UB_99": ensemble_ub_99,
-#             "nll": ensemble_nll,
-#             "symbols": ensemble_symbols,
-#         }
-#     )
-# except ValueError as e:
-#     print(f"Could not create ensemble: {str(e)}")
-
 
 # %%
 def calculate_picp(y_true, lower_bounds, upper_bounds):
@@ -395,7 +343,7 @@ def calculate_interval_score(y_true, lower_bounds, upper_bounds, alpha):
 
 def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     prediction_errors = np.abs(y_true - mean_pred)
-    correlation = pd.Series(prediction_errors).corr(pd.Series(interval_width))
+    correlation = pd.Series(prediction_errors).corr(pd.Series(np.array(interval_width)))
     return correlation
 
 
@@ -534,6 +482,77 @@ def interpret_christoffersen_test(result):
             ],
         }
     )
+
+
+def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
+    """
+    Test that the expected value of VaR exceedances matches the expected shortfall,
+    i.e. that
+    E[ I(y_t > VaR_t^alpha) * (y_t - ES_t^alpha) ] = 0
+    where I is the indicator function.
+
+    Returns:
+      dict with:
+        test_statistic : the standardized test statistic
+        p_value        : two-sided p-value from the standard normal distribution
+        mean_z         : average of the test variable (should be ~ 0 if well-calibrated)
+        std_z          : standard deviation of the test variable
+    """
+    # Convert inputs to np.array for safety
+    y_true = np.asarray(y_true)
+    var_pred = np.asarray(var_pred)
+    es_pred = np.asarray(es_pred)
+
+    n = len(y_true)
+    if any(len(arr) != n for arr in [var_pred, es_pred]):
+        raise ValueError("y_true, var_pred, es_pred must have the same length.")
+
+    # Indicator of exceedance: 1 if actual loss is bigger than the VaR threshold
+    exceedances = y_true < var_pred
+
+    # Define the test variable z_t
+    # z_t = I(X_t > VaR_t^alpha) * [ (X_t - ES_t^alpha) / alpha ]
+    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0)
+
+    mean_z = np.nanmean(z)
+    std_z = np.nanstd(z, ddof=1)
+
+    # If the test variable is degenerate, return NaNs
+    if std_z == 0:
+        print("SD[Z] was 0 for alpha", alpha, "returning NaNs")
+        print("mean_z", mean_z)
+        print("std_z", std_z)
+        print("exceedances", exceedances)
+        print("y_true", y_true)
+        print("var_pred", var_pred)
+        print("es_pred", es_pred)
+        return {
+            "test_statistic": np.nan,
+            "p_value": np.nan,
+            "mean_z": mean_z,
+            "std_z": std_z,
+        }
+
+    # Compute test statistic: T = sqrt(n) * (mean of z) / stdev(z)
+    test_statistic = np.sqrt(n) * mean_z / std_z
+    # Two-sided p-value
+    p_value = 2.0 * (1.0 - norm.cdf(abs(test_statistic)))
+
+    return {
+        "test_statistic": test_statistic,
+        "p_value": p_value,
+        "mean_z": mean_z,
+        "std_z": std_z,
+    }
+
+
+def interpret_bayer_dimitriadis_stat(p_value):
+    if p_value < 0.05:
+        return "❌"
+    elif p_value > 0.05:
+        return "✅"
+    else:
+        return "?"
 
 
 def calculate_rmse(y_true, y_pred):
@@ -681,6 +700,24 @@ for entry in preds_per_model:
             f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
         )
 
+        es_alpha = 1 - (1 - cl) / 2
+        es_str = format_cl(es_alpha)
+        es_pred = entry.get(f"ES_{es_str}")
+        if es_pred is not None:
+            bayer_dimitriadis_result = bayer_dimitriadis_test(
+                y_test_actual, entry[f"LB_{cl_str}"], es_pred, cl
+            )
+            entry[f"bayer_dimitriadis_{es_str}"] = bayer_dimitriadis_result
+            entry[f"bd_p_value_{es_str}"] = bayer_dimitriadis_result["p_value"]
+            entry[f"bd_mean_violation_{es_str}"] = bayer_dimitriadis_result["mean_z"]
+            print(
+                f"Bayer-Dimitriadis Test ({cl_str}%):\n"
+                f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
+                f"p-value: {bayer_dimitriadis_result['p_value']}\n"
+            )
+        else:
+            print(f"No ES_{es_str} predictions available for Bayer-Dimitriadis test.")
+
     # Calculate RMSE
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
     entry["rmse"] = rmse
@@ -721,6 +758,12 @@ quantile_metric_keys = [
     "CC fails",
     "CC indeterminate",
 ]
+es_metric_keys = [
+    "Bayer-Dimitriadis pass",
+    "Bayer-Dimitriadis p-value",
+    "Bayer-Dimitriadis mean violation",
+    "Bayer-Dimitriadis violation SD",
+]
 results = {
     "Model": [],
     # Non-quantile-based metrics
@@ -735,6 +778,14 @@ results = {
             f"[{format_cl(cl)}] {key}": []
             for cl in CONFIDENCE_LEVELS
             for key in quantile_metric_keys
+        }
+    ),
+    # ES metrics
+    **(
+        {
+            f"[{format_cl(1-(1-cl)/2)}] {key}": []
+            for cl in CONFIDENCE_LEVELS
+            for key in es_metric_keys
         }
     ),
 }
@@ -782,6 +833,32 @@ for entry in preds_per_model:
         results[f"[{cl_str}] CC passes"].append(entry[f"cc_passes_{cl_str}"])
         results[f"[{cl_str}] CC fails"].append(entry[f"cc_fails_{cl_str}"])
         results[f"[{cl_str}] CC indeterminate"].append(entry[f"cc_nans_{cl_str}"])
+    for cl in CONFIDENCE_LEVELS:
+        es_alpha = 1 - (1 - cl) / 2
+        es_str = format_cl(es_alpha)
+        if entry.get(f"bayer_dimitriadis_{es_str}") is None:
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
+                np.nan
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
+                np.nan
+            )
+        else:
+            bd_test_result = entry[f"bayer_dimitriadis_{es_str}"]
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(
+                interpret_bayer_dimitriadis_stat(bd_test_result["p_value"])
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(
+                bd_test_result["p_value"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
+                bd_test_result["mean_z"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
+                bd_test_result["std_z"]
+            )
 
 
 results_df = pd.DataFrame(results)
@@ -829,7 +906,7 @@ for cl in CONFIDENCE_LEVELS:
     for chr_test in ["UC", "Ind", "CC"]:
         results_df.loc["Winner", f"[{cl_str}] Pooled {chr_test} p-value"] = results_df[
             f"[{cl_str}] Pooled {chr_test} p-value"
-        ].idxmin()
+        ].idxmax()
         results_df.loc["Winner", f"[{cl_str}] {chr_test} passes"] = results_df[
             f"[{cl_str}] {chr_test} passes"
         ].idxmax()
@@ -839,6 +916,14 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] UC pass pct"] = results_df[
         f"[{cl_str}] UC pass pct"
     ].idxmax()
+    es_alpha = 1 - (1 - cl) / 2
+    es_str = format_cl(es_alpha)
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis p-value"] = results_df[
+        f"[{es_str}] Bayer-Dimitriadis p-value"
+    ].idxmax()
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean violation"] = (
+        results_df[f"[{es_str}] Bayer-Dimitriadis mean violation"].abs().idxmin()
+    )
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
 results_df
@@ -865,6 +950,7 @@ for metric in results_df.index:
         "PICP Miss" in metric
         or "indeterminate" in metric
         or "pass?" in metric
+        or "violation SD" in metric
         # Temporarily remove CRPS from ranking because it is not available for all models
         or "CRPS" in metric
     ):
@@ -878,6 +964,10 @@ for metric in results_df.index:
         picp_target = float(cl_str) / 100
         key = (values - picp_target).abs()
         ascending = True  # lower difference is better
+    elif "mean violation" in metric:
+        # Rank by closeness to zero.
+        key = values.abs()
+        ascending = True
     elif any(
         s in metric
         for s in [
@@ -886,6 +976,7 @@ for metric in results_df.index:
             "Sign Accuracy",
             "p-value",
             "passes",
+            "pass pct",
         ]
     ):
         # For these, higher is better.
@@ -897,7 +988,6 @@ for metric in results_df.index:
         ascending = True
 
     # Compute the ranking; ties get the minimum rank.
-    print(metric, "lower is better" if ascending else "higher is better")
     rankings[metric] = key.rank(method="min", ascending=ascending)
 
 # Create a DataFrame of rankings with models as the index and metrics as columns.
@@ -1290,5 +1380,28 @@ for entry in preds_per_model:
     strat_results_df.loc[entry["name"]] = [mean_return, p_value, cumulative_return]
 
 strat_results_df
+
+# %%
+# Plot all expected shortfalls
+for cl in CONFIDENCE_LEVELS:
+    alpha = 1 - (1 - cl) / 2
+    es_estimates = []
+    model_names = []
+    for entry in preds_per_model:
+        key = f"ES_{format_cl(alpha)}"
+        vals = entry.get(key)
+        if vals is None:
+            continue
+        es_estimates.append(np.array(vals).reshape(-1, 1))
+        model_names.append(entry["name"])
+    if not es_estimates:
+        continue
+    es_df = pd.DataFrame(
+        np.hstack(es_estimates), index=df_validation.index, columns=model_names
+    )
+    for example_stock in ["AAPL", "WMT", "GS"]:
+        es_df.xs(example_stock, level="Symbol").plot(
+            title=f"Expected Shortfall ({cl * 100}%) for {example_stock}"
+        )
 
 # %%
