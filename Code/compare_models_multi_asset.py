@@ -143,6 +143,8 @@ for version in [
     # "crps-2",
     # "nll-crps-mix",
     3,
+    "basic",
+    "basic-w-tickers",
     "rv-data",
     "rv-data-2",
     "rv-data-3",

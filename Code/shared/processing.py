@@ -130,6 +130,10 @@ def get_lstm_train_test_new(
     include_fng=False,
     include_spx_data=False,
     include_returns=False,
+    include_industry=True,
+    include_garch=True,
+    include_beta=True,
+    include_others=True,
 ) -> ProcessedData:
     """
     Prepare data for LSTM
@@ -519,16 +523,27 @@ def get_lstm_train_test_new(
 
         # Stack returns and squared returns together
         market_feature_factor = beta_5y if multiply_by_beta else 1
-        data = np.hstack(
-            (
-                log_sq_returns,
-                sign_return,
-                next_day_trading_day,
-                # downside_log_var,
-                beta_5y,
-                beta_60d,
+
+        # Start out with an empty data array
+        data = np.zeros((len(group), 0))
+
+        if include_others:
+            data = np.hstack(
+                (
+                    log_sq_returns,
+                    sign_return,
+                    next_day_trading_day,
+                )
             )
-        )
+
+        if include_beta:
+            data = np.hstack(
+                (
+                    data,
+                    beta_5y,
+                    beta_60d,
+                )
+            )
 
         if include_returns:
             data = np.hstack(
@@ -592,25 +607,26 @@ def get_lstm_train_test_new(
                 )
 
             # 3) Estimate realized skewness and kurtosis
-            daily_good_var = (group["Good"].values / 100) / 252.0
-            daily_bad_var = (group["Bad"].values / 100) / 252.0
-            daily_rv = (group["RV"].values / 100) / 252.0
-            daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
-            daily_skew = (
-                (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
-            ).reshape(-1, 1)
-            daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
+            if include_others:
+                daily_good_var = (group["Good"].values / 100) / 252.0
+                daily_bad_var = (group["Bad"].values / 100) / 252.0
+                daily_rv = (group["RV"].values / 100) / 252.0
+                daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+                daily_skew = (
+                    (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
+                ).reshape(-1, 1)
+                daily_kurt = (daily_rq / (daily_rv**2 + 1e-12)).reshape(-1, 1)
 
-            data = np.hstack(
-                (
-                    data,
-                    daily_skew / 100,
-                    daily_kurt / 10,
+                data = np.hstack(
+                    (
+                        data,
+                        daily_skew / 100,
+                        daily_kurt / 10,
+                    )
                 )
-            )
 
-        # If we have GICS sectors, add them as a feature
-        if "IDY_CODE" in group.columns:
+        if include_industry and "IDY_CODE" in group.columns:
+            # If we have GICS sectors, add them as a feature
             num_sectors = 11  # There are 11 GICS sectors
             one_hot_sector = np.zeros((len(group), num_sectors))
             one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
@@ -618,7 +634,7 @@ def get_lstm_train_test_new(
 
         # If we have GARCH predictions, add them as a feature
         for garch_type in ["GARCH", "EGARCH"]:
-            if f"{garch_type}_Vol" in group.columns:
+            if include_garch and f"{garch_type}_Vol" in group.columns:
                 garch = group[f"{garch_type}_Vol"].values.reshape(-1, 1)
                 log_sq_garch = np.log(garch**2 + (0.1 / 100) ** 2)
                 garch_skewness = group[f"Skew_EWM_{garch_type}"].values.reshape(-1, 1)
@@ -638,6 +654,7 @@ def get_lstm_train_test_new(
             and "Low" in group.columns
             and not pd.isna(group["High"]).any()
             and not pd.isna(group["Low"]).any()
+            and include_others
         ):
             high_low_diff = (
                 (group["High"] - group["Low"]) / group["Close"]
@@ -1173,7 +1190,7 @@ def get_cgan_train_test():
 
 # %%
 # Define a helper that returns a DataFrame of skew and kurt for a given residual series
-def compute_ewm_skew_kurt(series: pd.Series, alpha=0.06, clip=10) -> pd.DataFrame:
+def compute_ewm_skew_kurt(series: pd.Series, alpha=0.06, clip=5) -> pd.DataFrame:
     """
     Compute exponentially weighted skewness and kurtosis for a given residual series.
 
