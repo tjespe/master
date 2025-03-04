@@ -193,7 +193,7 @@ for version in [
         print(f"LSTM MDN {version} predictions not found")
 
 # Transformer MDN
-for version in [3]:
+for version in [3, "time"]:
     try:
         transformer_df = pd.read_csv(
             f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
@@ -336,7 +336,7 @@ try:
     # same for Vol_SP
     combined_df["Vol_SP"] = 0
     # same for NLL
-    combined_df["nll"] = -3
+    combined_df["nll"] = np.nan
 
     preds_per_model.append(
         {
@@ -1094,6 +1094,9 @@ for metric in results_df.index:
 rankings_df = pd.DataFrame(rankings, index=model_cols).T
 # Change data type to integer
 rankings_df = rankings_df.astype(pd.Int64Dtype)
+# Fill nan values with the maximum rank
+rankings_df = rankings_df.fillna(rankings_df.max().max() + 1)
+# Add a row for the sum of ranks
 rankings_df.loc["Rank Sum"] = rankings_df.sum()
 rankings_df
 
