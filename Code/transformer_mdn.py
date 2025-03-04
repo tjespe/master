@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "time"
+VERSION = "time-2"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -19,20 +19,20 @@ INCLUDE_GARCH = True
 INCLUDE_BETA = True
 INCLUDE_OTHERS = True
 INCLUDE_TICKERS = True
-D_MODEL = 32
-HIDDEN_UNITS_FF = 32 * 4
+D_MODEL = 64
+HIDDEN_UNITS_FF = D_MODEL * 4
 N_MIXTURES = 10
 DROPOUT = 0.5
 L2_REGULARIZATION = 1e-5
 NUM_ENCODERS = 2
-NUM_HEADS = 4
+NUM_HEADS = 8
 D_TICKER_EMBEDDING = 4
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
-REDUCE_LR_PATIENCE = 8  # Patience before halving learning rate
-PATIENCE = 12  # Early stopping patience
+REDUCE_LR_PATIENCE = 5  # Patience before halving learning rate
+PATIENCE = 20  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
 
