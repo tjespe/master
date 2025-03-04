@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = 3
+VERSION = "time"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -19,20 +19,20 @@ INCLUDE_GARCH = True
 INCLUDE_BETA = True
 INCLUDE_OTHERS = True
 INCLUDE_TICKERS = True
-D_MODEL = 64
-HIDDEN_UNITS_FF = 256
+D_MODEL = 32
+HIDDEN_UNITS_FF = 32 * 4
 N_MIXTURES = 10
 DROPOUT = 0.5
 L2_REGULARIZATION = 1e-5
 NUM_ENCODERS = 2
-NUM_HEADS = 8
-EMBEDDING_DIMENSIONS = 4
+NUM_HEADS = 4
+D_TICKER_EMBEDDING = 4
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
-REDUCE_LR_PATIENCE = 4  # Patience before halving learning rate
-PATIENCE = 10  # Early stopping patience
+REDUCE_LR_PATIENCE = 8  # Patience before halving learning rate
+PATIENCE = 12  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
 
@@ -81,6 +81,7 @@ from tensorflow.keras.layers import (
     MultiHeadAttention,
     Concatenate,
     RepeatVector,
+    Lambda,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -91,16 +92,17 @@ warnings.filterwarnings("ignore")
 
 # %%
 # Load preprocessed data
-data = get_lstm_train_test_new(
-    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
-    include_returns=INCLUDE_RETURNS,
-    include_spx_data=INCLUDE_MARKET_FEATURES,
-    include_others=INCLUDE_OTHERS,
-    include_beta=INCLUDE_BETA,
-    include_fng=INCLUDE_FNG,
-    include_garch=INCLUDE_GARCH,
-    include_industry=INCLUDE_INDUSTRY,
-)
+if "data" not in dir() or input("Reload data? (y/N): ") == "y":
+    data = get_lstm_train_test_new(
+        multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+        include_returns=INCLUDE_RETURNS,
+        include_spx_data=INCLUDE_MARKET_FEATURES,
+        include_others=INCLUDE_OTHERS,
+        include_beta=INCLUDE_BETA,
+        include_fng=INCLUDE_FNG,
+        include_garch=INCLUDE_GARCH,
+        include_industry=INCLUDE_INDUSTRY,
+    )
 
 # %%
 # Garbage collection
@@ -139,6 +141,23 @@ def transformer_encoder(inputs):
 
 
 # %%
+def add_day_indices(tensor):
+    """
+    Adds day indices to sequential input.
+    tensor: shape (batch, LOOKBACK_DAYS, ?)
+    We'll create a new dimension with tf.range(LOOKBACK_DAYS) and concatenate it.
+    """
+    batch_size = tf.shape(tensor)[0]  # dynamic batch size
+    indices = tf.range(LOOKBACK_DAYS, dtype=tf.float32)  # shape=(LOOKBACK_DAYS,)
+    indices = tf.expand_dims(indices, axis=0)  # shape=(1, LOOKBACK_DAYS)
+    indices = tf.tile(indices, [batch_size, 1])  # shape=(batch, LOOKBACK_DAYS)
+    indices = tf.expand_dims(indices, axis=-1)  # shape=(batch, LOOKBACK_DAYS, 1)
+
+    # Concatenate to existing features: now we have one extra dimension for day index
+    return tf.concat([tensor, indices], axis=-1)
+
+
+# %%
 def build_transformer_mdn(
     num_features: int,
     ticker_ids_dim: Optional[int],
@@ -155,14 +174,16 @@ def build_transformer_mdn(
     # Ticker embedding
     ticker_embedding = Embedding(
         input_dim=ticker_ids_dim,  # Number of unique tickers
-        output_dim=EMBEDDING_DIMENSIONS,  # Size of the embedding vector
+        output_dim=D_TICKER_EMBEDDING,  # Size of the embedding vector
         name="ticker_embedding",
     )(ticker_inputs)
 
     # Expand and concatenate with input features
     ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
-
     x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
+
+    # Append day indices automatically via a Lambda layer
+    x = Lambda(add_day_indices)(x)
 
     # Project inputs to d_model
     x = Dense(D_MODEL, activation=None)(x)
