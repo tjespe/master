@@ -1120,6 +1120,7 @@ for test_name, key_prefix in [
         meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
         meta_df = meta_df.set_index("Symbol")
         unique_sectors = set()
+        pass_pct_key = f"sector_pass_pct_{format_cl(cl)}"
 
         passing_models = [
             entry for entry in preds_per_model if entry["name"] in results_df.columns
@@ -1145,16 +1146,16 @@ for test_name, key_prefix in [
             )
             pass_pct = passes / (passes + fails)
             pass_pct = pass_pct.sort_values()
-            entry["sector_pass_pct"] = pass_pct
+            entry[pass_pct_key] = pass_pct
             unique_sectors.update(passes.index)
 
         # Get the union of sectors from both datasets
         sectors = sorted(
             unique_sectors,
             key=lambda sector: sum(
-                entry["sector_pass_pct"].get(sector, 0)
+                entry[pass_pct_key].get(sector, 0)
                 for entry in passing_models
-                if entry["name"] != "GARCH"
+                if entry["name"] != "GARCH" and pass_pct_key in entry
             ),
         )
         y = np.arange(len(sectors))
@@ -1174,7 +1175,9 @@ for test_name, key_prefix in [
         plt.title(f"Pass Rate ({test_name} at {cl_str}% interval) by Sector")
 
         for i, entry in enumerate(passing_models):
-            pass_pct = entry["sector_pass_pct"].reindex(sectors, fill_value=0)
+            if pass_pct_key not in entry:
+                continue
+            pass_pct = entry[pass_pct_key].reindex(sectors, fill_value=0)
             plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
 
         plt.yticks(y, sectors)
@@ -1191,25 +1194,32 @@ for cl in CONFIDENCE_LEVELS:
     meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
     meta_df = meta_df.set_index("Symbol")
     unique_sectors = set()
+    coverage_key = f"sector_coverage_{format_cl(cl)}"
 
     for entry in passing_models:
+        if f"chr_results_df_{format_cl(cl)}" not in entry:
+            print("Missing Christoffersen results for", entry["name"], "at", cl)
+            continue
         chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
         chr_results_df = chr_results_df.join(meta_df, how="left")
         chr_results_df = chr_results_df.dropna(subset="all_pass")
-        entry["sector_coverage"] = (
+        entry[coverage_key] = (
             chr_results_df.groupby(sector_key)["Coverage"]
             .mean()
             .sort_values(ascending=False)
         )
-        unique_sectors.update(passes.index)
+        unique_sectors.update(entry[coverage_key].index)
 
     # Get the union of sectors from both datasets
+    if not unique_sectors:
+        print("Unique sectors is empty for", cl)
+        continue  # No passes
     sectors = sorted(
         unique_sectors,
         key=lambda sector: sum(
-            entry["sector_coverage"].get(sector, 0)
+            entry[coverage_key].get(sector, 0)
             for entry in passing_models
-            if entry["name"] != "GARCH"
+            if entry["name"] != "GARCH" and coverage_key in entry
         ),
     )
     y = np.arange(len(sectors))
@@ -1229,7 +1239,9 @@ for cl in CONFIDENCE_LEVELS:
     plt.title(f"PICP by Sector ({format_cl(cl)}%)")
 
     for i, entry in enumerate(passing_models):
-        pass_pct = entry["sector_coverage"].reindex(sectors, fill_value=0)
+        if coverage_key not in entry:
+            continue
+        pass_pct = entry[coverage_key].reindex(sectors, fill_value=0)
         plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
 
     x_from = cl - 0.15
@@ -1245,6 +1257,7 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Plot PICP for all the important tickers
+include_models = {"GARCH", "Transformer MDN time"}
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
         set(df_validation.index.get_level_values("Symbol")).intersection(
@@ -1254,19 +1267,29 @@ for cl in CONFIDENCE_LEVELS:
     y = np.arange(len(existing_tickers))
 
     plt.figure(figsize=(10, len(existing_tickers) * 0.5))
-    plt.title("PICP by ticker ({:.0f}% interval)".format(cl * 100))
-    x_from = cl - 0.05
-    x_to = cl + 0.05
+    plt.title(f"PICP by ticker ({format_cl(cl)}% interval)")
+    x_from = cl - 0.10
+    x_to = cl + 0.10
 
-    num_models = len(passing_models)
+    use_models = (
+        [entry for entry in passing_models if entry["name"] in include_models]
+        if include_models
+        else passing_models
+    )
+    num_models = len(use_models)
+    group_height = 0.8  # total vertical space for each sector's bars
+    bar_height = group_height / num_models
     offsets = np.linspace(
         -group_height / 2 + bar_height / 2,
         group_height / 2 - bar_height / 2,
         num_models,
     )
 
-    for i, entry in enumerate(passing_models):
-        chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
+    for i, entry in enumerate(use_models):
+        chr_key = f"chr_results_df_{format_cl(cl)}"
+        if chr_key not in entry:
+            continue
+        chr_results_df = entry[chr_key]
         chr_results_df = chr_results_df.loc[
             np.isin(chr_results_df.index.values, IMPORTANT_TICKERS)
         ]
@@ -1365,7 +1388,7 @@ p_value_df_crps
 
 # %%
 # Examine correlation between probability of increase and actual increase
-for entry in preds_per_model:
+for entry in passing_models:
     p_up = entry.get("p_up")
     if p_up is None:
         continue
@@ -1394,7 +1417,7 @@ for entry in preds_per_model:
 
 # %%
 # Examine correlation between predicted mean and actual return
-for entry in preds_per_model:
+for entry in passing_models:
     mean_pred = entry.get("mean_pred")
     if mean_pred is None or (mean_pred == 0).all():
         continue
@@ -1424,7 +1447,7 @@ for entry in preds_per_model:
 # %%
 # Test trading strategy: for every model that estimates p_up, buy the 10% of stocks with the highest p_up
 # and sell the 10% of stocks with the lowest p_up
-for entry in preds_per_model:
+for entry in passing_models:
     p_up = entry.get("p_up")
     if p_up is None:
         continue
@@ -1453,7 +1476,7 @@ strat_results_df = pd.DataFrame(
     columns=["Mean return", "p-value (H1: mean return > 0)", "Cumulative return"]
 )
 
-for entry in preds_per_model:
+for entry in passing_models:
     mean_pred = entry.get("mean_pred")
     if mean_pred is None or (mean_pred == 0).all():
         continue
@@ -1489,7 +1512,7 @@ for cl in CONFIDENCE_LEVELS:
     alpha = 1 - (1 - cl) / 2
     es_estimates = []
     model_names = []
-    for entry in preds_per_model:
+    for entry in passing_models:
         key = f"ES_{format_cl(alpha)}"
         vals = entry.get(key)
         if vals is None:
