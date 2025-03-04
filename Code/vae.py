@@ -3,7 +3,7 @@
 # %%
 # Define parameters
 from settings import LOOKBACK_DAYS, SUFFIX, DATA_PATH, TRAIN_VALIDATION_SPLIT, VALIDATION_TEST_SPLIT, TEST_ASSET
-MODEL_NAME = f"VAE_v1_{LOOKBACK_DAYS}_days{SUFFIX}"
+MODEL_NAME = f"cVAE_v1_{LOOKBACK_DAYS}_days{SUFFIX}"
 # %%
 # Import libraries
 import os
@@ -36,14 +36,15 @@ print("y_val shape:", y_val.shape)
 
 # %%
 LATENT_DIM = 16      # dimension of the latent variable z
-LSTM_UNITS_ENC = [32, 32]  # LSTM units for the encoder
-LSTM_UNITS_DEC = [32, 32]  # LSTM units for the decoder
+LSTM_UNITS_ENC = [32, 32, 32, 32]  # LSTM units for the encoder
+LSTM_UNITS_DEC = [32, 32, 32, 32]  # LSTM units for the decoder
+LSTM_UNITS_PRIOR = [32, 32,32, 32 ]  # LSTM units for the prior
 DENSE_UNITS = 32     # size of dense layer before producing z params
 EPOCHS = 100
 BATCH_SIZE = 128
 LEARNING_RATE = 1e-4
 TIME_STEPS = 30
-FEATURE_DIM = 36
+FEATURE_DIM = 39 # this has to be the number of features in the input data
 BETA = 10             # weight for the KL
 
 
@@ -82,6 +83,7 @@ def build_lstm_stack(
         )(x)
     return x
 
+#################################### ENCNNODER ####################################
 # %%
 # Define the encoder architecture
 # Encoder inputs
@@ -113,6 +115,7 @@ encoder = keras.Model(inputs=[encoder_input_x, encoder_input_y],
                       name="Encoder")
 encoder.summary()
 
+# ################################## DECODER ##################################
 # %%
 # Define the decoder architecture
 # Decoder Inputs:
@@ -154,8 +157,31 @@ decoder = keras.Model(inputs=[decoder_input_x, decoder_input_z],
                       name="Decoder")
 decoder.summary()
 
+####################################### CONDITIONAL PRIOR #######################################
+# %%
+# 1) Input for the prior network
+prior_input_x = keras.Input(shape=(TIME_STEPS, FEATURE_DIM), name="prior_input_x")
 
+# 2) You can reuse your existing build_lstm_stack(...) if you like:
+h_prior = build_lstm_stack(
+    input_tensor=prior_input_x,
+    lstm_units_list=LSTM_UNITS_PRIOR,  # or some other config
+    name_prefix="prior",
+    final_return_sequences=False
+)
 
+# 3) Dense layer for final aggregator
+h_prior = layers.Dense(DENSE_UNITS, activation="relu", name="prior_dense")(h_prior)
+
+# 4) Produce z_mean_prior and z_log_var_prior
+z_mean_prior = layers.Dense(LATENT_DIM, name="z_mean_prior")(h_prior)
+z_log_var_prior = layers.Dense(LATENT_DIM, name="z_log_var_prior")(h_prior)
+
+# Build the prior model
+prior_model = keras.Model(inputs=prior_input_x,
+                          outputs=[z_mean_prior, z_log_var_prior],
+                          name="ConditionalPrior")
+prior_model.summary()
 # %% 
 # Define the sampling layer
 class Sampling(layers.Layer):
@@ -168,38 +194,52 @@ class Sampling(layers.Layer):
 # %%
 # Define the VAE as a Model 
 class CVAE(keras.Model):
-    def __init__(self, encoder, decoder, **kwargs):
+    def __init__(self, encoder, decoder, prior_model, **kwargs):
         super().__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
+        self.prior_model = prior_model  # p(z | x)
         self.sampling = Sampling()
     
     def call(self, inputs, training=False):
         # inputs is [X, y]
         x, y = inputs 
-        z_mean, z_log_var = self.encoder([x, y], training=training)
-        z = self.sampling([z_mean, z_log_var])
+        z_mean_q, z_log_var_q = self.encoder([x, y], training=training)
+        z = self.sampling([z_mean_q, z_log_var_q])
         y_mean, y_log_var = self.decoder([x, z], training=training)
-        return z_mean, z_log_var, y_mean, y_log_var
+        return z_mean_q, z_log_var_q, y_mean, y_log_var
     
     def compute_losses(self, x_batch, y_batch, training):
         """Compute total_loss, recon_loss, kl_loss given a batch."""
-        z_mean, z_log_var, y_mean, y_log_var = self((x_batch, y_batch), training=training)
 
-        # 1) Reconstruction loss: -log p(y|z, X) (Gaussian assumption)
+        #1) Forward pass
+        z_mean_q, z_log_var_q, y_mean, y_log_var = self((x_batch, y_batch), training=training)
+
+        # 2) Reconstruction loss: -log p(y|z, X) (Gaussian assumption)
         var = K.exp(y_log_var)  # shape (batch_size, 1)
         recon_loss = 0.5 * (y_log_var + K.square(y_batch - y_mean) / (var + 1e-8))
         recon_loss = K.mean(recon_loss)  # average over the batch
 
-        # 2) KL divergence: q(z|x,y) vs. p(z)=N(0,I)
-        kl_loss = -0.5 * K.sum(
-            1 + z_log_var - K.square(z_mean) - K.exp(z_log_var),
-            axis=1
-        )
-        kl_loss = K.mean(kl_loss)
+        # 3) Get the prior distribution p(z|x)
+        z_mean_p, z_log_var_p = self.prior_model(x_batch, training=training)
 
-        total_loss = recon_loss + kl_loss
+        # 2) KL divergence: D_kl( Normal(q_mu, q_var) || Normal(p_mu, p_var) ) per sample
+        q_var = K.exp(z_log_var_q)
+        p_var = K.exp(z_log_var_p)
+
+        kl_per_dim = 0.5 * (
+            z_log_var_p - z_log_var_q
+            + (q_var + K.square(z_mean_q - z_mean_p)) / (p_var + 1e-8)
+            - 1.
+        )
+        # sum across latent dim
+        kl_per_sample = K.sum(kl_per_dim, axis=1)
+        # average across batch
+        kl_loss = K.mean(kl_per_sample)
+        # 5) Combine losses
+        total_loss = recon_loss + BETA * kl_loss
         return total_loss, recon_loss, kl_loss
+        
     
     def train_step(self, data):
         """
@@ -239,7 +279,7 @@ class CVAE(keras.Model):
 
 # %%
 # Instantiate the cVAE with the LSTM encoder and decoder
-cvae = CVAE(encoder=encoder, decoder=decoder)
+cvae = CVAE(encoder=encoder, decoder=decoder, prior_model=prior_model)
 
 # Optimizer
 optimizer = keras.optimizers.Adam(learning_rate=LEARNING_RATE)
@@ -289,33 +329,43 @@ plt.legend()
 plt.show()
 # %% 
 # Function to sample based on the learned prior
-def sample_y_distribution(cvae, X_new, num_samples=100):
+def sample_y_distribution_cVAE(cvae, X_new, num_samples=100):
     """
     Generate multiple plausible y samples given X_new by sampling z from the prior.
     """
     # X_new shape => (30,36) for a single sample
     X_new = np.expand_dims(X_new, axis=0).astype("float32")  # (1, 30, 36)
-    
-    z_dim = LATENT_DIM
-    y_samples = []
-    for _ in range(num_samples):
-        # Sample z from N(0,I)
-        z_sample = np.random.normal(size=(1, z_dim)).astype("float32")
-        
-        # Pass to decoder
-        y_mean, y_log_var = cvae.decoder([X_new, z_sample], training=False)
-        
-        # Convert to numpy
-        mean_val = y_mean.numpy()[0, 0]
-        log_var_val = y_log_var.numpy()[0, 0]
-        std_val = np.exp(0.5 * log_var_val)
-        
-        # Sample from that Gaussian
-        y_samp = np.random.normal(loc=mean_val, scale=std_val)
-        y_samples.append(y_samp)
-        
-    return np.array(y_samples)
 
+    # 1) Get prior parameters from cVAE.prior_model
+    z_mean_prior, z_log_var_prior = cvae.prior_model(X_new, training=False)
+    z_mean_prior = z_mean_prior.numpy()[0]      # shape (LATENT_DIM,)
+    z_log_var_prior = z_log_var_prior.numpy()[0] # shape (LATENT_DIM,)
+
+    # 2) Sample multiple z from that Gaussian
+    z_samples = []
+    for _ in range(num_samples):
+        eps = np.random.normal(size=z_mean_prior.shape)
+        z = z_mean_prior + np.exp(0.5 * z_log_var_prior) * eps
+        z_samples.append(z)
+    z_samples = np.array(z_samples).astype("float32")  # shape (num_samples, LATENT_DIM)
+
+    # 3) Pass each z (plus X_new) to decoder
+    X_tiled = np.repeat(X_new, repeats=num_samples, axis=0) # (num_samples, TIME_STEPS, FEATURE_DIM)
+    y_mean, y_log_var = cvae.decoder([X_tiled, z_samples], training=False)
+    y_mean = y_mean.numpy().ravel()
+    y_log_var = y_log_var.numpy().ravel()
+    
+    # 4) For each sample, we can either take the mean or sample from the predicted Gaussian (CURRENTLY WE THUS ASSUME Y GAUSSIAN, THIS IS NOT NON-PARAMETRIC)
+    y_draws = []
+    for i in range(num_samples):
+        mean_i = y_mean[i]
+        log_var_i = y_log_var[i]
+        std_i = np.exp(0.5 * log_var_i)
+        # sample
+        y_i = np.random.normal(loc=mean_i, scale=std_i)
+        y_draws.append(y_i)
+
+    return np.array(y_draws)
 
 # %%
 # Defining stuff for printing
@@ -325,7 +375,7 @@ example_tickers = ["AAPL", "GS", "WMT"]
 # Try to predict the next day's return for a sample
 sample_idx = 0
 X_sample = X_val[sample_idx]
-samples = sample_y_distribution(cvae, X_sample, num_samples=1000)
+samples = sample_y_distribution_cVAE(cvae, X_sample, num_samples=1000)
 mean_est = np.mean(samples)
 std_est = np.std(samples)
 lower_95 = np.percentile(samples, 2.5)
@@ -347,7 +397,7 @@ for ticker in example_tickers:
     for idx in random_indices:
         specific_sample = X_val[idx]  # Select a random test sample
         actual_return = y_val[idx].item()  # Actual next-day return
-        samples = sample_y_distribution(cvae, specific_sample, num_samples=1000)
+        samples = sample_y_distribution_cVAE(cvae, specific_sample, num_samples=1000)
         pred_mean = np.mean(samples)
         print(f"Ticker: {ticker}, Actual Return: {actual_return:.4f}, Predicted Mean: {pred_mean:.4f}")
 
@@ -381,96 +431,147 @@ for ticker in example_tickers:
         plt.legend()
         plt.show()
 
+
 # %%
 # Save the model
-# cvae.save(f"models/{MODEL_NAME}")
+cvae.save(f"models/{MODEL_NAME}.keras")
 
 # %%
 # Predict the conditional distribution for every sample in the validation set
-# This will take a while
 
-# Define helper function for vectorized prediction
-def predict_distributions_vectorized(
+# Function to predict the entire validation set
+def predict_entire_val_set(cvae, X_val, n_draws=100):
+    """
+    Use the 'sample_y_distribution_cVAE' function on each item of X_val
+    to get a distribution of y-values. Returns an array of shape (n_val, n_draws).
+    
+    Args:
+        cvae: a trained cVAE model (with prior_model)
+        X_val: shape (n_val, TIME_STEPS, FEATURE_DIM)
+        n_draws: number of samples to draw per X_val[i]
+
+    Returns:
+        y_samples_2d: shape (n_val, n_draws), where each row i
+                      is the set of y-draws for X_val[i].
+    """
+    n_val = X_val.shape[0]
+    y_samples_2d = np.empty((n_val, n_draws), dtype=np.float32)
+
+    # Loop over each sample in X_val
+    for i in tqdm(range(n_val), desc="Predicting entire validation set"):
+        X_single = X_val[i]  # shape (TIME_STEPS, FEATURE_DIM)
+        # Use your sampling function
+        y_draws = sample_y_distribution_cVAE(cvae, X_single, num_samples=n_draws)
+        # Store the results in one row
+        y_samples_2d[i, :] = y_draws
+
+    return y_samples_2d
+
+# VECTORIZED VERSION
+def predict_distributions_vectorized_with_prior_draws(
     cvae,
     X_val,
     n_draws=100,
-    chunk_size=20000
+    chunk_size=2000
 ):
     """
-    Vectorized approach to sample multiple draws from the learned distribution 
-    for each sample in X_val.
+    Vectorized approach that uses the LEARNED PRIOR MODEL to sample z for each X,
+    then decodes, and FINALLY samples from the predicted Gaussian to get actual y draws.
     
     Args:
-        cvae: your trained cVAE model
-        X_val: shape (n_val, 30, 36)  # the validation features
-        n_draws: number of samples (z draws) per X
-        chunk_size: how many (X, z) pairs to process at once to avoid OOM.
+        cvae: your trained cVAE model, which has:
+              - cvae.prior_model(x) => (z_mean_p, z_log_var_p)
+              - cvae.decoder([x_tiled, z_samples_flat])
+        X_val: shape (n_val, TIME_STEPS, FEATURE_DIM)
+        n_draws: number of final draws (z -> decode -> y) per X
+        chunk_size: how many X_val items to process at once (to limit memory usage)
     
     Returns:
-        y_samples_2d: shape (n_val, n_draws) with the drawn y-values
-        y_mean_2d: shape (n_val, n_draws) predicted means
-        y_log_var_2d: shape (n_val, n_draws) predicted log-variance
+        y_draws_2d:  shape (n_val, n_draws), each row i are the n_draws final samples
+                     from p(y|x_i).
+        y_mean_2d:   shape (n_val, n_draws), raw predicted means from the decoder
+        y_log_var_2d: shape (n_val, n_draws), raw log-variances from the decoder
     """
     n_val = X_val.shape[0]
-    LATENT_DIM = cvae.decoder.input_shape[1][1]  # or just set = 16 if you know it
+    latent_dim = cvae.decoder.input_shape[1][1]  # or known from your code
+    y_draws_2d = np.empty((n_val, n_draws), dtype=np.float32)
+    y_means_big = np.empty((n_val * n_draws,), dtype=np.float32)
+    y_log_vars_big = np.empty((n_val * n_draws,), dtype=np.float32)
 
-    # 1) Sample z for each X_val, shape (n_val, n_draws, latent_dim)
-    Z = np.random.normal(size=(n_val, n_draws, LATENT_DIM)).astype("float32")
+    current_position = 0
+    
+    start_idx = 0
+    # implement tqdm progress bar
 
-    # 2) Tile X_val => (n_val, n_draws, 30, 36)
-    # So each sample i has n_draws copies
-    X_val_tiled = np.repeat(X_val[:, np.newaxis], repeats=n_draws, axis=1)
+    with tqdm(total=n_val, desc="Predicting entire validation set") as pbar:
 
-    # Flatten => (n_val*n_draws, 30,36), Z => (n_val*n_draws, latent_dim)
-    X_val_big = X_val_tiled.reshape(-1, X_val.shape[1], X_val.shape[2])
-    Z_big = Z.reshape(-1, LATENT_DIM)
-    total_pairs = X_val_big.shape[0]  # = n_val*n_draws
+        while start_idx < n_val:
+            end_idx = min(start_idx + chunk_size, n_val)
+            X_chunk = X_val[start_idx:end_idx]  # shape (B, TIME_STEPS, FEATURE_DIM)
+            B = X_chunk.shape[0]
 
-    # We'll store decoder outputs in big arrays
-    y_mean_big = np.empty((total_pairs,), dtype=np.float32)
-    y_log_var_big = np.empty((total_pairs,), dtype=np.float32)
+            # --- 1) PRIOR p(z|x) -> means and log_vars for each sample in chunk
+            z_mean_p, z_log_var_p = cvae.prior_model(X_chunk, training=False)
+            z_mean_p = z_mean_p.numpy()         # shape (B, latent_dim)
+            z_log_var_p = z_log_var_p.numpy()   # shape (B, latent_dim)
 
-    # 3) We can do inference in chunks to avoid memory issues
-    start = 0
-    while start < total_pairs:
-        end = min(start + chunk_size, total_pairs)
-        X_chunk = X_val_big[start:end]
-        Z_chunk = Z_big[start:end]
-        
-        # Forward pass in one batch
-        y_mean_chunk, y_log_var_chunk = cvae.decoder([X_chunk, Z_chunk], training=False)
-        y_mean_chunk = y_mean_chunk.numpy().ravel()
-        y_log_var_chunk = y_log_var_chunk.numpy().ravel()
+            # --- 2) For each x_i in chunk, sample n_draws for z
+            eps_z = np.random.normal(size=(B, n_draws, latent_dim)).astype(np.float32)
+            z_std_p = np.exp(0.5 * z_log_var_p)  # shape (B, latent_dim)
+            # Expand dims so shape => (B, 1, latent_dim)
+            z_std_p = np.expand_dims(z_std_p, axis=1)
+            z_mean_p = np.expand_dims(z_mean_p, axis=1)
 
-        # Store
-        y_mean_big[start:end] = y_mean_chunk
-        y_log_var_big[start:end] = y_log_var_chunk
+            # shape => (B, n_draws, latent_dim)
+            z_samples = z_mean_p + z_std_p * eps_z
 
-        start = end
+            # Flatten => (B * n_draws, latent_dim)
+            z_samples_flat = z_samples.reshape(-1, latent_dim)
 
-    # Reshape => (n_val, n_draws)
-    y_mean_2d = y_mean_big.reshape(n_val, n_draws)
-    y_log_var_2d = y_log_var_big.reshape(n_val, n_draws)
+            # --- 3) Also tile X_chunk
+            # shape => (B*n_draws, TIME_STEPS, FEATURE_DIM)
+            X_chunk_expanded = np.repeat(X_chunk, repeats=n_draws, axis=0)
 
-    # 4) Sample from each distribution in one go
-    eps = np.random.normal(size=(n_val, n_draws)).astype("float32")
+            # --- 4) Decode => (y_mean, y_log_var)
+            y_mean_chunk, y_log_var_chunk = cvae.decoder([X_chunk_expanded, z_samples_flat], training=False)
+            # shape => (B*n_draws, 1)
+            y_mean_chunk = y_mean_chunk.numpy().ravel()
+            y_log_var_chunk = y_log_var_chunk.numpy().ravel()
+
+            # Store them in big arrays
+            batch_size_times_draws = B * n_draws
+            y_means_big[current_position : current_position + batch_size_times_draws] = y_mean_chunk
+            y_log_vars_big[current_position : current_position + batch_size_times_draws] = y_log_var_chunk
+
+            current_position += batch_size_times_draws
+            start_idx = end_idx
+
+            pbar.update(B)
+
+    # --- Reshape to (n_val, n_draws)
+    y_mean_2d = y_means_big.reshape(n_val, n_draws)
+    y_log_var_2d = y_log_vars_big.reshape(n_val, n_draws)
+
+    # --- 5) Final sample from Gaussian for each cell
+    eps_y = np.random.normal(size=(n_val, n_draws)).astype(np.float32)
     std_2d = np.exp(0.5 * y_log_var_2d)
-    y_samples_2d = y_mean_2d + std_2d * eps
+    y_draws_2d = y_mean_2d + std_2d * eps_y  # shape (n_val, n_draws)
 
-    return y_samples_2d, y_mean_2d, y_log_var_2d
+    return y_draws_2d, y_mean_2d, y_log_var_2d
 
 # %%
 # Predict the distributions
 # 1) Vectorized distribution forecast:
 n_draws = 100
-y_samples_2d, y_mean_2d, y_log_var_2d = predict_distributions_vectorized(
+chunk_size = 2000
+y_samples_2d, y_mean_2d, y_log_var_2d = predict_distributions_vectorized_with_prior_draws(
     cvae,
     X_val,        # shape (n_val, 30, 36)
     n_draws=n_draws,
-    chunk_size=20000
+    chunk_size=chunk_size
 )
 # y_samples_2d shape => (n_val, n_draws)
-
+# %%
 # 2) Compute your desired stats
 confidence_levels = [0, 0.5, 0.67, 0.90, 0.95, 0.975, 0.99]
 intervals = np.zeros((len(y_val), len(confidence_levels), 2), dtype=np.float32)
@@ -566,6 +667,49 @@ for ticker in example_tickers:
     plt.title(f"Predicted Return Series for {ticker} (Last 100 Time Steps)")
     plt.legend()
     plt.show()
+
+# %%
+# Plotting example distributions for 5 random days for example tickers
+
+for ticker in example_tickers:
+    from_idx, to_idx = all_data.validation.get_range(ticker)
+    random_indices = np.random.choice(range(from_idx, to_idx), 5)
+    for idx in random_indices:
+        specific_sample = X_val[idx]  # Select a random test sample
+        actual_return = y_val[idx].item()  # Actual next-day return
+        samples = sample_y_distribution_cVAE(cvae, specific_sample, num_samples=1000)
+        pred_mean = np.mean(samples)
+        print(f"Ticker: {ticker}, Actual Return: {actual_return:.4f}, Predicted Mean: {pred_mean:.4f}")
+
+        # Plot KDE with proper empirical representation
+        plt.figure(figsize=(8, 4))
+        sns.kdeplot(
+            samples,
+            bw_adjust=0.5,  # Adjust bandwidth for smoothing; lower values make it follow the data more closely
+            fill=True,
+            alpha=0.6,
+            label="Predicted Distribution",
+        )
+        
+        # Add vertical lines for actual and predicted return
+        plt.axvline(
+            pred_mean,
+            color="blue",
+            linestyle="dashed",
+            linewidth=2,
+            label="Predicted Mean",
+        )
+        plt.axvline(
+            actual_return,
+            color="red",
+            linestyle="solid",
+            linewidth=2,
+            label="Actual Return",
+        )
+
+        plt.title(f"Predicted Return Distribution for {ticker} Test Point {idx}")
+        plt.legend()
+        plt.show()
 
 
 # %%
