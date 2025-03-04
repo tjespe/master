@@ -192,6 +192,53 @@ for version in [
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
+# Transformer MDN
+for version in [3]:
+    try:
+        transformer_df = pd.read_csv(
+            f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
+        )
+        transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
+        transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
+        transformer_df = transformer_df.set_index(["Date", "Symbol"])
+        transformer_dates = transformer_df.index.get_level_values("Date")
+        transformer_df = transformer_df[
+            (transformer_dates >= TRAIN_VALIDATION_SPLIT)
+            & (transformer_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(
+            transformer_df, how="left", rsuffix="_Transformer_MDN"
+        )
+        entry = {
+            "name": f"Transformer MDN {version}",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "crps": (
+                crps.values if (crps := combined_df.get("CRPS")) is not None else None
+            ),
+            "p_up": combined_df.get("Prob_Increase"),
+        }
+        for cl in CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(
+                    f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
+                )
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = 1 - (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"Transformer MDN {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"Transformer MDN {version} predictions not found")
+
+
 # LSTM MAF
 for version in ["v2", "v3", "v4"]:
     try:
