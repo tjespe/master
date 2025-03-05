@@ -5,31 +5,36 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "time-2"
+VERSION = "mini"
+
+# Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
 SIGMA_PENALTY = False
-INCLUDE_MARKET_FEATURES = True
-INCLUDE_RETURNS = True
+INCLUDE_MARKET_FEATURES = False
+INCLUDE_RETURNS = False
 INCLUDE_FNG = False
-INCLUDE_RETURNS = True
+INCLUDE_RETURNS = False
 INCLUDE_INDUSTRY = False
-INCLUDE_GARCH = True
-INCLUDE_BETA = True
-INCLUDE_OTHERS = True
+INCLUDE_GARCH = False
+INCLUDE_BETA = False
+INCLUDE_OTHERS = False
 INCLUDE_TICKERS = True
-D_MODEL = 64
+
+# Model architecture
+D_MODEL = 32
 HIDDEN_UNITS_FF = D_MODEL * 4
 N_MIXTURES = 10
 DROPOUT = 0.5
 L2_REGULARIZATION = 1e-5
 NUM_ENCODERS = 2
-NUM_HEADS = 8
+NUM_HEADS = 4
 D_TICKER_EMBEDDING = 4
+
+# Meta
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
-# %%
 # Settings for training
 REDUCE_LR_PATIENCE = 5  # Patience before halving learning rate
 PATIENCE = 20  # Early stopping patience
@@ -169,18 +174,24 @@ def build_transformer_mdn(
     """
     # Input layers
     feature_inputs = Input(shape=(LOOKBACK_DAYS, num_features), name="feature_inputs")
-    ticker_inputs = Input(shape=(), dtype=tf.int32, name="ticker_inputs")  # Scalar ID
 
-    # Ticker embedding
-    ticker_embedding = Embedding(
-        input_dim=ticker_ids_dim,  # Number of unique tickers
-        output_dim=D_TICKER_EMBEDDING,  # Size of the embedding vector
-        name="ticker_embedding",
-    )(ticker_inputs)
+    if ticker_ids_dim is not None:
+        ticker_inputs = Input(
+            shape=(), dtype=tf.int32, name="ticker_inputs"
+        )  # Scalar ID
 
-    # Expand and concatenate with input features
-    ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
-    x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
+        # Ticker embedding
+        ticker_embedding = Embedding(
+            input_dim=ticker_ids_dim,  # Number of unique tickers
+            output_dim=D_TICKER_EMBEDDING,  # Size of the embedding vector
+            name="ticker_embedding",
+        )(ticker_inputs)
+
+        # Expand and concatenate with input features
+        ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
+        x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
+    else:
+        x = feature_inputs
 
     # Append day indices automatically via a Lambda layer
     x = Lambda(add_day_indices)(x)
@@ -208,7 +219,14 @@ def build_transformer_mdn(
         bias_initializer=mdn_bias_init,
     )(x)
 
-    model = Model(inputs=[feature_inputs, ticker_inputs], outputs=mdn_output)
+    model = Model(
+        inputs=(
+            [feature_inputs, ticker_inputs]
+            if ticker_ids_dim is not None
+            else feature_inputs
+        ),
+        outputs=mdn_output,
+    )
     return model
 
 
@@ -370,7 +388,7 @@ if already_trained:
 
 # %%
 # Define learning rate and callbacks once
-optimizer = Adam(learning_rate=3e-4, weight_decay=1e-2)
+optimizer = Adam(learning_rate=5e-5, weight_decay=1e-2)
 transformer_model.compile(
     optimizer=optimizer,
     loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
