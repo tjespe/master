@@ -198,6 +198,7 @@ for version in [
     3,
     "time",
     # "time-2",
+    "mini",
 ]:
     try:
         transformer_df = pd.read_csv(
