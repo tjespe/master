@@ -339,8 +339,8 @@ if __name__ == "__main__":
     )
 
     # Optimize
-    n_trials = 20  # set how many trials you want
-    study.optimize(objective, n_trials=n_trials)
+    n_trials = 100  # set how many trials you want
+    study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
     best_trial = study.best_trial
