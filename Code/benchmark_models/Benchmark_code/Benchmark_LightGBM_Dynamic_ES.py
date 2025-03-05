@@ -8,10 +8,27 @@
 # =============================================================================
 # 1 Functions
 # =============================================================================
-""""Adjust "suffixes_to_drop = [".1", ".2", "True Brent Returns", 'Date']" in "sort_columns_descending"""
 
+import numpy as np
+import os
+import sys
 import pandas as pd
-run_models= []
+from sklearn.calibration import LabelEncoder
+import tqdm
+import lightgbm as lgb
+import matplotlib.pyplot as plt
+from lightgbm import LGBMRegressor
+from lightgbm.callback import early_stopping
+from sklearn.model_selection import train_test_split
+from joblib import Parallel, delayed  # For parallel processing
+
+
+# %%
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'shared')))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+from processing import get_lstm_train_test_new
+
 
 # ES quantiles of interest
 ES_quantiles = [0.01, 0.025, 0.05, 0.95, 0.975, 0.99]
@@ -41,32 +58,6 @@ def remove_suffix(input_string, suffix):
     if input_string.startswith(suffix):
         return input_string[len(suffix):]
     return input_string
-
-# Function to sort columns in correct order
-def sort_columns_descending(df):
-
-    # Remove suffixes from column names
-    df1 = df
-    # Specify the list of suffixes you want to filter out
-    suffixes_to_drop = [".1", ".2", "True Brent Returns", 'Date']  # Add more suffixes as needed
-
-    # Filter out columns ending with the specified suffixes
-    columns_to_drop = [col for col in df1.columns if any(col.endswith(suffix) for suffix in suffixes_to_drop)]
-
-    # Drop the filtered columns
-    df1 = df1.drop(columns=columns_to_drop)
-
-    #columns_to_sort = [col for col in df.columns if not (col.endswith(".1") or col.endswith(".2"))]
-    columns_to_sort = set(df1.columns)
-
-    # Sort the selected columns in descending order based on their numeric values
-    sorted_columns = sorted(columns_to_sort, key=lambda x: float(x.split('_')[-1]), reverse=True)
-
-    # Create a list of all columns, including the last two
-    #all_columns = sorted_columns + df.columns[-2:].tolist()
-
-    # Return the DataFrame with the columns sorted
-    return df1[sorted_columns]
 
 
 # Function to ensure no quantile crossing
@@ -129,24 +120,89 @@ def ensure_non_crossing(df):
 
     return df
 
-# Update the columns in df2 by overwriting using the corresponding value from df1
-def overwrite_columns(df1, df2):
-    # Get the column names to be overwritten (excluding the last two columns)
-    df2.columns = [col.rstrip(".1") if col.endswith(".1") else col for col in df2.columns]
-    df2.columns = [col.rstrip(".2") if col.endswith(".2") else col for col in df2.columns]
-    columns_to_overwrite = df2.columns[:-2]
+#Function to get a df from the preprocessed data
+def combine_processed_data_into_df(window_size=1500):
+    data = get_lstm_train_test_new(multiply_by_beta=False, include_fng=False, include_spx_data=False, include_returns=True)
 
-    # Iterate over the columns to be overwritten
-    for column in columns_to_overwrite:
-        # Check if the column exists in df2
-        if column in df2.columns:
-            # Overwrite the corresponding column in df2 with the column from df1
-            df2[column] = df1[column]
-        else:
-            print(f"Column '{column}' not found in DataFrame 2. Skipped.")
+    # load data anf covert to sensibe format
+    X_train = data.train.X
+    y_train = data.train.y
+    X_val = data.validation.X
+    y_val = data.validation.y
+    tickers_train = data.train.tickers
+    tickers_val = data.validation.tickers
+    dates_train = data.train.dates
+    dates_val = data.validation.dates
 
-    return df2
+    print()
+    print("Shapes after loading data:")
+    print("X_train shape: ", X_train.shape)
+    print("y_train shape: ", y_train.shape)
+    print("X_val shape: ", X_val.shape)
+    print("y_val shape: ", y_val.shape)
+    print("tickers_train shape: ", tickers_train.shape)
+    print("tickers_val shape: ", tickers_val.shape)
+    print("dates_train shape: ", dates_train.shape)
+    print("dates_val shape: ", dates_val.shape)
 
+    # Changing shape to not take in lags as features
+    X_train = X_train[:, -1, : ]
+    X_val = X_val[:, -1, : ]
+    # remove all elements from X_train and Y_train except the last window_size entries
+    X_train = X_train[-window_size:]
+    y_train = y_train[-window_size:]
+    tickers_train = tickers_train[-window_size:]
+    dates_train = dates_train[-window_size:]
+
+    # print the shapes of the data
+    print()
+    print("Shapes after changing:")
+    print("X_train shape: ", X_train.shape)
+    print("y_train shape: ", y_train.shape)
+    print("X_val shape: ", X_val.shape)
+    print("y_val shape: ", y_val.shape)
+    print("tickers_train shape: ", tickers_train.shape)
+    print("tickers_val shape: ", tickers_val.shape)
+    print("dates_train shape: ", dates_train.shape)
+    print("dates_val shape: ", dates_val.shape)
+
+    X_all = np.concatenate((X_train, X_val), axis=0)
+    y_all = np.concatenate((y_train, y_val), axis=0)
+    tickers_all = np.concatenate((tickers_train, tickers_val), axis=0)
+    dates_all = np.concatenate((dates_train, dates_val), axis=0)
+
+    # print the shapes of the data
+    print()
+    print("Final shapes:")
+    print("X_all shape: ", X_all.shape)
+    print("y_all shape: ", y_all.shape)
+    print("tickers_all shape: ", tickers_all.shape)
+    print("dates_all shape: ", dates_all.shape)
+
+    
+    
+
+    # Build a DataFrame
+    feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
+    df_big = pd.DataFrame(X_all, columns=feat_cols)
+    df_big["Date"] = dates_all
+    df_big["Symbol"] = tickers_all
+    df_big["TrueY"] = y_all
+
+    # Sort by date, then ticker
+    df_big.sort_values(by=["Date", "Symbol"], inplace=True)
+    
+    #MIGHT HAVE TO CHANGE THIS TO CATEGORICAL ENCODING
+
+    # Encode Ticker as categorical (LabelEncoder) or leave as string category
+    le = LabelEncoder()
+    le.fit(df_big["Symbol"])
+    df_big["Ticker_Cat"] = le.transform(df_big["Symbol"])
+
+    # Return the big DF plus some info about which columns to use as features
+    feature_cols = feat_cols + ["Ticker_Cat"]  #
+    cat_feature_index = [len(feature_cols) - 1]  # Ticker_Cat is last => cat col
+    return df_big, feature_cols, cat_feature_index
 
 
 # %%
@@ -155,14 +211,7 @@ def overwrite_columns(df1, df2):
 # =============================================================================
 """Adjust hyperparameters in "train_and_predict_..." as needed (not necessary)"""
 
-import pandas as pd
-import numpy as np
-import lightgbm as lgb
-import matplotlib.pyplot as plt
-from lightgbm import LGBMRegressor
-from lightgbm.callback import early_stopping
-from sklearn.model_selection import train_test_split
-from joblib import Parallel, delayed  # For parallel processing
+
 
 def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha):
     """Trains an LGBMRegressor model for a specific quantile and predicts on test data."""
@@ -175,7 +224,8 @@ def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha
         n_estimators=600,
         boosting_type='gbdt',
         lambda_l2=1,
-        random_state=72
+        random_state=72,
+        categorical_feature='auto',
     )
 
     model.fit(
@@ -183,154 +233,125 @@ def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha
         eval_set=[(X_val, y_val)],
         callbacks=[early_stopping(stopping_rounds=50, verbose=False)]
     )
-    return model.predict(X_test)[0]
+    return model.predict(X_test)
 
-def run_quantile_regression_rolling_window(file_path, sheet_name, date_column, target_column, feature_columns):
-    """Performs quantile regression with LightGBM using a rolling window approach.
+def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
+                                           feature_cols: list,
+                                           window_size: 1500,
+                                           horizon: 1,
+                                           step: 1,
+                                           quantiles = quantiles):
+    
 
-    Args:
-        file_path (str): Path to the Excel file containing the data.
-        sheet_name (str): Name of the sheet in the Excel file.
-        date_column (str): Name of the column containing dates.
-        target_column (str): Name of the column to be predicted (the target variable).
-        feature_columns (list): List of column names to be used as features.
-    """
+    # 1) Gather the sorted unique dates
+    unique_dates = df_big["Date"].sort_values().unique()
 
-    window_size=1500
-    prediction_horizon=1
-
-    df = pd.read_excel(file_path, sheet_name=sheet_name)
-    df[date_column] = pd.to_datetime(df[date_column], format='%Y%m%d')
-    df = df.sort_values(by=date_column)
-    df[f'{target_column}_lag'] = df[target_column].shift(-prediction_horizon)
-    df = df.dropna()
-
+    # 2) Prepare the list to store the predictions
     predictions_list = []
 
-    for i in range(window_size, len(df) - prediction_horizon + 1, 1):
-        # Data for current window and prediction horizon
-        X_window = df.iloc[i - window_size:i][feature_columns]
-        y_window = df.iloc[i - window_size:i][f'{target_column}_lag']
+    # 3) Iterate over the dates
+    for i in tqdm(range(window_size, len(unique_dates) - horizon + 1, step), desc="Rolling Window Steps"):
+        # The training window covers unique_dates in the range [i-window_size, i)
+        train_start_idx = i - window_size  # inclusive
+        train_end_idx = i  # exclusive
+        train_dates_range = unique_dates[train_start_idx:train_end_idx]
 
-        # Train-val split (no shuffling for time series)
-        X_train, X_val, y_train, y_val = train_test_split(X_window, y_window, test_size=0.2, shuffle=False)
+        # The test date is unique_dates[i + horizon - 1]
+        test_date_idx = i + horizon - 1
+        if test_date_idx >= len(unique_dates):
+            break
+        test_date_val = unique_dates[test_date_idx]
 
-        # Data for making predictions
-        X_test = df.iloc[i + prediction_horizon - 1: i + prediction_horizon][feature_columns]
-        date_current = df.iloc[i + prediction_horizon - 1][date_column]
-        true_value = df.iloc[i + prediction_horizon - 1][target_column]
+        # 3) Build train/val subsets: all rows whose date is in train_dates_range
+        df_window = df_big[df_big["Date"].isin(train_dates_range)].copy()
+        if len(df_window) < 2:
+            continue  # skip if not enough data
 
-        # Parallel prediction for all quantiles
-        window_predictions = {'Date': date_current, f'True {target_column}': true_value}
-        predictions = Parallel(n_jobs=-1)(
-            delayed(train_and_predict_lgb)(X_train, y_train, X_val, y_val, X_test, q) for q in quantiles
-        )
+        # Sort window by date so we can do a time-based split
+        df_window.sort_values("Date", inplace=True)
+        # We'll do 80/20
+        split_idx = int(0.8 * len(df_window))
+        df_train = df_window.iloc[:split_idx]
+        df_val = df_window.iloc[split_idx:]
 
-        for pred, q in zip(predictions, quantiles):
-            window_predictions[f'Quantile_{q}'] = pred
-        predictions_list.append(window_predictions)
+        # 4) Build test subset: all rows whose Date == test_date_val
+        df_test = df_big[df_big["Date"] == test_date_val].copy()
+        if len(df_test) == 0:
+            # Possibly no data for that date
+            continue
 
-    # Convert to DataFrame for output
-    column_order = [f"Quantile_{q}" for q in quantiles] + ["Date", f"True {target_column}"]
-    predictions_df = pd.DataFrame(predictions_list)[column_order]
+        # 5) Extract X,y for train/val/test
+        X_train = df_train[feature_cols]
+        y_train = df_train["TrueY"].values
+        X_val = df_val[feature_cols]
+        y_val = df_val["TrueY"].values
+        X_test = df_test[feature_cols]
+        y_test = df_test["TrueY"].values  # for reference
+        test_tickers = df_test["Symbol"].values
+        test_dates = df_test["Date"].values
 
-    # Save predictions
-    feature_columns_str = '_'.join(feature_columns)
-    output_path = f"{feature_columns_str}_ES_VaR_lightgbm.xlsx"
-    predictions_df.to_excel(output_path, index=False)
+        # 6) For each quantile alpha, train a model, predict on test
+        #    (Or you could build a single multi-quantile model, but typically we do one per alpha.)
+        pred_quantiles = {}
+        for alpha in tqdm(quantiles, desc="Quantile Predictions"):
+            y_pred = train_and_predict_lgb(X_train=X_train,
+                                           y_train=y_train,
+                                           X_val=X_val,
+                                           y_val=y_val,
+                                           X_test=X_test,
+                                           quantile_alpha=alpha)
+            pred_quantiles[alpha] = y_pred
 
-    # Plotting
-    plt.figure(figsize=(10, 6))
-    for q in quantiles:
-        plt.plot(predictions_df['Date'], predictions_df[f'Quantile_{q}'], label=f'Quantile {q}')
-    plt.plot(predictions_df[date_column], predictions_df[f'True {target_column}'], label=f'True {target_column}')
-    plt.title(f'Quantile Predictions for {target_column}')
-    plt.xlabel(date_column)
-    plt.ylabel(target_column)
-    #plt.legend(loc='upper right')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    plt.show()
+       # 7) For each row in df_test, we build a dict with Ticker, Date, TrueY, and predicted quantiles
+        for row_idx in range(len(df_test)):
+            row_dict = {
+                "Symbol": test_tickers[row_idx],
+                "Date": test_dates[row_idx],
+                "TrueY": y_test[row_idx],
+            }
+            for alpha in quantiles:
+                row_dict[f"Quantile_{alpha}"] = pred_quantiles[alpha][row_idx]
+            predictions_list.append(row_dict)
 
-
+        # 8) Build final DataFrame with predictions
+        df_preds = pd.DataFrame(predictions_list)
+        # reorder columns
+        q_cols = [c for c in df_preds.columns if c.startswith("Quantile_")]
+        final_cols = ["Symbol", "Date", "TrueY"] + sorted(q_cols)
+        df_preds = df_preds[final_cols].sort_values(["Date", "Symbol"])
+        return df_preds
+    
 
 
 # %%
 # =============================================================================
 # 3. Running all model variants
 # =============================================================================
+def main_global_rolling_preds():
+    df_big, feature_cols, cat_feature_index = combine_processed_data_into_df(window_size=1500)
+    print(df_big.head())
 
-from google.colab import files
+    df_predictions = run_quantile_regression_rolling_window(
+        df_big=df_big,
+        feature_cols=feature_cols,
+        window_size=1500,
+        horizon=1,
+        step=1,
+        quantiles=quantiles
+    )
+    print("Sample predictions:")
+    print(df_predictions.head())
 
-# Define a list to store the output filenames
-output_filenames = []
+    # ensure no quantile crossing
+    df_no_crossing = ensure_non_crossing(df_predictions)
+    return df_no_crossing
 
-# Loop through the desired feature combinations
-feature_combinations = [
-    ['IV'],
-    ['IV', 'IS'],
-    ['IV', 'IK'],
-    ['IV', 'Slope'],
-    ['IV', 'IS', 'IK'],
-    ['IV', 'IS', 'Slope'],
-    ['IV', 'IK', 'Slope'],
-    ['IV', 'IS', 'IK', 'Slope']
-]
-
-for features in feature_combinations:
-  # Construct the expected output filename based on features
-  filename_prefix = '_'.join(features)
-  output_filename = f"{filename_prefix}_ES_VaR_lightgbm.xlsx"
-  output_filenames.append(output_filename)
-
-  # Run the quantile regression with the current feature set
-  run_quantile_regression_rolling_window('Brent.xlsx', 'Sheet1', 'Date', 'Brent Returns', features)
-
-
+final_df = main_global_rolling_preds()
+# %%
+final_df
 
 # %%
-# =============================================================================
-# 4. Handle quantile crossing
-# =============================================================================
-"""Specify the file of interest"""
-
-file_pathtest = '/content/IV_Slope_ES_VaR_lightgbm.xlsx' # Input file
-
-# Reload the data without converters
-temp_data = pd.read_excel(file_pathtest)
-
-temp_data_ordered = sort_columns_descending(temp_data)
-temp_data_corrected = ensure_non_crossing(temp_data_ordered)
-
-# Modify column names to remove the '.1' suffix if present
-temp_data.columns = [col.rstrip(".1") if col.endswith(".1") else col for col in temp_data.columns]
-temp_data.columns = [col.rstrip(".2") if col.endswith(".2") else col for col in temp_data.columns]
-
-temp_data = overwrite_columns(temp_data_corrected,temp_data)
-
-outputname = '/content/IV_Slope_ES_VaR_CROSS_lightgbm.xlsx' # Output file
-
-temp_data.to_excel(outputname, index=False)
-run_models.append(outputname)
-
-#/content/IV_ES_VaR_lightgbm.xlsx
-#/content/IV_IK_ES_VaR_lightgbm.xlsx
-#/content/IV_IK_Slope_ES_VaR_lightgbm.xlsx
-#/content/IV_IS_ES_VaR_lightgbm.xlsx
-#/content/IV_IS_IK_ES_VaR_lightgbm.xlsx
-#/content/IV_IS_IK_Slope_ES_VaR_lightgbm.xlsx
-#/content/IV_IS_Slope_ES_VaR_lightgbm.xlsx
-#/content/IV_Slope_ES_VaR_lightgbm.xlsx
-
-#/content/IV_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IK_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IK_Slope_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IS_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IS_IK_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IS_IK_Slope_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_IS_Slope_ES_VaR_CROSS_lightgbm.xlsx
-#/content/IV_Slope_ES_VaR_CROSS_lightgbm.xlsx
-
+predictions_copy = final_df.copy()
 
 
 # %%
@@ -338,67 +359,67 @@ run_models.append(outputname)
 # 5. Estimate ES
 # =============================================================================
 
-from google.colab import files
+def estimate_es_from_predictions(
+    df_preds: pd.DataFrame,
+    es_alphas=[0.01, 0.025, 0.05, 0.95, 0.0975, 0.99],
+    p=5
+) -> pd.DataFrame:
+    """
+    Given a DataFrame df_preds that has columns:
+      [Ticker, Date, TrueY, Quantile_0.xxx, Quantile_0.yyy, ...]
+    for multiple sub-quantiles,
+    compute the ES for each alpha in es_alphas by averaging
+    the sub-quantile columns that the old logic used.
 
-def run_ES(models):
+    The old logic:
+      - For alpha < 0.5:
+          new_quantiles = [alpha - (alpha * i / p) for i in range(p)]
+        (descending in value)
+      - For alpha >= 0.5:
+          new_quantiles = [alpha + ((1 - alpha) * i / p) for i in range(p)]
+        (ascending in value)
 
-  for i in range(0, len(models)):
+    We then average the columns "Quantile_xxx" matching those sub-quantiles
+    to get a single column ES_alpha.
 
-    # Specify the path to your Excel file
-    excel_file_path = models[i]
+    Returns a new DataFrame with the same rows as df_preds,
+    plus extra columns 'ES_0.xx' for each alpha in es_alphas.
+    """
 
-    # Import the Excel file and convert it to a dataframe1
-    dataframe1 = pd.read_excel(excel_file_path)
+    # Work on a copy so we don't mutate the original
+    df_out = df_preds.copy()
 
-    # Create an empty dataframe2
-    ES_predictions = pd.DataFrame()
-
-    print(len(dataframe1.columns))
-
-
-    for i in range(0, 29, 5):  # Iterate in steps of 4 to group every 4 columns out of the first 24
-    #for i in range(0, len(dataframe1.columns) - 4, 5):
-        # Calculate the mean for the 1st, 2nd, 3rd, and 4th columns from index 'i'
-        print(i)
-
-        col_indices = [i, i + 1, i + 2, i + 3,i + 4]
-        selected_cols = dataframe1.iloc[:, col_indices]
-
-        col_mean = selected_cols.mean(axis=1)
-
-        # Get the current ES quantile value for naming the column
-        quantile_index = int(i / 5)  # Adjust the divisor to match the step in the loop
-        if quantile_index <= len(ES_quantiles):
-            col_name = f'ES_{ES_quantiles[quantile_index]}'
-            ES_predictions[col_name] = col_mean
+    for alpha in es_alphas:
+        alpha_subs = []
+        if alpha < 0.5:
+            # E.g. alpha=0.01 => [0.01, 0.008, 0.006, 0.004, 0.002] etc.
+            alpha_subs = [alpha - (alpha * i / p) for i in range(p)]
         else:
-            print(f"Not enough quantiles for column set starting at index {i}")
-            break  # Break the loop if there are no more quantiles for naming
+            # E.g. alpha=0.95 => [0.95, 0.96, 0.97, 0.98, 0.99] etc.
+            alpha_subs = [alpha + ((1 - alpha) * i / p) for i in range(p)]
 
-    # Write dataframe2 to an Excel file
-    # NEED TO ADJUST
-    ES_predictions['Date'] = dataframe1['Date']
-    ES_predictions['True Brent Returns'] = dataframe1['True Brent Returns']
-    #ES_predictions['Date'] = dataframe1['Date']
-    #ES_predictions['True Target'] = dataframe1[target_column]
+        # Round to 3 decimals to match columns like "Quantile_0.010"
+        alpha_subs_3d = [f"{q:.3f}" for q in alpha_subs]
 
-    output_file_path = excel_file_path.replace('_VaR_CROSS','')
+        # Build a list of the column names for these sub-quantiles
+        sub_quantile_cols = [f"Quantile_{q3}" for q3 in alpha_subs_3d]
 
-    ES_predictions.to_excel(output_file_path, index=False)
-print(run_models)
+        # Check which of those columns exist in df_preds
+        existing_cols = [c for c in sub_quantile_cols if c in df_out.columns]
 
-run_ES(run_models)
+        if not existing_cols:
+            # If we didn't find any, we skip
+            print(f"WARNING: No matching sub-quantile columns found for alpha={alpha}")
+            continue
 
-# Adjust based on which model variant is runned
-#files.download('IV_IS_IK_Slope_ES_VaR_lightgbm.xlsx')
-#files.download('IV_IS_IK_Slope_ES_VaR_CROSS_lightgbm.xlsx')
-files.download('IV_IS_ES_lightgbm.xlsx')
+        # Average them row-wise => ES for alpha
+        df_out[f"ES_{alpha:.3f}"] = df_out[existing_cols].mean(axis=1)
 
-#IV_ES_lightgbm.xlsx
-#IV_IK_ES_lightgbm.xlsx
-#IV_IK_Slope_ES_lightgbm.xlsx
-#IV_IS_ES_lightgbm.xlsx
-#IV_IS_IK_ES_lightgbm.xlsx
-#IV_IS_IK_Slope_ES_lightgbm.xlsx
-#IV_IS_Slope_ES_lightgbm.xlsx
-#IV_Slope_ES_lightgbm.xlsx
+    return df_out
+
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05, 0.95, 0.0975, 0.99])
+es_df
+# %%
+# Write the ES predictions to a csv file for storage
+es_df.to_csv("../../predictions/Benchmark_LIGHTGBM_Dynamic_ES_stocks.csv", index=False)
+# %%

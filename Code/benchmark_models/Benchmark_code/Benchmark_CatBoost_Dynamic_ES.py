@@ -32,7 +32,7 @@ from processing import get_lstm_train_test_new
 # Define all ES Quantiles and sub-quantiles of interest
 
 # ES quantiles of interest
-ES_quantiles = [0.0015,0.001, 0.005,0.01, 0.025, 0.05, 0,165, 0.835, 0.95, 0.975, 0.99, 0.995, 0.999, 0.9995]
+ES_quantiles = [0.01, 0.025, 0.05,  0.95, 0.0975, 0.99]
 p = 5  # 'p' defined as per requirement
 
 # Create a list to store the quantiles
@@ -61,7 +61,7 @@ def remove_suffix(input_string, suffix):
     return input_string
 
 
-# Function to ensure no quantile crossing - adapted for multi-asset
+# Function to ensure no quantile crossing - adapted for multi-asset # FIX THIS TO DO THE RIGHT THING
 def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
     quantile_columns = [col for col in df.columns if col.startswith("Quantile_")]
 
@@ -201,7 +201,7 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
                                             window_size=1500,
                                             horizon=1,
                                             step=1,
-                                            quantiles=[0.01, 0.025, 0.05, 0.95, 0.975, 0.99]
+                                            quantiles = quantiles
                                             ):
     """
     Function to perform quantile regression with CatBoost on a given dataset using a rolling window approach.
@@ -284,7 +284,7 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
                 "TrueY": y_test[row_idx],
             }
             for alpha in quantiles:
-                row_dict[f"Quantile_{alpha:.3f}"] = pred_quantiles[alpha][row_idx]
+                row_dict[f"Quantile_{alpha}"] = pred_quantiles[alpha][row_idx]
             predictions_list.append(row_dict)
 
     # 8) Build final DataFrame with predictions
@@ -308,7 +308,6 @@ def main_global_rolling_example_preds():
     print(df_big.head())
 
     # 3) Define desired quantiles
-    ES_quantiles = [0.01, 0.025, 0.05, 0.95, 0.975, 0.99]
 
     # 4) Run the rolling-window approach
     df_predictions = run_quantile_regression_rolling_window(
@@ -318,7 +317,7 @@ def main_global_rolling_example_preds():
         window_size=1500,  # in *dates*, not rows
         horizon=1,
         step=1,
-        quantiles=ES_quantiles,
+        quantiles=quantiles
     )
 
     print("Sample predictions:")
@@ -348,7 +347,7 @@ final_df.to_csv("Benchmark_Catboost_Dynamic_ES_quantiles.csv", index=False)
 
 def estimate_es_from_predictions(
     df_preds: pd.DataFrame,
-    es_alphas=[0.01, 0.025, 0.05, 0.95, 0.975, 0.99],
+    es_alphas=[0.001, 0.0025,0.005, 0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99, 0.995, 0.9975, 0.999],
     p=5
 ) -> pd.DataFrame:
     """
@@ -404,7 +403,7 @@ def estimate_es_from_predictions(
 
     return df_out
 
-es_df = estimate_es_from_predictions(final_df)
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.05, 0.95, 0.99])
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
