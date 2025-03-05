@@ -194,7 +194,11 @@ for version in [
         print(f"LSTM MDN {version} predictions not found")
 
 # Transformer MDN
-for version in [3, "time"]:
+for version in [
+    3,
+    "time",
+    # "time-2",
+]:
     try:
         transformer_df = pd.read_csv(
             f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
