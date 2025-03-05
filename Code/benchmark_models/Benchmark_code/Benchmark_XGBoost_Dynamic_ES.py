@@ -21,7 +21,7 @@ import pandas as pd
 run_models= []
 
 # ES quantiles of interest
-ES_quantiles = [0.01, 0.025, 0.05, 0.95, 0.975, 0.99]
+ES_quantiles = [0.0015,0.001, 0.005,0.01, 0.025, 0.05, 0,165, 0.835, 0.95, 0.975, 0.99, 0.995, 0.999, 0.9995]
 p = 5  # 'p' defined as per requirement
 
 # Create a list to store the quantiles
