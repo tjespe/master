@@ -251,6 +251,9 @@ for version in [4]:
         # "simple_regressor_on_samples",
         # "simple_regressor_on_means_and_std",
         # "ffnn_on_latent_means",
+        # "ffnn_on_latent_means_and_std",
+        # "ffnn_on_latent_samples",
+        
     ]:
         try:
             pred_df = pd.read_csv(

@@ -1024,7 +1024,7 @@ preds = merge_sample_preds(ffnn_on_latent_samples.predict(Z_val_samples), n_samp
 
 # %%
 # Calculate stats
-df_validation = make_predictions_and_stats(preds)
+df_validation = make_predictions_and_stats(preds, N_MIXTURES*n_samples)
 df_validation.head()
 
 # %%
