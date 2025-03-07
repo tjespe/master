@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned"
+VERSION = "last-time-step"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -204,8 +204,8 @@ def build_transformer_mdn(
     for _ in range(NUM_ENCODERS):
         x = transformer_encoder(x)
 
-    # Global average pooling (or take last time step)
-    x = GlobalAveragePooling1D()(x)
+    # Take the last time step
+    x = Lambda(lambda t: t[:, -1, :])(x)
 
     # Create initializers for MDN output layer
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
