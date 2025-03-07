@@ -330,7 +330,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 if __name__ == "__main__":
     # Create or load a study
     study_name = "transformer_mdn_hyperparam_search"
-    storage = "sqlite:///optuna/transformer_mdn_study.db"
+    storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
         storage=storage,
