@@ -83,6 +83,26 @@ def plot_reconstruction(vae, X, num_samples=5, batch_size=32):
     plt.tight_layout()
     plt.show()
 
+def plot_reconstruction_distributions(vae, X):
+    """
+    Plot original vs reconstructed dsitrubtions.
+
+    Args:
+    - vae (tf.keras.Model): Trained VAE model.
+    - X (numpy array): Input data.
+    """
+    reconstructed = vae.predict(X)
+
+    num_features = X.shape[1]
+    for i in range(num_features):
+        plt.figure(figsize=(10, 5))
+        sns.kdeplot(X[:, -1, i], label="Original", fill=True, color="blue", alpha=0.5)
+        sns.kdeplot(reconstructed[:, -1, i], label="Reconstructed", fill=True, color="red", alpha=0.5)
+        plt.title(f"Feature {i+1}: Original vs Reconstructed")
+        plt.legend()
+        plt.grid()
+        plt.show()
+
 
 def compare_real_vs_generated(encoder, decoder, X, num_samples=1000, batch_size=32):
     """

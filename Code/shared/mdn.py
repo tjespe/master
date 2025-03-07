@@ -388,7 +388,7 @@ def bracket_and_bisect(pis, mus, sigmas, alpha, max_iter=50, tol=1e-8):
 
     f_low = mixture_cdf(low_vals, pis, mus, sigmas)
     # Expand bracket on the left
-    done_mask = np.zeros(n_samples, dtype=np.bool)  # which ones are done expanding
+    done_mask = np.zeros(n_samples, dtype="bool")  # which ones are done expanding
     while True:
         still_too_high = (f_low > alpha) & (~done_mask)
         if not np.any(still_too_high):
