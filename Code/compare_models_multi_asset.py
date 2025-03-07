@@ -5,6 +5,7 @@ from shared.conf_levels import format_cl
 from shared.loss import crps_normal_univariate, nll_loss_mean_and_vol
 from settings import (
     DATA_PATH,
+    LOOKBACK_DAYS,
     SUFFIX,
     TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
@@ -237,6 +238,59 @@ for version in [3]:
             print(f"Transformer MDN {version} has {nans} NaN predictions")
     except FileNotFoundError:
         print(f"Transformer MDN {version} predictions not found")
+
+# VAE based models
+for version in [4]:
+    for predictor in [
+        "simple_regressor_on_means",
+        # "simple_regressor_on_samples",
+        # "simple_regressor_on_means_and_std",
+        # "ffnn_on_latent_means",
+    ]:
+        try:
+            pred_df = pd.read_csv(
+                f"predictions/vae_lstm_mdm_{LOOKBACK_DAYS}_days{SUFFIX}_v{version}_{predictor}.csv"
+            )
+            pred_df["Symbol"] = pred_df["Symbol"].str.replace(".O", "")
+            pred_df["Date"] = pd.to_datetime(pred_df["Date"])
+            pred_df = pred_df.set_index(["Date", "Symbol"])
+            dates = pred_df.index.get_level_values("Date")
+            pred_df = pred_df[
+                (dates >= TRAIN_VALIDATION_SPLIT)
+                & (dates < VALIDATION_TEST_SPLIT)
+            ]
+            combined_df = df_validation.join(
+                pred_df, how="left", rsuffix="_Transformer_MDN"
+            )
+            name = f"VAE MDN {version} {predictor}"
+            entry = {
+                "name": name,
+                "mean_pred": combined_df["Pred_Mean"].values,
+                "volatility_pred": combined_df["Pred_Std"].values,
+                "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+                "symbols": combined_df.index.get_level_values("Symbol"),
+                "crps": (
+                    crps.values if (crps := combined_df.get("CRPS")) is not None else None
+                ),
+                "p_up": combined_df.get("Prob_Increase"),
+            }
+            for cl in CONFIDENCE_LEVELS:
+                lb = combined_df.get(f"LB_{format_cl(cl)}")
+                ub = combined_df.get(f"UB_{format_cl(cl)}")
+                if lb is None or ub is None:
+                    print(
+                        f"Missing {format_cl(cl)}% interval for {name}"
+                    )
+                entry[f"LB_{format_cl(cl)}"] = lb
+                entry[f"UB_{format_cl(cl)}"] = ub
+                alpha = 1 - (1 - cl) / 2
+                entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+            preds_per_model.append(entry)
+            nans = combined_df["Pred_Mean"].isnull().sum()
+            if nans > 0:
+                print(f"{name} has {nans} NaN predictions")
+        except FileNotFoundError:
+            print(f"{name} predictions not found")
 
 
 # LSTM MAF
@@ -967,6 +1021,8 @@ for model in results_df.index:
     if "GARCH" in model:
         continue
     if "Benchmark" in model:
+        continue
+    if "VAE MDN" in model:
         continue
     passes = 0
     for cl in CONFIDENCE_LEVELS:
