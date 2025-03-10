@@ -14,6 +14,7 @@ from settings import (
     VALIDATION_TEST_SPLIT,
     BASEDIR,
 )
+from shared.fred import get_fred_md
 
 
 RVOL_DATA_PATH = f"{BASEDIR}/data/RVOL.csv"
@@ -137,6 +138,8 @@ def get_lstm_train_test_new(
     include_garch=True,
     include_beta=True,
     include_others=True,
+    include_fred_md=False,
+    include_fred_qd=False,
 ) -> ProcessedData:
     """
     Prepare data for LSTM
@@ -163,7 +166,9 @@ def get_lstm_train_test_new(
 
     # %%
     # Read the S&P 500 data
-    spx_df = pd.read_csv(f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv")
+    spx_df = pd.read_csv(
+        f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv"
+    )
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
 
@@ -220,6 +225,15 @@ def get_lstm_train_test_new(
             "SPX_MonthlyReturn",
         ]
     ]
+
+    # %%
+    # Join in FRED-MD data
+    if include_fred_md:
+        fred_md_df = get_fred_md()
+        fred_md_df = fred_md_df.reindex(df.index.get_level_values("Date")).ffill()
+        fred_md_df.index = df.index
+        df = df.join(fred_md_df)
+    df
 
     # %%
     # Compute rolling beta for each stock
@@ -571,6 +585,15 @@ def get_lstm_train_test_new(
                 )
             )
 
+        if include_fred_md:
+            fred_features = fred_md_df.columns
+            data = np.hstack(
+                (
+                    data,
+                    group[fred_features].values,
+                )
+            )
+
         if include_fng:
             data = np.hstack(
                 (
@@ -760,7 +783,9 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Join in the S&P 500 data
-    spx_df = pd.read_csv(f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv")
+    spx_df = pd.read_csv(
+        f"{BASEDIR}/data/spx/processed_data/spx_19900101_to_today_20250219_cleaned.csv"
+    )
     spx_df["Date"] = pd.to_datetime(spx_df["Date"]).dt.date
     spx_df.set_index("Date", inplace=True)
     df[["Close_SPX"]] = spx_df[["Close"]].loc[df["Date"].values].values
