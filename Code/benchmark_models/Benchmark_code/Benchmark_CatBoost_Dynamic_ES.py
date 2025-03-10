@@ -32,7 +32,7 @@ from processing import get_lstm_train_test_new
 # Define all ES Quantiles and sub-quantiles of interest
 
 # ES quantiles of interest
-ES_quantiles = [0.01, 0.025, 0.05,  0.95, 0.0975, 0.99]
+ES_quantiles = [0.01, 0.025, 0.05,  0.95, 0.975, 0.99]
 p = 5  # 'p' defined as per requirement
 
 # Create a list to store the quantiles
@@ -144,9 +144,6 @@ def combine_processed_data_into_df(window_size=1500):
     print("tickers_all shape: ", tickers_all.shape)
     print("dates_all shape: ", dates_all.shape)
 
-    
-    
-
     # Build a DataFrame
     feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
     df_big = pd.DataFrame(X_all, columns=feat_cols)
@@ -166,7 +163,6 @@ def combine_processed_data_into_df(window_size=1500):
     feature_cols = feat_cols + ["Ticker_Cat"]  # We'll pass these to CatBoost
     cat_feature_index = [len(feature_cols) - 1]  # Ticker_Cat is last => cat col
     return df_big, feature_cols, cat_feature_index
-
 
 # %%
 # =============================================================================
@@ -347,7 +343,7 @@ final_df.to_csv("Benchmark_Catboost_Dynamic_ES_quantiles.csv", index=False)
 
 def estimate_es_from_predictions(
     df_preds: pd.DataFrame,
-    es_alphas=[0.001, 0.0025,0.005, 0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99, 0.995, 0.9975, 0.999],
+    es_alphas=[0.01, 0.025, 0.05,  0.95, 0.975, 0.99],
     p=5
 ) -> pd.DataFrame:
     """
@@ -403,9 +399,8 @@ def estimate_es_from_predictions(
 
     return df_out
 
-es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.05, 0.95, 0.99])
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05,  0.95, 0.975, 0.99])
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
 es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks.csv", index=False)
-# %%

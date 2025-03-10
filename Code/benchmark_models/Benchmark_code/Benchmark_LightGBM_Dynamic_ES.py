@@ -361,7 +361,7 @@ predictions_copy = final_df.copy()
 
 def estimate_es_from_predictions(
     df_preds: pd.DataFrame,
-    es_alphas=[0.01, 0.025, 0.05, 0.95, 0.0975, 0.99],
+    es_alphas=[0.01, 0.025, 0.05, 0.95, 0.975, 0.99],
     p=5
 ) -> pd.DataFrame:
     """
@@ -417,7 +417,7 @@ def estimate_es_from_predictions(
 
     return df_out
 
-es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05, 0.95, 0.0975, 0.99])
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05, 0.95, 0.975, 0.99])
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
