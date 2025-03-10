@@ -5,12 +5,13 @@ library(openxlsx)
 
 # %%
 # define datapath
-datapath <- "../../../data/processed_data_RV_only_for_DB.csv" # change filename
+datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB.csv" # change filename
 # Load data
-D <- fread(datapath) 
+D <- read.csv(datapath) 
+setDT(D)
 # Ensure Date is in the correct format
 D[, Date := as.Date(Date)]
-# define the Eexpected Shortfall levels
+# define the Expected Shortfall levels
 ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 
 
@@ -18,13 +19,15 @@ ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 # Define independent variable sets based on your data 
 independant_var_sets <- list(
   set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'  
- 
+  
 )
 
-# define meaningul names for the independent variable sets
+# define meaningful names for the independent variable sets
 independant_var_names_set <- list(
-  set1 = 'RV_set',
+  set1 = 'RV_set'
 )
+
+independant_var_names <- unname(unlist(independant_var_names_set))
 
 # Define the dependent variable
 depentant_var= 'Return'
@@ -54,6 +57,11 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   t_forecast_QES_DB = function(y,x,alpha) {
     if (!is.null(x)) {
       if (!('matrix' %in% class(x))) x=as.matrix(x)
+      
+      # Always convert to data.frame for esreg
+      x = as.data.frame(x)
+      # Debug dimensions
+      print(paste0("Inside t_forecast_QES_DB: length(y)=", length(y), ", nrow(x)=", nrow(x)))
       if (length(y)!=nrow(x)) stop('t_forecast_QES_DB: invalid input dimensions')
     }
     chng = F
@@ -64,7 +72,17 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       chng = T
     }
     win=length(y)-1
-    if (is.null(x)) fit = esreg::esreg(y[1:win] ~ 1, alpha=alpha) else fit = esreg::esreg(y[1:win] ~ x[1:win,], alpha=alpha)
+    if (is.null(x)) {
+      fit = esreg::esreg(y[1:win] ~ 1, alpha = alpha)
+    } else {
+      df_model <- data.frame(y = y[1:win], x[1:win, ])
+      # Build explicit formula
+      predictor_names <- colnames(df_model)[-1]  # skip y column
+      formula_str <- paste("y ~", paste(predictor_names, collapse = " + "))
+      formula_obj <- as.formula(formula_str)
+      
+      fit = esreg::esreg(formula_obj, data = df_model, alpha = alpha)
+    }
     q = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_q)
     e = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_e)
     if (chng) {
@@ -84,7 +102,14 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     cl=NULL; if (parallel) { cl=makePSOCKcluster(nc,outfile=''); clusterExport(cl,c('t_forecast_QES_DB','df','alpha','windowSize'),envir=environment()) }
     res=rbindlist(pblapply((windowSize+1):(length(dates)), function(i) {
       yy=df[(i-windowSize):i,][[2]]
-      xx=data.frame(df[(i-windowSize):i,-c(1,2)]); if (ncol(xx)==0) xx=NULL
+      xx=data.frame(df[(i-windowSize):i,-c(1,2)])
+      if (ncol(xx)==0) xx=NULL
+      # Debugging
+      if (!is.null(xx)) {
+        if (length(yy) != nrow(xx)) {
+          stop(paste0("At i=", i, ": length(yy)=", length(yy), ", nrow(xx)=", nrow(xx)))
+        }
+      }
       t_forecast_QES_DB(y=yy,x=xx,alpha=alpha)
     }, cl=cl))
     if (!is.null(cl)) stopCluster(cl); cl=NULL
@@ -119,20 +144,22 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     }
     
     # Generate the specs for each combination of sets
-    for (n in 2:length(independant_var_sets)) {
-      combinations <- combn(set_names, n, simplify = FALSE)
-      
-      for (combo in combinations) {
-        current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
-        specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+    if (length(independant_var_sets) >= 2) {
+      for (n in 2:length(independant_var_sets)) {
+        combinations <- combn(set_names, n, simplify = FALSE)
         
-        # Generate the model name
-        model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
-        
-        
-        model_names <- c(model_names, model_name)
-        
-        counter <- counter + 1
+        for (combo in combinations) {
+          current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
+          specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+          
+          # Generate the model name
+          model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
+          
+          
+          model_names <- c(model_names, model_name)
+          
+          counter <- counter + 1
+        }
       }
     }
     # Assign the generated names to the specs
@@ -161,25 +188,26 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     }
     
     # Generate the specs for each combination of sets
-    for (n in 2:length(independant_var_sets)) {
-      combinations <- combn(set_names, n, simplify = FALSE)
-      
-      
-      for (combo in combinations) {
+    if (length(independant_var_sets) >= 2) {
+      for (n in 2:length(independant_var_sets)) {
+        combinations <- combn(set_names, n, simplify = FALSE)
         
-        if (!"set1" %in% combo) {
-          next  # Skip this combination if "set1" is not included
+        
+        for (combo in combinations) {
+          
+          if (!"set1" %in% combo) {
+            next  # Skip this combination if "set1" is not included
+          }
+          current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
+          specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+          
+          # Generate the model name
+          model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
+          model_names <- c(model_names, model_name)
+          counter <- counter + 1
         }
-        current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
-        specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
-        
-        # Generate the model name
-        model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
-        model_names <- c(model_names, model_name)
-        counter <- counter + 1
       }
     }
-    
     # Assign the generated names to the specs
     names(specs) <- model_names
     
@@ -208,10 +236,11 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       dep  = all.vars(specs[[m]])[1]
       # Independent variables
       exog = all.vars(specs[[m]])[-1]
+      print(exog)
       # Select data
       y     = dt[,which(names(dt) == dep)]
       # y     = dt[,..dep];
-      x     = dt[,exog]
+      x     = dt[, ..exog]
       # x     = dt[,..exog;
       dates = dt$Date;
       
@@ -223,7 +252,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       # spocitame rolling forecasts
       
       A = Sys.time()
-      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=T, nc = nc) 
+      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=F, nc = nc) 
       print(Sys.time()-A)
       
       
@@ -270,7 +299,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     
     
     # Specify the path where you want to save the Excel file
-    #filePath_DB <- "/Users/hansmagnusutne/Library/Mobile Documents/com~apple~CloudDocs/Documents/Dokumenter – Hanss MacBook Air/NTNU Dokumenter/Indøk 5. klasse/Forskningsassistent/testFinalDB_2.xlsx"
+    #filePath_DB <- "/Users/hansmagnusutne/Library/Mobile Documents/com~apple~CloudDocs/Documents/Dokumenter ??? Hanss MacBook Air/NTNU Dokumenter/Ind??k 5. klasse/Forskningsassistent/testFinalDB_2.xlsx"
     
     # Write the final dt to an Excel file
     #write.xlsx(as.data.frame(dt), file = writefile)
@@ -294,7 +323,7 @@ tickers <- unique(D$Ticker)
 
 # Loop through each asset (Ticker)
 for (ticker in tickers) {
-  
+  print(ticker)
   # Filter dataset for the current asset
   D_ticker <- D[Ticker == ticker]
   
@@ -302,7 +331,8 @@ for (ticker in tickers) {
   results <- DB(dt = D_ticker, 
                 EW = 1500, 
                 ES = ES, 
-                nc = 8, 
+                #nc = 8, 
+                nc = 1,
                 run_all_variations = FALSE, 
                 writefile=NULL) 
   

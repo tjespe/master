@@ -69,6 +69,11 @@ data = df_big
 # %%
 # save to csv
 data.to_csv("../data/processed_data_RV_only_for_DB.csv")
+
+# %%
+# create a set with only the AAPL ticker to test the R script
+data_aapl = data[data["Ticker"] == "AAPL"]
+data_aapl.to_csv("../data/processed_data_RV_only_for_DB_AAPL.csv")
 # %%
 #######################################
 # GET ONLY RV + MAKRO DATA - SET 2
