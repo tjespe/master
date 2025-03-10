@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned"
+VERSION = "tuned-overridden"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -25,7 +25,7 @@ INCLUDE_TICKERS = True
 # Model architecture
 D_MODEL = 40
 HIDDEN_UNITS_FF = D_MODEL * 4
-N_MIXTURES = 17
+N_MIXTURES = 8  # Optuna suggests 17, but overrided to avoid zero-ish mixtures interfering with tail performance
 DROPOUT = 0.0
 L2_REGULARIZATION = 1.8e-06
 NUM_ENCODERS = 1
