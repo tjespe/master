@@ -1,18 +1,24 @@
-depentant_var= 'Change'
+
+
+datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB_AAPL.csv" # change filename
+D <- read.csv(datapath)
+setDT(D)
+
+depentant_var= 'Return'
 
 independant_var_sets <- list(
-  set1 = 'D_1_Put_50 + W_1_Put_50 + M_1_Put_50',
-  set2 = 'D_1_RR_25 + W_1_RR_25 + M_1_RR_25',
-  set3 = 'D_1_Call_50 + W_1_Call_50 + M_1_Call_50'
-)
+  set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'  
+  )
+
 independant_var_names_set <- list(
-  set1 = 'IV',
-  set2 = 'RR',
-  set3 = 'VRP'
+  set1 = 'RV_set'
+
+
 )
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
+ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 
 
 
@@ -30,7 +36,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   library(parallel);
   library(pbapply)
   
-  # Convert to data.table
+  # Conert to data.table
   # setDT(dt)
   
   # --==========================================================================================
@@ -254,12 +260,6 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     }
     
     
-    # Specify the path where you want to save the Excel file
-    #filePath_DB <- "/Users/hansmagnusutne/Library/Mobile Documents/com~apple~CloudDocs/Documents/Dokumenter – Hanss MacBook Air/NTNU Dokumenter/Indøk 5. klasse/Forskningsassistent/testFinalDB_2.xlsx"
-    
-    # Write the final dt to an Excel file
-    write.xlsx(as.data.frame(dt), file = writefile)
-    
     
   }
   
@@ -268,3 +268,38 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   return(dt)
   
 }
+
+# RUN THE MODEL
+# Run the Dimitriadis and Bayer model
+# Initialize a list to store results for all tickers
+all_results <- list()
+
+# Get unique assets
+tickers <- unique(D$Ticker)
+
+# Loop through each asset (Ticker)
+for (ticker in tickers) {
+  print(ticker)
+  # Filter dataset for the current asset
+  D_ticker <- D[Ticker == ticker]
+  
+  # Run the DB model on the subset
+  results <- DB(dt = D_ticker, 
+                EW = 1500, 
+                ES = ES, 
+                #nc = 8, 
+                nc = 1,
+                run_all_variations = FALSE, 
+                writefile=NULL) 
+  
+  # Add the Ticker column to the results
+  results[, Ticker := ticker]
+  
+  # Store results in the list
+  all_results[[ticker]] <- results
+}
+
+# Combine all results into a single data.table
+final_results <- rbindlist(all_results)
+
+
