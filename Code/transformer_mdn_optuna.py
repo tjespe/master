@@ -183,6 +183,31 @@ def build_transformer_mdn(
     return model
 
 
+class OptunaEpochCallback(tf.keras.callbacks.Callback):
+    def __init__(self, trial):
+        super().__init__()
+        self.trial = trial
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            return
+        train_loss = logs.get("loss")
+        val_loss = logs.get("val_loss")
+        # current learning rate can be obtained via the decayed LR:
+        lr = self.model.optimizer._decayed_lr(tf.float32).numpy()
+
+        # Save as user attributes so you can inspect them later:
+        self.trial.set_user_attr(f"train_loss_epoch_{epoch}", train_loss)
+        self.trial.set_user_attr(f"val_loss_epoch_{epoch}", val_loss)
+        self.trial.set_user_attr(f"lr_epoch_{epoch}", lr)
+
+        self.trial.report(val_loss, step=epoch)
+
+        # We can choose to prune here if performance is bad:
+        # if self.trial.should_prune():
+        #     raise optuna.TrialPruned()
+
+
 # -------------------------------------------------------------------------
 # Setup Optuna objective
 # We will run multiple trials, each trying out different hyperparameters.
@@ -276,6 +301,7 @@ def objective(trial):
     reduce_lr = ReduceLROnPlateau(
         monitor="val_loss", factor=0.5, patience=2, verbose=1, min_lr=1e-7
     )
+    optuna_callback = OptunaEpochCallback(trial)
 
     # Fit the model
     history = transformer_model.fit(
@@ -291,7 +317,7 @@ def objective(trial):
         ),
         epochs=DEFAULTS["EPOCHS"],
         batch_size=batch_size,
-        callbacks=[early_stop, reduce_lr],
+        callbacks=[early_stop, reduce_lr, optuna_callback],
         verbose=1,
     )
 
