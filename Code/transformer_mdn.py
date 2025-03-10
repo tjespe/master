@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "time-step-attention"
+VERSION = "last-time-step"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -88,8 +88,6 @@ from tensorflow.keras.layers import (
     Concatenate,
     RepeatVector,
     Lambda,
-    Softmax,
-    Multiply,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -206,11 +204,8 @@ def build_transformer_mdn(
     for _ in range(NUM_ENCODERS):
         x = transformer_encoder(x)
 
-    # Learn attention for each timestep and take weighted sum
-    attn_scores = Dense(1, activation=None)(x)
-    attn_scores = Softmax(axis=1)(attn_scores)
-    x = Multiply()([x, attn_scores])
-    x = Lambda(lambda t: tf.reduce_sum(t, axis=1))(x)
+    # Take the last time step
+    x = Lambda(lambda t: t[:, -1, :])(x)
 
     # Create initializers for MDN output layer
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
