@@ -292,7 +292,7 @@ def objective(trial):
         epochs=DEFAULTS["EPOCHS"],
         batch_size=batch_size,
         callbacks=[early_stop, reduce_lr],
-        verbose=0,  # set to 1 if you want the logs
+        verbose=1,
     )
 
     # Evaluate
@@ -338,7 +338,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     # Create or load a study
-    study_name = "transformer_mdn_hyperparam_search"
+    study_name = "transformer_mdn_hyperparam_and_feature_search"
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
