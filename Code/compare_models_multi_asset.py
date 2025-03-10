@@ -206,6 +206,7 @@ for version in [
     # "time-step-attention",
     # "last-time-step",
     # "tuned-overridden",
+    # "w-fred",
 ]:
     try:
         transformer_df = pd.read_csv(
