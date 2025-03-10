@@ -64,7 +64,7 @@ warnings.filterwarnings("ignore")
 DEFAULTS = {
     "D_MODEL": 32,
     "HIDDEN_UNITS_FF": 32 * 4,  # 128
-    "N_MIXTURES": 10,
+    "N_MIXTURES": 8,
     "DROPOUT": 0.5,
     "L2_REGULARIZATION": 1e-5,
     "NUM_ENCODERS": 2,
@@ -77,41 +77,6 @@ DEFAULTS = {
     "EPOCHS": 20,
     "BATCH_SIZE": 32,
 }
-
-# Other booleans from your original code
-MULTIPLY_MARKET_FEATURES_BY_BETA = False
-PI_PENALTY = False
-MU_PENALTY = False
-SIGMA_PENALTY = False
-INCLUDE_MARKET_FEATURES = False
-INCLUDE_RETURNS = False
-INCLUDE_FNG = False
-INCLUDE_INDUSTRY = False
-INCLUDE_GARCH = False
-INCLUDE_BETA = False
-INCLUDE_OTHERS = False
-INCLUDE_TICKERS = True
-
-# -------------------------------------------------------------------------
-# Data Loading (as in your original code)
-# -------------------------------------------------------------------------
-print("Loading preprocessed data...")
-data = get_lstm_train_test_new(
-    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
-    include_returns=INCLUDE_RETURNS,
-    include_spx_data=INCLUDE_MARKET_FEATURES,
-    include_others=INCLUDE_OTHERS,
-    include_beta=INCLUDE_BETA,
-    include_fng=INCLUDE_FNG,
-    include_garch=INCLUDE_GARCH,
-    include_industry=INCLUDE_INDUSTRY,
-)
-gc.collect()
-
-print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
-print(f"X_val.shape: {data.validation.X.shape}, y_val.shape: {data.validation.y.shape}")
-if INCLUDE_TICKERS:
-    print(f"Ticker IDs dimension: {data.ticker_ids_dim}")
 
 
 # -------------------------------------------------------------------------
@@ -226,15 +191,59 @@ def build_transformer_mdn(
 def objective(trial):
     # Instead of searching over all hyperparameters, pick the ones that matter most:
     d_model = trial.suggest_int("D_MODEL", 16, 64, step=8)
-    n_mixtures = trial.suggest_int("N_MIXTURES", 1, 40, step=2)
+    n_mixtures = DEFAULTS[
+        "N_MIXTURES"
+    ]  # trial.suggest_int("N_MIXTURES", 1, 40, step=2)
     dropout = trial.suggest_float("DROPOUT", 0, 0.7, step=0.1)
-    l2_reg = trial.suggest_float("L2_REGULARIZATION", 1e-6, 1e-3, log=True)
+    l2_reg = trial.suggest_float("L2_REGULARIZATION", 1e-7, 1e-3, log=True)
     num_encoders = trial.suggest_int("NUM_ENCODERS", 1, 4)
     num_heads = trial.suggest_int("NUM_HEADS", 2, 8, step=2)
     batch_size = trial.suggest_int("BATCH_SIZE", 8, 64, step=8)
 
     # The feed-forward size is typically 4 * d_model. We can keep or let it vary:
-    hidden_units_ff = d_model * 4
+    hidden_units_ff = trial.suggest_int("HIDDEN_UNITS_FF", 16, 1000, step=32)
+
+    # Other booleans from your original code
+    MULTIPLY_MARKET_FEATURES_BY_BETA = False
+    PI_PENALTY = False
+    MU_PENALTY = False
+    SIGMA_PENALTY = False
+    INCLUDE_MARKET_FEATURES = trial.suggest_categorical(
+        "INCLUDE_MARKET_FEATURES", [True, False]
+    )
+    INCLUDE_RETURNS = trial.suggest_categorical("INCLUDE_RETURNS", [True, False])
+    INCLUDE_FNG = trial.suggest_categorical("INCLUDE_FNG", [True, False])
+    INCLUDE_INDUSTRY = trial.suggest_categorical("INCLUDE_INDUSTRY", [True, False])
+    INCLUDE_GARCH = trial.suggest_categorical("INCLUDE_GARCH", [True, False])
+    INCLUDE_BETA = trial.suggest_categorical("INCLUDE_BETA", [True, False])
+    INCLUDE_OTHERS = trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
+    INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
+
+    # -------------------------------------------------------------------------
+    # Data Loading (as in your original code)
+    # -------------------------------------------------------------------------
+    print("Loading preprocessed data...")
+
+    # Get data
+    data = get_lstm_train_test_new(
+        multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+        include_returns=INCLUDE_RETURNS,
+        include_spx_data=INCLUDE_MARKET_FEATURES,
+        include_others=INCLUDE_OTHERS,
+        include_beta=INCLUDE_BETA,
+        include_fng=INCLUDE_FNG,
+        include_garch=INCLUDE_GARCH,
+        include_industry=INCLUDE_INDUSTRY,
+    )
+
+    gc.collect()
+
+    print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
+    print(
+        f"X_val.shape: {data.validation.X.shape}, y_val.shape: {data.validation.y.shape}"
+    )
+    if INCLUDE_TICKERS:
+        print(f"Ticker IDs dimension: {data.ticker_ids_dim}")
 
     # Build the model with these hyperparams
     transformer_model = build_transformer_mdn(
