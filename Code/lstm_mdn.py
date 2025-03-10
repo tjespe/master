@@ -5,25 +5,25 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "seq_tickers"
+VERSION = "tuned"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
 SIGMA_PENALTY = False
-INCLUDE_MARKET_FEATURES = True
-INCLUDE_RETURNS = True
+INCLUDE_MARKET_FEATURES = False
 INCLUDE_FNG = False
-INCLUDE_RETURNS = True
+INCLUDE_RETURNS = False
 INCLUDE_INDUSTRY = False
-INCLUDE_GARCH = True
-INCLUDE_BETA = True
-INCLUDE_OTHERS = True
+INCLUDE_GARCH = False
+INCLUDE_BETA = False
+INCLUDE_OTHERS = False
 INCLUDE_TICKERS = True
-HIDDEN_UNITS = 40
-N_MIXTURES = 10
-DROPOUT = 0.5
-NUM_HIDDEN_LAYERS = 2
-EMBEDDING_DIMENSIONS = 4
+HIDDEN_UNITS = 69
+N_MIXTURES = 26
+DROPOUT = 0.0
+L2_REG = 1.2e-6
+NUM_HIDDEN_LAYERS = 4
+EMBEDDING_DIMENSIONS = 17
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
@@ -31,6 +31,9 @@ MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 PATIENCE = 3  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
+WEIGHT_DECAY = 0.01459  # from optuna
+LEARNING_RATE = 0.00015956356887196678  # from optuna
+BATCH_SIZE = 59
 
 # %%
 # Imports from code shared across models
@@ -216,7 +219,7 @@ if os.path.exists(model_fname):
     )
     # Re-compile
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        optimizer=Adam(learning_rate=1e-4, weight_decay=WEIGHT_DECAY),
         loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
@@ -357,7 +360,7 @@ while True:
     ticker_weights = weight_per_ticker.loc[data.train.tickers].values
     print("Compiling model...", flush=True)
     lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=1e-4, weight_decay=1e-2),
+        optimizer=Adam(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
         loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Fitting model...", flush=True)
@@ -365,7 +368,7 @@ while True:
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
         data.train.y,
         epochs=50,
-        batch_size=32,
+        batch_size=BATCH_SIZE,
         verbose=1,
         validation_data=(
             (

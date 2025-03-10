@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "time-step-attention"
+VERSION = "tuned-overridden"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -25,7 +25,7 @@ INCLUDE_TICKERS = True
 # Model architecture
 D_MODEL = 40
 HIDDEN_UNITS_FF = D_MODEL * 4
-N_MIXTURES = 17
+N_MIXTURES = 8  # Optuna suggests 17, but overrided to avoid zero-ish mixtures interfering with tail performance
 DROPOUT = 0.0
 L2_REGULARIZATION = 1.8e-06
 NUM_ENCODERS = 1
@@ -88,8 +88,6 @@ from tensorflow.keras.layers import (
     Concatenate,
     RepeatVector,
     Lambda,
-    Softmax,
-    Multiply,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -206,11 +204,8 @@ def build_transformer_mdn(
     for _ in range(NUM_ENCODERS):
         x = transformer_encoder(x)
 
-    # Learn attention for each timestep and take weighted sum
-    attn_scores = Dense(1, activation=None)(x)
-    attn_scores = Softmax(axis=1)(attn_scores)
-    x = Multiply()([x, attn_scores])
-    x = Lambda(lambda t: tf.reduce_sum(t, axis=1))(x)
+    # Global average pooling (or take last time step)
+    x = GlobalAveragePooling1D()(x)
 
     # Create initializers for MDN output layer
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)

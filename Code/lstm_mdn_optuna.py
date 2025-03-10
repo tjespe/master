@@ -221,7 +221,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
     )
     try:
         subprocess.run(["git", "pull", "--no-edit"], check=True)
-        subprocess.run(["git", "add", "lstm_mdn_study.db"], check=True)
+        subprocess.run(["git", "add", "optuna"], check=True)
         commit_header = f"Trial {trial.number} - LSTM MDN study DB update"
         commit_body = (
             f"Trial {trial.number} finished with value: {trial.value}\n"

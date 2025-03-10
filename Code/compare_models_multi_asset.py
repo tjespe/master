@@ -152,6 +152,7 @@ for version in [
     "w-egarch",
     "w-egarch-2",
     "ffnn",
+    "tuned",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -201,6 +202,8 @@ for version in [
     "mini",
     "tuned",
     # "tuned-2",
+    # "time-step-attention",
+    # "last-time-step",
 ]:
     try:
         transformer_df = pd.read_csv(
@@ -1323,7 +1326,7 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Plot PICP for all the important tickers
-include_models = {"GARCH", "LSTM MDN ffnn", "Transformer MDN tuned"}
+include_models = {"GARCH", "LSTM MDN ffnn", "LSTM MDN tuned", "Transformer MDN tuned"}
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
         set(df_validation.index.get_level_values("Symbol")).intersection(
@@ -1420,6 +1423,10 @@ for benchmark in passing_model_names:
 p_value_df
 
 # %%
+# Calculate winner based on p-values
+p_value_df.fillna(1).sum(axis=0).T.sort_values() - 2
+
+# %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
 p_value_df_picp = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
 p_value_df_picp.index.name = "Benchmark"
@@ -1484,6 +1491,10 @@ for benchmark in passing_model_names:
         p_value_df_picp.loc[benchmark, challenger] = p_value
 
 p_value_df_picp
+
+# %%
+# Calculate winner based on p-values
+p_value_df_picp.fillna(1).sum(axis=0).T.sort_values() - 1
 
 
 # %%
