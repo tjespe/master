@@ -153,6 +153,7 @@ for version in [
     "w-egarch-2",
     "ffnn",
     "tuned",
+    # "tuned-w-fred",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -204,6 +205,7 @@ for version in [
     # "tuned-2",
     # "time-step-attention",
     # "last-time-step",
+    # "tuned-overridden",
 ]:
     try:
         transformer_df = pd.read_csv(

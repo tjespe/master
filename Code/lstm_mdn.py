@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned"
+VERSION = "tuned-w-fred"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -18,6 +18,7 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_TICKERS = True
+INCLDUE_FRED_MD = True
 HIDDEN_UNITS = 69
 N_MIXTURES = 26
 DROPOUT = 0.0
@@ -101,6 +102,7 @@ data = get_lstm_train_test_new(
     include_fng=INCLUDE_FNG,
     include_garch=INCLUDE_GARCH,
     include_industry=INCLUDE_INDUSTRY,
+    include_fred_md=INCLDUE_FRED_MD,
 )
 
 # %%
