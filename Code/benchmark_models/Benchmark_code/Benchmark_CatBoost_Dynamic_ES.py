@@ -87,7 +87,14 @@ def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
 
 #Function to get a df from the preprocessed data
 def combine_processed_data_into_df(window_size=1500):
-    data = get_lstm_train_test_new(multiply_by_beta=False, include_fng=False, include_spx_data=False, include_returns=True)
+    data = get_lstm_train_test_new(multiply_by_beta=False,
+                                    include_fng=False,
+                                    include_spx_data=False,
+                                    include_returns=False,
+                                    include_industry=False,
+                                    include_garch=False,
+                                    include_beta=False,
+                                    include_others=False)
 
     # load data anf covert to sensibe format
     X_train = data.train.X
@@ -154,7 +161,7 @@ def combine_processed_data_into_df(window_size=1500):
     # Sort by date, then ticker
     df_big.sort_values(by=["Date", "Symbol"], inplace=True)
 
-    # Encode Ticker as categorical (LabelEncoder) or leave as string category
+    # Encode Ticker as categorical (LabelEncoder) or leave as string category (MAYBE NOT USE LABELENCODER)
     le = LabelEncoder()
     le.fit(df_big["Symbol"])
     df_big["Ticker_Cat"] = le.transform(df_big["Symbol"])
@@ -403,4 +410,4 @@ es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05,  0.
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
-es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks.csv", index=False)
+es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks_RVdata.csv", index=False)

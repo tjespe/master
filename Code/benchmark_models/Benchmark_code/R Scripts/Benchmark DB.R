@@ -4,8 +4,10 @@ library(data.table)
 library(openxlsx)
 
 # %%
+# define datapath
+datapath <- "../../../data/processed_data_RV_only_for_DB.csv" # change filename
 # Load data
-D <- fread("D.csv") # input the correct filename here
+D <- fread(datapath) 
 # Ensure Date is in the correct format
 D[, Date := as.Date(Date)]
 # define the Eexpected Shortfall levels
@@ -15,16 +17,13 @@ ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 # NOT QUITE SURE WHAT THIS IS DOING, think it is easier to just specify one set of independent variables
 # Define independent variable sets based on your data 
 independant_var_sets <- list(
-  set1 = 'Feature_A + Feature_B + Feature_C',  # Replace with actual column names
-  set2 = 'Feature_D + Feature_E + Feature_F',
-  set3 = 'Feature_G + Feature_H + Feature_I'
+  set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'  
+ 
 )
 
 # define meaningul names for the independent variable sets
 independant_var_names_set <- list(
-  set1 = 'FeatureSet1',
-  set2 = 'FeatureSet2',
-  set3 = 'FeatureSet3'
+  set1 = 'RV_set',
 )
 
 # Define the dependent variable
@@ -318,4 +317,4 @@ for (ticker in tickers) {
 final_results <- rbindlist(all_results)
 
 # Save the final results to a csv file
-fwrite(final_results, "../../../predictions/Benchmark_DB_ES.csv") # change filename
+fwrite(final_results, "../../../predictions/Benchmark_DB_ES_stocks.csv") # change filename

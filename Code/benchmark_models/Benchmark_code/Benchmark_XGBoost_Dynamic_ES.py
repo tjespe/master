@@ -123,7 +123,14 @@ def ensure_non_crossing(df):
 
 #Function to get a df from the preprocessed data
 def combine_processed_data_into_df(window_size=1500):
-    data = get_lstm_train_test_new(multiply_by_beta=False, include_fng=False, include_spx_data=False, include_returns=True)
+    data = get_lstm_train_test_new(multiply_by_beta=False,
+                                    include_fng=False,
+                                    include_spx_data=False,
+                                    include_returns=False,
+                                    include_industry=False,
+                                    include_garch=False,
+                                    include_beta=False,
+                                    include_others=False)
 
     # load data anf covert to sensibe format
     X_train = data.train.X
@@ -385,5 +392,5 @@ es_df
 
 # %%
 # Write to csv
-es_df.to_csv("../../predictions/Benchmark_XGBoost_Dynamic_ES_stocks.csv", index=False)
+es_df.to_csv("../../predictions/Benchmark_XGBoost_Dynamic_ES_stocks_RVdata.csv", index=False)
 
