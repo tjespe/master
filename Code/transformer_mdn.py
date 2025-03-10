@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned-overridden"
+VERSION = "w-fred"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -20,6 +20,7 @@ INCLUDE_INDUSTRY = False
 INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
+INCLUDE_FRED_MD = True
 INCLUDE_TICKERS = True
 
 # Model architecture
@@ -108,6 +109,7 @@ if "data" not in dir() or input("Reload data? (y/N): ") == "y":
         include_fng=INCLUDE_FNG,
         include_garch=INCLUDE_GARCH,
         include_industry=INCLUDE_INDUSTRY,
+        include_fred_md=INCLUDE_FRED_MD,
     )
 
 # %%
