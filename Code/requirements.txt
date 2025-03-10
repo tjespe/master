@@ -1,9 +1,10 @@
 pandas
 tensorflow
 matplotlib
-numpy
+numpy==2.0.2
 scikit-learn
 torch
 arch
 numba
 optuna
+optuna-dashboard

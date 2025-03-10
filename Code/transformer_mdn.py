@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "mini"
+VERSION = "time-step-attention"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -23,13 +23,13 @@ INCLUDE_OTHERS = False
 INCLUDE_TICKERS = True
 
 # Model architecture
-D_MODEL = 32
+D_MODEL = 40
 HIDDEN_UNITS_FF = D_MODEL * 4
-N_MIXTURES = 10
-DROPOUT = 0.5
-L2_REGULARIZATION = 1e-5
-NUM_ENCODERS = 2
-NUM_HEADS = 4
+N_MIXTURES = 17
+DROPOUT = 0.0
+L2_REGULARIZATION = 1.8e-06
+NUM_ENCODERS = 1
+NUM_HEADS = 8
 D_TICKER_EMBEDDING = 4
 
 # Meta
@@ -40,6 +40,7 @@ REDUCE_LR_PATIENCE = 5  # Patience before halving learning rate
 PATIENCE = 20  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
+BATCH_SIZE = 40
 
 # %%
 # Imports from code shared across models
@@ -87,6 +88,8 @@ from tensorflow.keras.layers import (
     Concatenate,
     RepeatVector,
     Lambda,
+    Softmax,
+    Multiply,
 )
 from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
@@ -203,8 +206,11 @@ def build_transformer_mdn(
     for _ in range(NUM_ENCODERS):
         x = transformer_encoder(x)
 
-    # Global average pooling (or take last time step)
-    x = GlobalAveragePooling1D()(x)
+    # Learn attention for each timestep and take weighted sum
+    attn_scores = Dense(1, activation=None)(x)
+    attn_scores = Softmax(axis=1)(attn_scores)
+    x = Multiply()([x, attn_scores])
+    x = Lambda(lambda t: tf.reduce_sum(t, axis=1))(x)
 
     # Create initializers for MDN output layer
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
@@ -415,7 +421,7 @@ while True:
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
         data.train.y,
         epochs=50,
-        batch_size=32,
+        batch_size=BATCH_SIZE,
         verbose=1,
         validation_data=(
             (

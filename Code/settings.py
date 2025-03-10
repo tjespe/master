@@ -10,7 +10,7 @@ TRAIN_VALIDATION_SPLIT = "2021-12-31"
 VALIDATION_TEST_SPLIT = "2023-12-31"
 
 # Only used in old single stock model comparison
-TEST_ASSET = "GOOG"
+TEST_ASSET = "AAPL"
 
 # Other
 # Not necessary anymore after we stopped using Git LFS
