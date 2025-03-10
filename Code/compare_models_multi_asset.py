@@ -201,6 +201,8 @@ for version in [
     "mini",
     "tuned",
     # "tuned-2",
+    # "time-step-attention",
+    # "last-time-step",
 ]:
     try:
         transformer_df = pd.read_csv(
