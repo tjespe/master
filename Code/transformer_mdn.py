@@ -260,6 +260,7 @@ if os.path.exists(model_fname):
             "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
             "mdn_kernel_initializer": mdn_kernel_initializer,
             "mdn_bias_initializer": mdn_bias_initializer,
+            "add_day_indices": add_day_indices,
         },
     )
     # Re-compile

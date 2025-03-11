@@ -30,6 +30,7 @@ from tensorflow.keras.regularizers import l2
 
 from settings import LOOKBACK_DAYS
 import optuna
+from optuna.study import StudyDirection
 
 # -------------------------------------------------------------------------
 # Imports from your shared modules (these should match your original project)
@@ -193,13 +194,10 @@ class OptunaEpochCallback(tf.keras.callbacks.Callback):
             return
         train_loss = logs.get("loss")
         val_loss = logs.get("val_loss")
-        # current learning rate can be obtained via the decayed LR:
-        lr = self.model.optimizer._decayed_lr(tf.float32).numpy()
 
         # Save as user attributes so you can inspect them later:
         self.trial.set_user_attr(f"train_loss_epoch_{epoch}", train_loss)
         self.trial.set_user_attr(f"val_loss_epoch_{epoch}", val_loss)
-        self.trial.set_user_attr(f"lr_epoch_{epoch}", lr)
 
         self.trial.report(val_loss, step=epoch)
 
@@ -329,7 +327,29 @@ def objective(trial):
     gc.collect()
     tf.keras.backend.clear_session()
 
-    return val_loss
+    # Calculate confidence intervals and PICPs
+    y_val_pred = transformer_model.predict(
+        [data.validation.X, data.validation_ticker_ids]
+        if INCLUDE_TICKERS
+        else data.validation.X
+    )
+    pis, mus, sigmas = parse_mdn_output(y_val_pred, n_mixtures)
+    confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.98, 0.99, 0.995, 0.999]
+    intervals = calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels)
+
+    picps = {
+        cl: np.mean(
+            np.logical_and(
+                data.validation.y > intervals[:, i, 0],
+                data.validation.y < intervals[:, i, 1],
+            )
+        )
+        for i, cl in enumerate(confidence_levels)
+    }
+    picp_miss = {cl: picp - cl for cl, picp in picps.items()}
+    total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
+
+    return val_loss, total_picp_miss
 
 
 def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
@@ -370,7 +390,7 @@ if __name__ == "__main__":
         study_name=study_name,
         storage=storage,
         load_if_exists=True,
-        direction="minimize",
+        directions=[StudyDirection.MINIMIZE, StudyDirection.MINIMIZE],
     )
 
     # Optimize
