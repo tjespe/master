@@ -226,6 +226,7 @@ def objective(trial):
 
     # The feed-forward size is typically 4 * d_model. We can keep or let it vary:
     hidden_units_ff = trial.suggest_int("HIDDEN_UNITS_FF", 16, 1000, step=32)
+    d_ticker_embedding = trial.suggest_int("D_TICKER_EMBEDDING", 2, 30)
 
     # Other booleans from your original code
     MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -281,7 +282,7 @@ def objective(trial):
         l2_reg=l2_reg,
         num_encoders=num_encoders,
         num_heads=num_heads,
-        d_ticker_embedding=DEFAULTS["D_TICKER_EMBEDDING"],
+        d_ticker_embedding=d_ticker_embedding,
     )
 
     # Compile
@@ -365,7 +366,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
         # Build a detailed commit message
         commit_header = f"Trial {trial.number} - Updated study DB"
         commit_body = (
-            f"Trial {trial.number} finished with objective value: {trial.value}\n"
+            f"Trial {trial.number} finished with objective values: {trial.values}\n"
             f"Hyperparameters: {trial.params}\n"
         )
         # Commit with the constructed message
@@ -393,7 +394,7 @@ if __name__ == "__main__":
     )
 
     # Optimize
-    n_trials = 10  # set how many trials you want
+    n_trials = 5  # set how many trials you want
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
