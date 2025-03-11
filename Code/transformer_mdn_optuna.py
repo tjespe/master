@@ -199,7 +199,8 @@ class OptunaEpochCallback(tf.keras.callbacks.Callback):
         self.trial.set_user_attr(f"train_loss_epoch_{epoch}", train_loss)
         self.trial.set_user_attr(f"val_loss_epoch_{epoch}", val_loss)
 
-        self.trial.report(val_loss, step=epoch)
+        # This is not possible with multi objectives
+        # self.trial.report(val_loss, step=epoch)
 
         # We can choose to prune here if performance is bad:
         # if self.trial.should_prune():
@@ -322,11 +323,6 @@ def objective(trial):
     # Evaluate
     val_loss = min(history.history["val_loss"])  # best validation loss from this run
 
-    # Clean up GPU memory
-    del transformer_model
-    gc.collect()
-    tf.keras.backend.clear_session()
-
     # Calculate confidence intervals and PICPs
     y_val_pred = transformer_model.predict(
         [data.validation.X, data.validation_ticker_ids]
@@ -349,12 +345,17 @@ def objective(trial):
     picp_miss = {cl: picp - cl for cl, picp in picps.items()}
     total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
 
+    # Clean up GPU memory
+    del transformer_model
+    gc.collect()
+    tf.keras.backend.clear_session()
+
     return val_loss, total_picp_miss
 
 
 def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
     print(
-        f"Trial {trial.number} finished with value: {trial.value}. Committing DB to git."
+        f"Trial {trial.number} finished with value: {trial.values}. Committing DB to git."
     )
     try:
         # Update the local repo
@@ -366,8 +367,6 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
         commit_body = (
             f"Trial {trial.number} finished with objective value: {trial.value}\n"
             f"Hyperparameters: {trial.params}\n"
-            f"Study Best Value so far: {study.best_value}\n"
-            f"Study Best Params: {study.best_trial.params}\n"
         )
         # Commit with the constructed message
         subprocess.run(
@@ -384,7 +383,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     # Create or load a study
-    study_name = "transformer_mdn_hyperparam_and_feature_search"
+    study_name = "transformer_mdn_hyperparam_and_feature_search_multi"
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
@@ -394,7 +393,7 @@ if __name__ == "__main__":
     )
 
     # Optimize
-    n_trials = 1000  # set how many trials you want
+    n_trials = 10  # set how many trials you want
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
