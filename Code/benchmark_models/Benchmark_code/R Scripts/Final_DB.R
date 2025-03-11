@@ -30,7 +30,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   library(parallel);
   library(pbapply)
   
-  # Conert to data.table
+  # Convert to data.table
   # setDT(dt)
   
   # --==========================================================================================

@@ -152,6 +152,8 @@ for version in [
     "w-egarch",
     "w-egarch-2",
     "ffnn",
+    "tuned",
+    # "tuned-w-fred",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -199,6 +201,12 @@ for version in [
     "time",
     # "time-2",
     "mini",
+    "tuned",
+    # "tuned-2",
+    # "time-step-attention",
+    # "last-time-step",
+    # "tuned-overridden",
+    # "w-fred",
 ]:
     try:
         transformer_df = pd.read_csv(
@@ -253,7 +261,6 @@ for version in [4]:
         # "ffnn_on_latent_means",
         # "ffnn_on_latent_means_and_std",
         # "ffnn_on_latent_samples",
-        
     ]:
         try:
             pred_df = pd.read_csv(
@@ -264,8 +271,7 @@ for version in [4]:
             pred_df = pred_df.set_index(["Date", "Symbol"])
             dates = pred_df.index.get_level_values("Date")
             pred_df = pred_df[
-                (dates >= TRAIN_VALIDATION_SPLIT)
-                & (dates < VALIDATION_TEST_SPLIT)
+                (dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)
             ]
             combined_df = df_validation.join(
                 pred_df, how="left", rsuffix="_Transformer_MDN"
@@ -278,7 +284,9 @@ for version in [4]:
                 "nll": combined_df.get("NLL", combined_df.get("loss")).values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "crps": (
-                    crps.values if (crps := combined_df.get("CRPS")) is not None else None
+                    crps.values
+                    if (crps := combined_df.get("CRPS")) is not None
+                    else None
                 ),
                 "p_up": combined_df.get("Prob_Increase"),
             }
@@ -286,13 +294,13 @@ for version in [4]:
                 lb = combined_df.get(f"LB_{format_cl(cl)}")
                 ub = combined_df.get(f"UB_{format_cl(cl)}")
                 if lb is None or ub is None:
-                    print(
-                        f"Missing {format_cl(cl)}% interval for {name}"
-                    )
+                    print(f"Missing {format_cl(cl)}% interval for {name}")
                 entry[f"LB_{format_cl(cl)}"] = lb
                 entry[f"UB_{format_cl(cl)}"] = ub
                 alpha = 1 - (1 - cl) / 2
-                entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+                entry[f"ES_{format_cl(alpha)}"] = combined_df.get(
+                    f"ES_{format_cl(alpha)}"
+                )
             preds_per_model.append(entry)
             nans = combined_df["Pred_Mean"].isnull().sum()
             if nans > 0:
@@ -1321,7 +1329,7 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Plot PICP for all the important tickers
-include_models = {"GARCH", "Transformer MDN time"}
+include_models = {"GARCH", "LSTM MDN ffnn", "LSTM MDN tuned", "Transformer MDN tuned"}
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
         set(df_validation.index.get_level_values("Symbol")).intersection(
@@ -1416,6 +1424,81 @@ for benchmark in passing_model_names:
         p_value_df.loc[benchmark, challenger] = p_value
 
 p_value_df
+
+# %%
+# Calculate winner based on p-values
+p_value_df.fillna(1).sum(axis=0).T.sort_values() - 2
+
+# %%
+# Calculate p-value of outperformance in terms of PICP miss per stock
+p_value_df_picp = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+p_value_df_picp.index.name = "Benchmark"
+p_value_df_picp.columns.name = "Challenger"
+unique_symbols = set(df_validation.index.get_level_values("Symbol"))
+if FILTER_ON_IMPORTANT_TICKERS:
+    unique_symbols = unique_symbols.intersection(IMPORTANT_TICKERS)
+unique_symbols = sorted(unique_symbols)
+
+for benchmark in passing_model_names:
+    benchmark_entry = next(
+        entry for entry in passing_models if entry["name"] == benchmark
+    )
+    for challenger in passing_model_names:
+        if benchmark == challenger:
+            continue
+        challenger_entry = next(
+            entry for entry in passing_models if entry["name"] == challenger
+        )
+        benchmark_coverage_df = pd.DataFrame(
+            index=unique_symbols, columns=CONFIDENCE_LEVELS
+        )
+        challenger_coverage_df = pd.DataFrame(
+            index=unique_symbols, columns=CONFIDENCE_LEVELS
+        )
+        for cl in CONFIDENCE_LEVELS:
+            if cl > 0.99:
+                # This is too extreme to be useful on single stocks
+                continue
+            chr_key = f"chr_results_df_{format_cl(cl)}"
+            if chr_key not in benchmark_entry or chr_key not in challenger_entry:
+                continue
+            benchmark_chr_results_df = benchmark_entry[chr_key]
+            challenger_chr_results_df = challenger_entry[chr_key]
+            benchmark_coverage_df[cl] = (
+                benchmark_chr_results_df["Coverage"] - cl
+            ).abs()
+            challenger_coverage_df[cl] = (
+                challenger_chr_results_df["Coverage"] - cl
+            ).abs()
+
+        mask = ~pd.isna(challenger_coverage_df) & ~pd.isna(benchmark_coverage_df)
+        benchmark_coverage_df = benchmark_coverage_df[mask]
+        challenger_coverage_df = challenger_coverage_df[mask]
+
+        # Drop columns where all values are nan
+        benchmark_coverage_df = benchmark_coverage_df.dropna(axis=1, how="all")
+        challenger_coverage_df = challenger_coverage_df.dropna(axis=1, how="all")
+
+        # Drop rows where all values are nan
+        benchmark_coverage_df = benchmark_coverage_df.dropna(axis=0, how="all")
+        challenger_coverage_df = challenger_coverage_df.dropna(axis=0, how="all")
+
+        # Do a t-test on the sum of misses
+        benchmark_sum_misses = benchmark_coverage_df.sum(axis=1)
+        challenger_sum_misses = challenger_coverage_df.sum(axis=1)
+        t_stat, p_value = ttest_rel(
+            challenger_sum_misses, benchmark_sum_misses, alternative="less"
+        )
+
+        # Store the p-value in the dataframe
+        p_value_df_picp.loc[benchmark, challenger] = p_value
+
+p_value_df_picp
+
+# %%
+# Calculate winner based on p-values
+p_value_df_picp.fillna(1).sum(axis=0).T.sort_values() - 1
+
 
 # %%
 # Calculate p-value of outperformance in terms of CRPS

@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "mini"
+VERSION = "w-fred"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -20,16 +20,17 @@ INCLUDE_INDUSTRY = False
 INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
+INCLUDE_FRED_MD = True
 INCLUDE_TICKERS = True
 
 # Model architecture
-D_MODEL = 32
+D_MODEL = 40
 HIDDEN_UNITS_FF = D_MODEL * 4
-N_MIXTURES = 10
-DROPOUT = 0.5
-L2_REGULARIZATION = 1e-5
-NUM_ENCODERS = 2
-NUM_HEADS = 4
+N_MIXTURES = 8  # Optuna suggests 17, but overrided to avoid zero-ish mixtures interfering with tail performance
+DROPOUT = 0.0
+L2_REGULARIZATION = 1.8e-06
+NUM_ENCODERS = 1
+NUM_HEADS = 8
 D_TICKER_EMBEDDING = 4
 
 # Meta
@@ -40,6 +41,7 @@ REDUCE_LR_PATIENCE = 5  # Patience before halving learning rate
 PATIENCE = 20  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = True
 REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
+BATCH_SIZE = 40
 
 # %%
 # Imports from code shared across models
@@ -107,6 +109,7 @@ if "data" not in dir() or input("Reload data? (y/N): ") == "y":
         include_fng=INCLUDE_FNG,
         include_garch=INCLUDE_GARCH,
         include_industry=INCLUDE_INDUSTRY,
+        include_fred_md=INCLUDE_FRED_MD,
     )
 
 # %%
@@ -415,7 +418,7 @@ while True:
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
         data.train.y,
         epochs=50,
-        batch_size=32,
+        batch_size=BATCH_SIZE,
         verbose=1,
         validation_data=(
             (
