@@ -14,7 +14,7 @@ import os
 import sys
 import pandas as pd
 from sklearn.calibration import LabelEncoder
-import tqdm
+from tqdm import tqdm
 import lightgbm as lgb
 import matplotlib.pyplot as plt
 from lightgbm import LGBMRegressor
@@ -61,62 +61,26 @@ def remove_suffix(input_string, suffix):
 
 
 # Function to ensure no quantile crossing
-def ensure_non_crossing(df):
-    # List of quantile columns in the order they appear in the dataset
-    quantile_columns = [col for col in df if col.startswith("Quantile_")]
+def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
+    quantile_columns = [col for col in df.columns if col.startswith("Quantile_")]
 
-    # Iterate through each row of the dataframe
-    for index, row in df.iterrows():
-        # Iterate through the quantile columns except for the last one
-        for i in range(len(quantile_columns) - 1):
+    def get_alpha(col_name):
+        return float(col_name.split("_")[-1])
 
-            current_quantile = quantile_columns[i]
-            current_quantile_1 = current_quantile
+    # Sort columns by numeric alpha
+    quantile_columns_sorted = sorted(quantile_columns, key=get_alpha)
 
-            next_quantile = quantile_columns[i + 1]
-            next_quantile_1 = next_quantile
+    # Single forward pass for each row
+    for idx in df.index:
+        for i in range(len(quantile_columns_sorted) - 1):
+            col_cur = quantile_columns_sorted[i]
+            col_nxt = quantile_columns_sorted[i+1]
+            val_cur = df.at[idx, col_cur]
+            val_nxt = df.at[idx, col_nxt]
 
-            current_quantile_1 = remove_suffix(current_quantile_1, ".1")
-            current_quantile_1 = remove_suffix(current_quantile_1, ".2")
-            current_quantile_1 = remove_suffix(current_quantile_1, "Quantile_")
-            next_quantile_1 = remove_suffix(next_quantile_1,".1")
-            next_quantile_1 = remove_suffix(next_quantile_1,".2")
-            next_quantile_1 = remove_suffix(next_quantile_1, "Quantile_")
-
-            current_quantile_value = float(current_quantile_1)
-            next_quantile_value = float(next_quantile_1)
-            # Determine the direction of adjustment based on the quantile value from the column name
-            a = 0
-            if current_quantile_value == next_quantile_value:
-              a+=1
-              print(a)
-            if current_quantile_value <= 0.5:
-
-                if (df.at[index, current_quantile] < df.at[index, next_quantile]):
-                    df.at[index, next_quantile] = df.at[index, current_quantile] - 0.0001
-
-        for k in range(len(quantile_columns)-1, 0, -1):
-
-          current_quantile = quantile_columns[k]
-          current_quantile_1 = current_quantile
-
-          next_quantile = quantile_columns[k - 1]
-          next_quantile_1 = next_quantile
-
-          current_quantile_1 = remove_suffix(current_quantile_1, ".1")
-          current_quantile_1 = remove_suffix(current_quantile_1, ".2")
-          current_quantile_1 = remove_suffix(current_quantile_1, "Quantile_")
-          next_quantile_1 = remove_suffix(next_quantile_1,".1")
-          next_quantile_1 = remove_suffix(next_quantile_1,".2")
-          next_quantile_1 = remove_suffix(next_quantile_1, "Quantile_")
-
-          current_quantile_value = float(current_quantile_1)
-          next_quantile_value = float(next_quantile_1)
-          if current_quantile_value >= 0.5:
-
-            if (df.at[index, current_quantile] > df.at[index, next_quantile]):
-
-              df.at[index, next_quantile] = df.at[index, current_quantile] + 0.0001
+            # if Q_cur > Q_nxt => crossing => fix
+            if val_cur > val_nxt:
+                df.at[idx, col_nxt] = val_cur  # or val_cur + small_epsilon
 
     return df
 
@@ -221,7 +185,7 @@ def combine_processed_data_into_df(window_size=1500):
 
 
 
-def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha):
+def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha, cat_feature_index):
     """Trains an LGBMRegressor model for a specific quantile and predicts on test data."""
     model = LGBMRegressor(
         objective='quantile',
@@ -233,7 +197,8 @@ def train_and_predict_lgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha
         boosting_type='gbdt',
         lambda_l2=1,
         random_state=72,
-        categorical_feature='auto',
+        categorical_feature=cat_feature_index,
+        verbose=-1
     )
 
     model.fit(
@@ -248,7 +213,8 @@ def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
                                            window_size: 1500,
                                            horizon: 1,
                                            step: 1,
-                                           quantiles = quantiles):
+                                           quantiles = quantiles,
+                                           cat_feature_index = None):
     
 
     # 1) Gather the sorted unique dates
@@ -259,6 +225,7 @@ def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
 
     # 3) Iterate over the dates
     for i in tqdm(range(window_size, len(unique_dates) - horizon + 1, step), desc="Rolling Window Steps"):
+        #print(f"Processing date {i} of {len(unique_dates)}")
         # The training window covers unique_dates in the range [i-window_size, i)
         train_start_idx = i - window_size  # inclusive
         train_end_idx = i  # exclusive
@@ -307,7 +274,8 @@ def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
                                            X_val=X_val,
                                            y_val=y_val,
                                            X_test=X_test,
-                                           quantile_alpha=alpha)
+                                           quantile_alpha=alpha,
+                                           cat_feature_index=cat_feature_index)
             pred_quantiles[alpha] = y_pred
 
        # 7) For each row in df_test, we build a dict with Ticker, Date, TrueY, and predicted quantiles
@@ -321,13 +289,13 @@ def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
                 row_dict[f"Quantile_{alpha}"] = pred_quantiles[alpha][row_idx]
             predictions_list.append(row_dict)
 
-        # 8) Build final DataFrame with predictions
-        df_preds = pd.DataFrame(predictions_list)
-        # reorder columns
-        q_cols = [c for c in df_preds.columns if c.startswith("Quantile_")]
-        final_cols = ["Symbol", "Date", "TrueY"] + sorted(q_cols)
-        df_preds = df_preds[final_cols].sort_values(["Date", "Symbol"])
-        return df_preds
+    # 8) Build final DataFrame with predictions
+    df_preds = pd.DataFrame(predictions_list)
+    # reorder columns
+    q_cols = [c for c in df_preds.columns if c.startswith("Quantile_")]
+    final_cols = ["Symbol", "Date", "TrueY"] + sorted(q_cols)
+    df_preds = df_preds[final_cols].sort_values(["Date", "Symbol"])
+    return df_preds
     
 
 
@@ -337,7 +305,7 @@ def run_quantile_regression_rolling_window(df_big:pd.DataFrame,
 # =============================================================================
 def main_global_rolling_preds():
     df_big, feature_cols, cat_feature_index = combine_processed_data_into_df(window_size=1500)
-    print(df_big.head())
+    print("DF_big shape:", df_big.shape)
 
     df_predictions = run_quantile_regression_rolling_window(
         df_big=df_big,
@@ -345,13 +313,16 @@ def main_global_rolling_preds():
         window_size=1500,
         horizon=1,
         step=1,
-        quantiles=quantiles
+        quantiles=quantiles,
+        cat_feature_index=cat_feature_index
     )
-    print("Sample predictions:")
-    print(df_predictions.head())
+    print("Prediction shape:")
+    print(df_predictions.shape)
 
     # ensure no quantile crossing
-    df_no_crossing = ensure_non_crossing(df_predictions)
+    df_no_crossing = ensure_non_crossing_unified(df_predictions)
+    print("No crossing shape:")
+    print(df_no_crossing.shape)
     return df_no_crossing
 
 final_df = main_global_rolling_preds()

@@ -436,6 +436,99 @@ try:
 except FileNotFoundError:
     print("Catboost predictions not found")
 
+try:
+    lightGBMpreds = pd.read_csv(
+        f"predictions/Benchmark_LIGHTGBM_Dynamic_ES_stocks_RVdata.csv"
+    )
+    lightGBMpreds["Date"] = pd.to_datetime(lightGBMpreds["Date"])
+    lightGBMpreds = lightGBMpreds.set_index(["Date", "Symbol"])
+    lightGBM_dates = lightGBMpreds.index.get_level_values("Date")
+    lightGBMpreds = lightGBMpreds[
+        (lightGBM_dates >= TRAIN_VALIDATION_SPLIT)
+        & (lightGBM_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(lightGBMpreds, how="left", rsuffix="_LIGHTGBM")
+    # make a Mean_SP column full of 0s for now
+    combined_df["Mean_SP"] = 0
+    # same for Vol_SP
+    combined_df["Vol_SP"] = 0
+    # same for NLL
+    combined_df["nll"] = np.nan
+
+    preds_per_model.append(
+        {
+            "name": "Benchmark LightGBM RV_only",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df["nll"].values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "LB_98": combined_df["Quantile_0.010"].values,
+            "UB_98": combined_df["Quantile_0.990"].values,
+            "LB_95": combined_df["Quantile_0.025"].values,
+            "UB_95": combined_df["Quantile_0.975"].values,
+            "LB_90": combined_df["Quantile_0.050"].values,
+            "UB_90": combined_df["Quantile_0.950"].values,
+            "ES_99": combined_df["ES_0.010"].values,
+            "ES_97.5": combined_df["ES_0.025"].values,
+            "ES_95": combined_df["ES_0.050"].values,
+            "ES_0.05": combined_df["ES_0.950"].values,
+            "ES_0.025": combined_df["ES_0.975"].values,
+            "ES_0.01": combined_df["ES_0.990"].values,
+        }
+    )
+    # nans = combined_df["Mean_SP"].isnull().sum()
+    nans = 0
+    if nans > 0:
+        print(f"LightGBM has {nans} NaN predictions")
+except FileNotFoundError:
+    print("LightGBM predictions not found")
+
+try:
+    xg_boost_preds = pd.read_csv(
+        f"predictions/Benchmark_XGBoost_Dynamic_ES_stocks_RVdata.csv"
+    )
+    xg_boost_preds["Date"] = pd.to_datetime(xg_boost_preds["Date"])
+    xg_boost_preds = xg_boost_preds.set_index(["Date", "Symbol"])
+    xg_boost_dates = xg_boost_preds.index.get_level_values("Date")
+    xg_boost_preds = xg_boost_preds[
+        (xg_boost_dates >= TRAIN_VALIDATION_SPLIT)
+        & (xg_boost_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(xg_boost_preds, how="left", rsuffix="_XGBoost")
+    # make a Mean_SP column full of 0s for now
+    combined_df["Mean_SP"] = 0
+    # same for Vol_SP
+    combined_df["Vol_SP"] = 0
+    # same for NLL
+    combined_df["nll"] = np.nan
+
+    preds_per_model.append(
+        {
+            "name": "Benchmark XGBoost RV_only",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df["nll"].values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "LB_98": combined_df["Quantile_0.010"].values,
+            "UB_98": combined_df["Quantile_0.990"].values,
+            "LB_95": combined_df["Quantile_0.025"].values,
+            "UB_95": combined_df["Quantile_0.975"].values,
+            "LB_90": combined_df["Quantile_0.050"].values,
+            "UB_90": combined_df["Quantile_0.950"].values,
+            "ES_99": combined_df["ES_0.010"].values,
+            "ES_97.5": combined_df["ES_0.025"].values,
+            "ES_95": combined_df["ES_0.050"].values,
+            "ES_0.05": combined_df["ES_0.950"].values,
+            "ES_0.025": combined_df["ES_0.975"].values,
+            "ES_0.01": combined_df["ES_0.990"].values,
+        }
+    )
+    # nans = combined_df["Mean_SP"].isnull().sum()
+    nans = 0
+    if nans > 0:
+        print(f"XGBoost has {nans} NaN predictions")
+except FileNotFoundError:
+    print("XGBoost predictions not found")
 
 ###########################################
 

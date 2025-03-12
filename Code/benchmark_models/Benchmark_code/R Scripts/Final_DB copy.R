@@ -12,8 +12,6 @@ independant_var_sets <- list(
 
 independant_var_names_set <- list(
   set1 = 'RV_set'
-
-
 )
 
 independant_var_names <- unname(unlist(independant_var_names_set))
@@ -110,20 +108,22 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     }
     
     # Generate the specs for each combination of sets
-    for (n in 2:length(independant_var_sets)) {
-      combinations <- combn(set_names, n, simplify = FALSE)
-      
-      for (combo in combinations) {
-        current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
-        specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+    if (length(independant_var_sets) >= 2) {
+      for (n in 2:length(independant_var_sets)) {
+        combinations <- combn(set_names, n, simplify = FALSE)
         
-        # Generate the model name
-        model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
-        
-        
-        model_names <- c(model_names, model_name)
-        
-        counter <- counter + 1
+        for (combo in combinations) {
+          current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
+          specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+          
+          # Generate the model name
+          model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
+          
+          
+          model_names <- c(model_names, model_name)
+          
+          counter <- counter + 1
+        }
       }
     }
     # Assign the generated names to the specs
@@ -152,25 +152,26 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     }
     
     # Generate the specs for each combination of sets
-    for (n in 2:length(independant_var_sets)) {
-      combinations <- combn(set_names, n, simplify = FALSE)
-      
-      
-      for (combo in combinations) {
+    if (length(independant_var_sets) >= 2) {
+      for (n in 2:length(independant_var_sets)) {
+        combinations <- combn(set_names, n, simplify = FALSE)
         
-        if (!"set1" %in% combo) {
-          next  # Skip this combination if "set1" is not included
+        
+        for (combo in combinations) {
+          
+          if (!"set1" %in% combo) {
+            next  # Skip this combination if "set1" is not included
+          }
+          current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
+          specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
+          
+          # Generate the model name
+          model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
+          model_names <- c(model_names, model_name)
+          counter <- counter + 1
         }
-        current_vars <- paste(unlist(independant_var_sets[combo]), collapse = " + ")
-        specs[[paste0("DB.", counter)]] <- as.formula(paste(depentant_var, "~", current_vars))
-        
-        # Generate the model name
-        model_name <- paste0("DB_", paste(unlist(independant_var_names_set[combo]), collapse = "_"))
-        model_names <- c(model_names, model_name)
-        counter <- counter + 1
       }
     }
-    
     # Assign the generated names to the specs
     names(specs) <- model_names
     
@@ -202,7 +203,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       # Select data
       y     = dt[,which(names(dt) == dep)]
       # y     = dt[,..dep];
-      x     = dt[,exog]
+      x     = dt[,..exog]
       # x     = dt[,..exog;
       dates = dt$Date;
       
@@ -214,7 +215,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       # spocitame rolling forecasts
       
       A = Sys.time()
-      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=T, nc = nc) 
+      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=F, nc = nc) 
       print(Sys.time()-A)
       
       

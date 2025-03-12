@@ -62,62 +62,27 @@ def remove_suffix(input_string, suffix):
     return input_string
 
 # Function to ensure no quantile crossing
-def ensure_non_crossing(df):
-    # List of quantile columns in the order they appear in the dataset
-    quantile_columns = [col for col in df if col.startswith("Quantile_")]
+# Function to ensure no quantile crossing - adapted for multi-asset # FIX THIS TO DO THE RIGHT THING
+def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
+    quantile_columns = [col for col in df.columns if col.startswith("Quantile_")]
 
-    # Iterate through each row of the dataframe
-    for index, row in df.iterrows():
-        # Iterate through the quantile columns except for the last one
-        for i in range(len(quantile_columns) - 1):
+    def get_alpha(col_name):
+        return float(col_name.split("_")[-1])
 
-            current_quantile = quantile_columns[i]
-            current_quantile_1 = current_quantile
+    # Sort columns by numeric alpha
+    quantile_columns_sorted = sorted(quantile_columns, key=get_alpha)
 
-            next_quantile = quantile_columns[i + 1]
-            next_quantile_1 = next_quantile
+    # Single forward pass for each row
+    for idx in df.index:
+        for i in range(len(quantile_columns_sorted) - 1):
+            col_cur = quantile_columns_sorted[i]
+            col_nxt = quantile_columns_sorted[i+1]
+            val_cur = df.at[idx, col_cur]
+            val_nxt = df.at[idx, col_nxt]
 
-            current_quantile_1 = remove_suffix(current_quantile_1, ".1")
-            current_quantile_1 = remove_suffix(current_quantile_1, ".2")
-            current_quantile_1 = remove_suffix(current_quantile_1, "Quantile_")
-            next_quantile_1 = remove_suffix(next_quantile_1,".1")
-            next_quantile_1 = remove_suffix(next_quantile_1,".2")
-            next_quantile_1 = remove_suffix(next_quantile_1, "Quantile_")
-
-            current_quantile_value = float(current_quantile_1)
-            next_quantile_value = float(next_quantile_1)
-            # Determine the direction of adjustment based on the quantile value from the column name
-            a = 0
-            if current_quantile_value == next_quantile_value:
-              a+=1
-              print(a)
-            if current_quantile_value <= 0.5:
-
-                if (df.at[index, current_quantile] < df.at[index, next_quantile]):
-                    df.at[index, next_quantile] = df.at[index, current_quantile] - 0.0001
-
-        for k in range(len(quantile_columns)-1, 0, -1):
-
-          current_quantile = quantile_columns[k]
-          current_quantile_1 = current_quantile
-
-          next_quantile = quantile_columns[k - 1]
-          next_quantile_1 = next_quantile
-
-          current_quantile_1 = remove_suffix(current_quantile_1, ".1")
-          current_quantile_1 = remove_suffix(current_quantile_1, ".2")
-          current_quantile_1 = remove_suffix(current_quantile_1, "Quantile_")
-          next_quantile_1 = remove_suffix(next_quantile_1,".1")
-          next_quantile_1 = remove_suffix(next_quantile_1,".2")
-          next_quantile_1 = remove_suffix(next_quantile_1, "Quantile_")
-
-          current_quantile_value = float(current_quantile_1)
-          next_quantile_value = float(next_quantile_1)
-          if current_quantile_value >= 0.5:
-
-            if (df.at[index, current_quantile] > df.at[index, next_quantile]):
-
-              df.at[index, next_quantile] = df.at[index, current_quantile] + 0.0001
+            # if Q_cur > Q_nxt => crossing => fix
+            if val_cur > val_nxt:
+                df.at[idx, col_nxt] = val_cur  # or val_cur + small_epsilon #MAYBE add small epsilon
 
     return df
 
@@ -225,11 +190,12 @@ def train_and_predict_xgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha
         verbosity=0,
         reg_lambda=1,
         random_state=72,
+        early_stopping_rounds=20,
         enable_categorical=True  # Enable categorical features
     )
 
     # Early stopping for better generalization
-    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=20, verbose=False, cat_features=cat_feature_index)
+    model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
     return model.predict(X_test)
 
 
@@ -289,7 +255,7 @@ def run_quantile_regression_rolling_window(df_big, feature_cols, window_size=150
 
         #6) For each quantile, train and predict on test
         pred_quantiles = {}
-        for q in tdqm(quantiles, desc="Quantile Predictions", leeave=False):
+        for q in tqdm(quantiles, desc="Quantile Predictions", leave=False):
             pred = train_and_predict_xgb(
                 X_train=X_train,
                 y_train=y_train,
@@ -344,7 +310,7 @@ def main_global_rolling_preds():
     print(df_preds.head(20))
 
     #4 Ensure non-crossing
-    df_no_cross = ensure_non_crossing(df_preds)
+    df_no_cross = ensure_non_crossing_unified(df_preds)
 
     return df_no_cross
 
@@ -363,9 +329,9 @@ def estimate_es_from_predictions(
 ) -> pd.DataFrame:
 
     df_out = df_preds.copy()
-
+    print(es_quantiles)
     for alpha in es_quantiles:
-       
+        print(alpha)
         alpha_subs = []
         if alpha < 0.5:
             # E.g. alpha=0.01 => [0.01, 0.008, 0.006, 0.004, 0.002] etc.
@@ -385,7 +351,7 @@ def estimate_es_from_predictions(
         # Average them row-wise => ES for alpha
         df_out[f"ES_{alpha:.3f}"] = df_out[existing_cols].mean(axis=1)
         
-        return df_out
+    return df_out
     
 es_df = estimate_es_from_predictions(final_df, ES_quantiles, p)
 es_df
@@ -394,3 +360,5 @@ es_df
 # Write to csv
 es_df.to_csv("../../predictions/Benchmark_XGBoost_Dynamic_ES_stocks_RVdata.csv", index=False)
 
+
+# %%
