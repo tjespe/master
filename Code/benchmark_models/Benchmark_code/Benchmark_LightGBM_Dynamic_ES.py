@@ -96,7 +96,6 @@ def combine_processed_data_into_df(window_size=1500):
                                     include_others=False)
 
 
-    # load data and covert to sensibe format
     X_train = data.train.X
     y_train = data.train.y
     X_val = data.validation.X
@@ -106,60 +105,57 @@ def combine_processed_data_into_df(window_size=1500):
     dates_train = data.train.dates
     dates_val = data.validation.dates
 
-    print()
-    print("Shapes after loading data:")
-    print("X_train shape: ", X_train.shape)
-    print("y_train shape: ", y_train.shape)
-    print("X_val shape: ", X_val.shape)
-    print("y_val shape: ", y_val.shape)
-    print("tickers_train shape: ", tickers_train.shape)
-    print("tickers_val shape: ", tickers_val.shape)
-    print("dates_train shape: ", dates_train.shape)
-    print("dates_val shape: ", dates_val.shape)
-
+ 
     # Changing shape to not take in lags as features
     X_train = X_train[:, -1, : ]
     X_val = X_val[:, -1, : ]
-    # remove all elements from X_train and Y_train except the last window_size entries
-    X_train = X_train[-window_size:]
-    y_train = y_train[-window_size:]
-    tickers_train = tickers_train[-window_size:]
-    dates_train = dates_train[-window_size:]
 
-    # print the shapes of the data
-    print()
-    print("Shapes after changing:")
-    print("X_train shape: ", X_train.shape)
-    print("y_train shape: ", y_train.shape)
-    print("X_val shape: ", X_val.shape)
-    print("y_val shape: ", y_val.shape)
-    print("tickers_train shape: ", tickers_train.shape)
-    print("tickers_val shape: ", tickers_val.shape)
-    print("dates_train shape: ", dates_train.shape)
-    print("dates_val shape: ", dates_val.shape)
+    # make a training set as df
+    feat_cols = [f"feat_{i}" for i in range(X_train.shape[1])]
+    df_train = pd.DataFrame(X_train, columns=feat_cols)
+    df_train["Date"] = dates_train
+    df_train["Symbol"] = tickers_train
+    df_train["TrueY"] = y_train
 
-    X_all = np.concatenate((X_train, X_val), axis=0)
-    y_all = np.concatenate((y_train, y_val), axis=0)
-    tickers_all = np.concatenate((tickers_train, tickers_val), axis=0)
-    dates_all = np.concatenate((dates_train, dates_val), axis=0)
+    print("df_train shape: ", df_train.shape)
 
-    # print the shapes of the data
-    print()
-    print("Final shapes:")
-    print("X_all shape: ", X_all.shape)
-    print("y_all shape: ", y_all.shape)
-    print("tickers_all shape: ", tickers_all.shape)
-    print("dates_all shape: ", dates_all.shape)
+    # remove all elements from the training set except the last window_size dates for each ticker
+    df_train = df_train.groupby("Symbol").tail(window_size)
+    print("df_train shape: ", df_train.shape)
 
-    
-    
+   
+    # count how many entries there are per ticker in the data
+    print(df_train["Symbol"].value_counts())
+  
+    # count how many unique dates there are in the data
+    print("Unique dates":, len(np.unique(df_train["Date"])))
 
-    # Build a DataFrame
-    feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
-    df_big = pd.DataFrame(X_all, columns=feat_cols)
-    df_big["Date"] = dates_all
-    df_big["Symbol"] = tickers_all
-    df_big["TrueY"] = y_all
+  
+    # print last and first date in the data
+    print(f"Last date: {df_train['Date'].max()}")
+    print(f"First date: {df_train['Date'].min()}")
+
+
+ 
+    # Do the same for the validation set but keep all data
+    feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
+    df_val = pd.DataFrame(X_val, columns=feat_cols)
+    df_val["Date"] = dates_val
+    df_val["Symbol"] = tickers_val
+    df_val["TrueY"] = y_val
+    print("df_val shape: ", df_val.shape)
+
+ 
+    # count how many entries there are per ticker in the data
+    print(df_val["Symbol"].value_counts())
+
+   
+    # merge the training and validation data
+    df_big = pd.concat([df_train, df_val], axis=0)
+    print("df_big shape: ", df_big.shape)
+
+    # count how many entries there are per ticker in the data
+    print(df_big["Symbol"].value_counts())
 
     # Sort by date, then ticker
     df_big.sort_values(by=["Date", "Symbol"], inplace=True)

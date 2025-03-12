@@ -30,6 +30,7 @@ data = get_lstm_train_test_new(multiply_by_beta=False,
                                     include_beta=False,
                                     include_others=False)
 data
+
 # %%
 X_train = data.train.X
 y_train = data.train.y
@@ -44,37 +45,126 @@ dates_val = data.validation.dates
 # Changing shape to not take in lags as features
 X_train = X_train[:, -1, : ]
 X_val = X_val[:, -1, : ]
-# remove all elements from X_train and Y_train except the last window_size entries
-X_train = X_train[-WINDOW:]
-y_train = y_train[-WINDOW:]
-tickers_train = tickers_train[-WINDOW:]
-dates_train = dates_train[-WINDOW:]
+
+# make a training set as df
+feat_cols = [f"feat_{i}" for i in range(X_train.shape[1])]
+df_train = pd.DataFrame(X_train, columns=feat_cols)
+df_train["Date"] = dates_train
+df_train["Ticker"] = tickers_train
+df_train["Return"] = y_train
+
+df_train
+# %%
+# remove all elements from the training set except the last window_size dates for each ticker
+df_train = df_train.groupby("Ticker").tail(WINDOW)
+df_train
 
 # %%
-X_all = np.concatenate((X_train, X_val), axis=0)
-y_all = np.concatenate((y_train, y_val), axis=0)
-tickers_all = np.concatenate((tickers_train, tickers_val), axis=0)
-dates_all = np.concatenate((dates_train, dates_val), axis=0)
-#%%
-feat_cols = [f"feat_{i}" for i in range(X_all.shape[1])]
-df_big = pd.DataFrame(X_all, columns=feat_cols)
-df_big["Date"] = dates_all
-df_big["Ticker"] = tickers_all
-df_big["Return"] = y_all
+# count how many entries there are per ticker in the data
+df_train["Ticker"].value_counts()
+# %%
+# count how many unique dates there are in the data
+len(np.unique(df_train["Date"]))
 
+# %%
+# print last and first date in the data
+print(f"Last date: {df_train['Date'].max()}")
+print(f"First date: {df_train['Date'].min()}")
+
+
+# %%
+# Do the same for the validation set but keep all data
+feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
+df_val = pd.DataFrame(X_val, columns=feat_cols)
+df_val["Date"] = dates_val
+df_val["Ticker"] = tickers_val
+df_val["Return"] = y_val
+df_val
+
+# %%
+# count how many entries there are per ticker in the data
+df_val["Ticker"].value_counts()
+
+# %%
+# merge the training and validation data
+df_big = pd.concat([df_train, df_val], axis=0)
 df_big
 
 # %%
-data = df_big
+# count how many entries there are per ticker in the data
+df_big["Ticker"].value_counts()
+
 # %%
 # save to csv
 data.to_csv("../data/processed_data_RV_only_for_DB.csv")
 
-# %%
-# create a set with only the AAPL ticker to test the R script
-data_aapl = data[data["Ticker"] == "AAPL"]
-data_aapl.to_csv("../data/processed_data_RV_only_for_DB_AAPL.csv")
+
+
 # %%
 #######################################
-# GET ONLY RV + MAKRO DATA - SET 2
+# GET ONLY AAPL data to test the model
 #######################################
+data = get_lstm_train_test_new(multiply_by_beta=False,
+                                    include_fng=False,
+                                    include_spx_data=False,
+                                    include_returns=False,
+                                    include_industry=False,
+                                    include_garch=False,
+                                    include_beta=False,
+                                    include_others=False)
+# %%
+# filter only AAPL data
+data.train.X = data.train.X[data.train.tickers == "AAPL"]
+data.train.y = data.train.y[data.train.tickers == "AAPL"]
+data.validation.X = data.validation.X[data.validation.tickers == "AAPL"]
+data.validation.y = data.validation.y[data.validation.tickers == "AAPL"]
+data.train.tickers = data.train.tickers[data.train.tickers == "AAPL"]
+data.validation.tickers = data.validation.tickers[data.validation.tickers == "AAPL"]
+data.train.dates = data.train.dates[data.train.tickers == "AAPL"]
+data.validation.dates = data.validation.dates[data.validation.tickers == "AAPL"]
+# %%
+# change shape to not take in lags as features
+X_train = data.train.X[:, -1, : ]
+X_val = data.validation.X[:, -1, : ]
+# make a training set as df
+feat_cols = [f"feat_{i}" for i in range(X_train.shape[1])]
+df = pd.DataFrame(X_train, columns=feat_cols)
+df["Date"] = data.train.dates
+df["Ticker"] = data.train.tickers
+df["Return"] = data.train.y
+df
+# %%
+# remove all elements from the training set except the last window_size dates for each ticker
+df = df.groupby("Ticker").tail(WINDOW)
+df
+# %%
+# count how many entries there are per ticker in the data
+df["Ticker"].value_counts()
+# %%
+# count how many unique dates there are in the data
+len(np.unique(df["Date"]))
+# %%
+# print last and first date in the data
+print(f"Last date: {df['Date'].max()}")
+print(f"First date: {df['Date'].min()}")
+# %%
+# Do the same for the validation set but keep all data
+feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
+df_val = pd.DataFrame(X_val, columns=feat_cols)
+df_val["Date"] = data.validation.dates
+df_val["Ticker"] = data.validation.tickers
+df_val["Return"] = data.validation.y
+df_val
+# %%
+# count how many entries there are per ticker in the data
+df_val["Ticker"].value_counts()
+# %%
+# merge the training and validation data
+df_big = pd.concat([df, df_val], axis=0)
+df_big
+# %%
+# count how many entries there are per ticker in the data
+df_big["Ticker"].value_counts()
+# %%
+# save to csv
+df_big.to_csv("../data/processed_data_AAPL_only_for_DB.csv")
