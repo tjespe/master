@@ -519,8 +519,10 @@ simple_regressor_on_means.fit(
 )
 
 # %%
-# Save the model
 extended_model_name = MODEL_NAME + "_simple_regressor_on_means"
+
+# %%
+# Save the model
 simple_regressor_on_means.save("models/"+extended_model_name+".keras")
 
 # %%
