@@ -128,7 +128,7 @@ def combine_processed_data_into_df(window_size=1500):
     print(df_train["Symbol"].value_counts())
   
     # count how many unique dates there are in the data
-    print("Unique dates":, len(np.unique(df_train["Date"])))
+    print("Unique dates", len(np.unique(df_train["Date"])))
 
   
     # print last and first date in the data
