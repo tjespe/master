@@ -1,6 +1,6 @@
 
 
-datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB_AAPL.csv" # change filename
+datapath <- "~/Masterv3/master/Code/data/processed_data_AAPL_only_for_DB.csv" # change filename
 D <- read.csv(datapath)
 setDT(D)
 
@@ -53,6 +53,21 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       chng = T
     }
     win=length(y)-1
+    # Check for NAs in y
+    if (anyNA(y[1:win])) {
+      print("Found NA in y!")
+      print(y[1:win])
+      stop("Stopping due to NA in y.")
+    }
+    
+    # Check for NAs in x
+    if (!is.null(x)) {
+      if (anyNA(x[1:win, ])) {
+        print("Found NA in x!")
+        print(x[1:win, ])
+        stop("Stopping due to NA in x.")
+      }
+    }
     if (is.null(x)) fit = esreg::esreg(y[1:win] ~ 1, alpha=alpha) else fit = esreg::esreg(y[1:win] ~ x[1:win,], alpha=alpha)
     q = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_q)
     e = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_e)
@@ -192,21 +207,25 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   # Loop over Expected Shortfalls
   for (w in 1:NES) {
     es = ES[w]
-    
+    print(es)
     # Loop over model specifications
     for (m in 1:NM) {
       
       # Dependent variable (the same)
       dep  = all.vars(specs[[m]])[1]
+      print(dep)
       # Independent variables
       exog = all.vars(specs[[m]])[-1]
+      print(exog)
       # Select data
-      y     = dt[,which(names(dt) == dep)]
+      y = dt[[dep]]
+      print(y)
       # y     = dt[,..dep];
       x     = dt[,..exog]
+      print(x)
       # x     = dt[,..exog;
       dates = dt$Date;
-      
+      print(dates)
       # Store results here
       res = data.frame(Date=dates,Realized=y,q=NA,e=NA)
       names(res) = c('Date','Realized',paste(names(specs)[m],'_',es,sep=''),paste(names(specs)[m],'_ES_',es,sep=''))
