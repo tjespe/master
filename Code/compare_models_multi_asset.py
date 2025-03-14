@@ -530,6 +530,52 @@ try:
 except FileNotFoundError:
     print("XGBoost predictions not found")
 
+try:
+    DB_preds = pd.read_csv(
+        f"predictions/val_predictions_DB_all_tickers.csv"
+    )
+    DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
+    DB_preds = DB_preds.set_index(["Date", "Symbol"])
+    DB_dates = DB_preds.index.get_level_values("Date")
+    DB_preds = DB_preds[
+        (DB_dates >= TRAIN_VALIDATION_SPLIT)
+        & (DB_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
+    # make a Mean_SP column full of 0s for now
+    combined_df["Mean_SP"] = 0
+    # same for Vol_SP
+    combined_df["Vol_SP"] = 0
+    # same for NLL
+    combined_df["nll"] = np.nan
+
+    preds_per_model.append(
+        {
+            "name": "Benchmark DB RV_only",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df["nll"].values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "LB_98": combined_df["DB_RV_set_0.01"].values,
+            "UB_98": combined_df["DB_RV_set_0.99"].values,
+            "LB_95": combined_df["DB_RV_set_0.025"].values,
+            "UB_95": combined_df["DB_RV_set_0.975"].values,
+            "LB_90": combined_df["DB_RV_set_0.05"].values,
+            "UB_90": combined_df["DB_RV_set_0.95"].values,
+            "ES_99": combined_df["DB_RV_set_ES_0.01"].values,
+            "ES_97.5": combined_df["DB_RV_set_ES_0.025"].values,
+            "ES_95": combined_df["DB_RV_set_ES_0.05"].values,
+            "ES_0.05": combined_df["DB_RV_set_ES_0.95"].values,
+            "ES_0.025": combined_df["DB_RV_set_ES_0.975"].values,
+            "ES_0.01": combined_df["DB_RV_set_ES_0.99"].values,
+        }
+    )
+    # nans = combined_df["Mean_SP"].isnull().sum()
+    nans = 0
+    if nans > 0:
+        print(f"DB has {nans} NaN predictions")
+except FileNotFoundError:
+    print("DB predictions not found")
 ###########################################
 
 try:

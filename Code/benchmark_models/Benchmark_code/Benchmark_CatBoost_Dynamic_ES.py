@@ -8,7 +8,6 @@
 # =============================================================================
 # Importing required libraries
 from typing import List
-import pandas as pd
 from sklearn.calibration import LabelEncoder    
 import pandas as pd
 import numpy as np
@@ -128,7 +127,7 @@ def combine_processed_data_into_df(window_size=1500):
     print(df_train["Symbol"].value_counts())
   
     # count how many unique dates there are in the data
-    print("Unique dates":, len(np.unique(df_train["Date"])))
+    print("Unique dates:", len(np.unique(df_train["Date"])))
 
   
     # print last and first date in the data
@@ -243,9 +242,6 @@ def run_quantile_regression_rolling_window(df_big: pd.DataFrame,
         # Sort window by date so we can do a time-based split
         df_window.sort_values("Date", inplace=True)
         
-        # print how many entries there are per ticker in the data
-        print(df_window["Symbol"].value_counts())
-
         # We'll do 80/20
         split_idx = int(0.8 * len(df_window))
         df_train = df_window.iloc[:split_idx]
@@ -414,3 +410,5 @@ es_df
 # %%
 # Write the ES predictions to a csv file for storage
 es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks_RVdata.csv", index=False)
+
+# %%
