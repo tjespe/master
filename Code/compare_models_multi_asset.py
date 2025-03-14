@@ -129,6 +129,59 @@ for garch_type in ["GARCH", "EGARCH"]:
     except FileNotFoundError:
         print(f"{garch_type} predictions not found")
 
+# HAR Model
+try:
+    har_preds = pd.read_csv(
+            "predictions/har_model_predictions_dow_jones.csv"
+        )
+    har_preds["Date"] = pd.to_datetime(har_preds["Date"])
+    har_preds = har_preds.set_index(["Date", "Symbol"])
+    har_dates = har_preds.index.get_level_values("Date")
+    har_preds = har_preds[
+        (har_dates >= TRAIN_VALIDATION_SPLIT)
+        & (har_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
+    har_vol_pred = combined_df["HAR_vol"].values
+    y_true = combined_df["LogReturn"].values
+    mus = combined_df["Mean"].values
+
+    entry = {
+        "name": "HAR",
+        "mean_pred": mus,
+        "volatility_pred": har_vol_pred,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "nll": nll_loss_mean_and_vol(
+            y_true,
+            mus,
+            har_vol_pred,
+        ),
+        "crps": crps_normal_univariate(y_true, mus, har_vol_pred),
+    }
+
+    for cl in CONFIDENCE_LEVELS:
+        alpha = 1 - cl
+        z_alpha = norm.ppf(1 - alpha / 2)
+        lb = mus - z_alpha * har_vol_pred
+        ub = mus + z_alpha * har_vol_pred
+        entry[f"LB_{format_cl(cl)}"] = lb
+        entry[f"UB_{format_cl(cl)}"] = ub
+        es_alpha = alpha / 2
+        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+            np.ones_like(mus).reshape(-1, 1),
+            mus.reshape(-1, 1),
+            har_vol_pred.reshape(-1, 1),
+            lb,
+        )
+
+    preds_per_model.append(entry)
+    nans = np.isnan(har_vol_pred).sum()
+    if nans > 0:
+        print(f"HAR has {nans} NaN predictions")
+except FileNotFoundError:
+    print("HAR predictions not found")
+
+
 # LSTM MDN
 for version in [
     # "quick",
@@ -1176,6 +1229,8 @@ for model in results_df.index:
     if "GARCH" in model:
         continue
     if "Benchmark" in model:
+        continue
+    if "HAR" in model:
         continue
     if "VAE MDN" in model:
         continue
