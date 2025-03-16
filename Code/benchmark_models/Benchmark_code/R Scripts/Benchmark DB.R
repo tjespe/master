@@ -1,39 +1,24 @@
-# %%
-# Load required libraries
-library(data.table)
-library(openxlsx)
 
-# %%
-# define datapath
+
 datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB.csv" # change filename
-# Load data
-D <- read.csv(datapath) 
+D <- read.csv(datapath)
 setDT(D)
-# Ensure Date is in the correct format
-D[, Date := as.Date(Date)]
-# define the Expected Shortfall levels
-ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 
+depentant_var= 'Return'
 
-# NOT QUITE SURE WHAT THIS IS DOING, think it is easier to just specify one set of independent variables
-# Define independent variable sets based on your data 
 independant_var_sets <- list(
   set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'  
-  
 )
 
-# define meaningful names for the independent variable sets
 independant_var_names_set <- list(
   set1 = 'RV_set'
 )
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
-# Define the dependent variable
-depentant_var= 'Return'
+ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
 
-# %% 
-# Define the function to run the Dimitriadis and Bayer model
+
 # Dimitriadis and Bayer model 
 DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, writefile="writefile") {
   
@@ -48,7 +33,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   library(parallel);
   library(pbapply)
   
-  # Conert to data.table
+  # Convert to data.table
   # setDT(dt)
   
   # --==========================================================================================
@@ -57,11 +42,6 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   t_forecast_QES_DB = function(y,x,alpha) {
     if (!is.null(x)) {
       if (!('matrix' %in% class(x))) x=as.matrix(x)
-      
-      # Always convert to data.frame for esreg
-      x = as.data.frame(x)
-      # Debug dimensions
-      print(paste0("Inside t_forecast_QES_DB: length(y)=", length(y), ", nrow(x)=", nrow(x)))
       if (length(y)!=nrow(x)) stop('t_forecast_QES_DB: invalid input dimensions')
     }
     chng = F
@@ -72,17 +52,22 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       chng = T
     }
     win=length(y)-1
-    if (is.null(x)) {
-      fit = esreg::esreg(y[1:win] ~ 1, alpha = alpha)
-    } else {
-      df_model <- data.frame(y = y[1:win], x[1:win, ])
-      # Build explicit formula
-      predictor_names <- colnames(df_model)[-1]  # skip y column
-      formula_str <- paste("y ~", paste(predictor_names, collapse = " + "))
-      formula_obj <- as.formula(formula_str)
-      
-      fit = esreg::esreg(formula_obj, data = df_model, alpha = alpha)
+    # Check for NAs in y
+    if (anyNA(y[1:win])) {
+      print("Found NA in y!")
+      print(y[1:win])
+      stop("Stopping due to NA in y.")
     }
+    
+    # Check for NAs in x
+    if (!is.null(x)) {
+      if (anyNA(x[1:win, ])) {
+        print("Found NA in x!")
+        print(x[1:win, ])
+        stop("Stopping due to NA in x.")
+      }
+    }
+    if (is.null(x)) fit = esreg::esreg(y[1:win] ~ 1, alpha=alpha) else fit = esreg::esreg(y[1:win] ~ x[1:win,], alpha=alpha)
     q = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_q)
     e = as.numeric(c(1, x[length(y),]) %*% fit$coefficients_e)
     if (chng) {
@@ -102,14 +87,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     cl=NULL; if (parallel) { cl=makePSOCKcluster(nc,outfile=''); clusterExport(cl,c('t_forecast_QES_DB','df','alpha','windowSize'),envir=environment()) }
     res=rbindlist(pblapply((windowSize+1):(length(dates)), function(i) {
       yy=df[(i-windowSize):i,][[2]]
-      xx=data.frame(df[(i-windowSize):i,-c(1,2)])
-      if (ncol(xx)==0) xx=NULL
-      # Debugging
-      if (!is.null(xx)) {
-        if (length(yy) != nrow(xx)) {
-          stop(paste0("At i=", i, ": length(yy)=", length(yy), ", nrow(xx)=", nrow(xx)))
-        }
-      }
+      xx=data.frame(df[(i-windowSize):i,-c(1,2)]); if (ncol(xx)==0) xx=NULL
       t_forecast_QES_DB(y=yy,x=xx,alpha=alpha)
     }, cl=cl))
     if (!is.null(cl)) stopCluster(cl); cl=NULL
@@ -228,7 +206,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
   # Loop over Expected Shortfalls
   for (w in 1:NES) {
     es = ES[w]
-    
+    print(es)
     # Loop over model specifications
     for (m in 1:NM) {
       
@@ -236,11 +214,10 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       dep  = all.vars(specs[[m]])[1]
       # Independent variables
       exog = all.vars(specs[[m]])[-1]
-      print(exog)
       # Select data
-      y     = dt[,which(names(dt) == dep)]
+      y = dt[[dep]]
       # y     = dt[,..dep];
-      x     = dt[, ..exog]
+      x     = dt[,..exog]
       # x     = dt[,..exog;
       dates = dt$Date;
       
@@ -252,7 +229,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       # spocitame rolling forecasts
       
       A = Sys.time()
-      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=F, nc = nc) 
+      tmp = t_roll_QES_DB(y=y, x=x, dates=dates, alpha=es, windowSize=EW, parallel=T, nc = nc) 
       print(Sys.time()-A)
       
       
@@ -292,7 +269,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       }
       
       
-      dt = data.frame(dt,res[,-c(1:2)])
+      dt[, names(res)[-c(1:2)] := res[,-c(1:2)]]
       
       
     }
@@ -302,18 +279,17 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
     #filePath_DB <- "/Users/hansmagnusutne/Library/Mobile Documents/com~apple~CloudDocs/Documents/Dokumenter ??? Hanss MacBook Air/NTNU Dokumenter/Ind??k 5. klasse/Forskningsassistent/testFinalDB_2.xlsx"
     
     # Write the final dt to an Excel file
-    #write.xlsx(as.data.frame(dt), file = writefile)
-    
+    write.csv(dt, writefile)
     
   }
-  
-  
   
   return(dt)
   
 }
 
-# %%
+
+
+# RUN THE MODEL
 # Run the Dimitriadis and Bayer model
 # Initialize a list to store results for all tickers
 all_results <- list()
@@ -323,6 +299,7 @@ tickers <- unique(D$Ticker)
 
 # Loop through each asset (Ticker)
 for (ticker in tickers) {
+  file_name <- paste0("~/Masterv3/master/Code/benchmark_models/Predictions/val_predictions_DB_", ticker, ".csv")
   print(ticker)
   # Filter dataset for the current asset
   D_ticker <- D[Ticker == ticker]
@@ -331,10 +308,9 @@ for (ticker in tickers) {
   results <- DB(dt = D_ticker, 
                 EW = 1500, 
                 ES = ES, 
-                #nc = 8, 
-                nc = 1,
+                nc = 8, 
                 run_all_variations = FALSE, 
-                writefile=NULL) 
+                writefile=file_name) 
   
   # Add the Ticker column to the results
   results[, Ticker := ticker]
@@ -346,5 +322,5 @@ for (ticker in tickers) {
 # Combine all results into a single data.table
 final_results <- rbindlist(all_results)
 
-# Save the final results to a csv file
-fwrite(final_results, "../../../predictions/Benchmark_DB_ES_stocks.csv") # change filename
+# write the final results to a csv file:
+write.csv(final_results, "~/Masterv3/master/Code/predictions/val_predictions_DB_all_tickers.csv")
