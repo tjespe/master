@@ -181,6 +181,57 @@ try:
 except FileNotFoundError:
     print("HAR predictions not found")
 
+# HARQ Model
+try:
+    harq_preds = pd.read_csv(
+            "predictions/harq_model_predictions_dow_jones.csv"
+        )
+    harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
+    harq_preds = harq_preds.set_index(["Date", "Symbol"])
+    harq_dates = harq_preds.index.get_level_values("Date")
+    harq_preds = harq_preds[
+        (harq_dates >= TRAIN_VALIDATION_SPLIT)
+        & (harq_dates < VALIDATION_TEST_SPLIT)
+    ]
+    combined_df = df_validation.join(harq_preds, how="left", rsuffix="_HARQ")
+    harq_vol_pred = combined_df["HARQ_vol"].values
+    y_true = combined_df["LogReturn"].values
+    mus = combined_df["Mean"].values
+
+    entry = {
+        "name": "HARQ",
+        "mean_pred": mus,
+        "volatility_pred": harq_vol_pred,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "nll": nll_loss_mean_and_vol(
+            y_true,
+            mus,
+            harq_vol_pred,
+        ),
+        "crps": crps_normal_univariate(y_true, mus, harq_vol_pred),
+    }
+
+    for cl in CONFIDENCE_LEVELS:
+        alpha = 1 - cl
+        z_alpha = norm.ppf(1 - alpha / 2)
+        lb = mus - z_alpha * harq_vol_pred
+        ub = mus + z_alpha * harq_vol_pred
+        entry[f"LB_{format_cl(cl)}"] = lb
+        entry[f"UB_{format_cl(cl)}"] = ub
+        es_alpha = alpha / 2
+        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+            np.ones_like(mus).reshape(-1, 1),
+            mus.reshape(-1, 1),
+            harq_vol_pred.reshape(-1, 1),
+            lb,
+        )
+
+    preds_per_model.append(entry)
+    nans = np.isnan(harq_vol_pred).sum()
+    if nans > 0:
+        print(f"HARQ has {nans} NaN predictions")
+except FileNotFoundError:
+    print("HARQ predictions not found")
 
 # LSTM MDN
 for version in [
