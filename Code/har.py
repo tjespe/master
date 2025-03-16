@@ -98,6 +98,14 @@ df = df.dropna()
 df
 
 # %%
+# scale to percentages
+df["RV"] = df["RV"] * 100
+df["RV_lag1"] = df["RV_lag1"] * 100
+df["RV_lag5"] = df["RV_lag5"] * 100
+df["RV_lag22"] = df["RV_lag22"] * 100
+
+
+# %%
 # define training and validation data
 training_data = df[df["Date"] < TRAIN_VALIDATION_SPLIT]
 validation_data = df[(df["Date"] >= TRAIN_VALIDATION_SPLIT) & (df["Date"] < VALIDATION_TEST_SPLIT)]
@@ -153,6 +161,9 @@ for symbol in symbols:
         # print("Model params index:", model.params.index.tolist())
         # forecast the next time point
         forecast_var = model.predict(X_pred) # forecast the next time point
+        # scale down
+        forecast_var = forecast_var / 100
+
         # print(forecast_var)
         # print(f"Forecast: {forecast_var.iloc[0]}")
         # print(f"Forecast vol: {np.sqrt(forecast_var.iloc[0])}")
