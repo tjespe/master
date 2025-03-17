@@ -3,6 +3,10 @@
 library(rugarch)
 library(readr)
 library(data.table)
+library(future.apply) # For parallel processing
+
+# Plan how to parallelize: multiprocess works on Windows/Linux/Mac
+plan(multisession, workers = parallel::detectCores() - 1)
 
 # Load data #
 capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
@@ -62,95 +66,78 @@ for (symbol in symbols) {
   cat(paste0("Symbol: ", symbol, " | Percent Zeros in RV: ", round(percent_zeros * 100, 2), "%\n"))
 }
 
+# --- Function to Fit Realized GARCH Model for One Symbol --- #
+fit_symbol_garch <- function(symbol) {
+  print(paste0("Fitting model for symbol: ", symbol))
+  
+  symbol_data <- data[data$Symbol == symbol,]
+  symbol_training_data <- training_data[training_data$Symbol == symbol,]
+  symbol_validation_data <- validation_data[validation_data$Symbol == symbol,]
 
-# inititialize list to store results
-results <- list()
+  window_size <- length(symbol_training_data$Date)
+  symbol_data <- rbind(symbol_training_data, symbol_validation_data)
 
-for (symbol in symbols) {
-    print(paste0("Fitting model for symbol: ", symbol))
-    # filter data for symbol
-    symbol_data <- data[data$Symbol == symbol,]
-    symbol_training_data <- training_data[training_data$Symbol == symbol,]
-    symbol_validation_data <- validation_data[validation_data$Symbol == symbol,]
-    
-    # define initial window size
-    window_size <- length(symbol_training_data$Date)
+  returns <- as.numeric(symbol_data$LogReturn)
+  rv <- as.numeric(symbol_data$RV_5)
+  epsilon <- 1e-8
+  rv <- pmax(rv, epsilon)
+  dates <- as.Date(symbol_data$Date)
 
-    # concatenate training and validation data
-    symbol_data <- rbind(symbol_training_data, symbol_validation_data)
+  total_observations <- length(returns)
+  forecast_volatility <- rep(NA, total_observations - window_size)
+  forecast_dates <- dates[(window_size + 1):total_observations]
 
-    returns <- as.numeric(symbol_data$LogReturn)
-    rv <- as.numeric(symbol_data$RV_5)
-    #if there are 0 values, replace with very small number 
-    epsilon <- 1e-8
-    rv <- pmax(rv, epsilon)
-    dates <- as.Date(symbol_data$Date)
+  for (i in seq(window_size, total_observations - 1)) {
+    returns_train <- returns[1:i]
+    RV_train <- rv[1:i]
 
-    total_observations <- length(returns)
-    forecast_volatility <- rep(NA, total_observations - window_size)
-    forecast_dates <- dates[(window_size + 1):total_observations] 
+    logRV_train_lagged <- log(RV_train[-length(RV_train)])
+    returns_train_trimmed <- returns_train[-1]
 
-    for (i in seq(window_size, total_observations - 1)) {
-        # define expanding window
-        returns_train <- returns[1:i]
-        RV_train <- rv[1:i]
+    spec <- ugarchspec(
+      variance.model = list(
+        model = "sGARCH",
+        garchOrder = c(1, 1),
+        external.regressors = matrix(logRV_train_lagged, ncol = 1)
+      ),
+      mean.model = list(
+        armaOrder = c(0, 0),
+        include.mean = TRUE
+      ),
+      distribution.model = dist_assumption
+    )
 
-        # external regressors
-        logRV_train_lagged <- log(RV_train[-length(RV_train)])
-        returns_train_trimmed <- returns_train[-1]  # Align
+    fit <- ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
 
-        # Model specification for each iteration
-        spec <- ugarchspec(
-            variance.model = list(
-            model = "sGARCH",
-            garchOrder = c(1, 1),
-            external.regressors = matrix(logRV_train_lagged, ncol = 1)
-            ),
-            mean.model = list(
-            armaOrder = c(0, 0),
-            include.mean = TRUE
-            ),
-            distribution.model = dist_assumption
-        )
+    logRV_forecast <- log(RV_train[length(RV_train)])
 
-        # Fit the model on current expanding window
-        fit <- ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
+    forecast <- ugarchforecast(fit, n.ahead = 1, external.forecasts = list(vexdata = logRV_forecast))
 
-        # Prepare external regressor for the next period forecast
-        # Using log RV of the current last training observation
-        logRV_forecast <- log(RV_train[length(RV_train)])
-        
-        # Forecast 1-step ahead
-        forecast <- ugarchforecast(fit, n.ahead = 1,
-                                    external.forecasts = list(vexdata = logRV_forecast))
-        
-        # Extract the 1-step-ahead conditional variance forecast (sigma^2)
-        forecast_volatility[i - window_size + 1] <- sigma(forecast)
+    forecast_volatility[i - window_size + 1] <- sigma(forecast)
 
-        # Progress indicator
-        if ((i - window_size + 1) %% 10 == 0) {
-            print(paste0("Progress: ", round(100 * (i - window_size + 1) / (total_observations - window_size), 2), "%"))
-        }
+    if ((i - window_size + 1) %% 10 == 0) {
+      print(paste0("Symbol: ", symbol, " | Progress: ", round(100 * (i - window_size + 1) / (total_observations - window_size), 2), "%"))
     }
+  }
 
-
-    # store results
-    # === Combine results into a forecast data frame ===
-    # Create forecast results data frame
-    forecast_results <- data.frame(
+  forecast_results <- data.frame(
     Date = forecast_dates,
     Symbol = symbol,
     Forecast_Volatility = forecast_volatility,
     Mean = 0
-    )
+  )
 
-    results[[symbol]] = forecast_results
+  return(forecast_results)
 }
 
-final_results <- rbindlist(results)
+# --- Parallel execution across symbols --- #
+results_list <- future_lapply(symbols, fit_symbol_garch)
 
-# write results to csv
-write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"))
+# Combine results
+final_results <- rbindlist(results_list)
+
+# Save results to CSV
+write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"), row.names = FALSE)
 
 
 
