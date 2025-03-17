@@ -19,7 +19,7 @@ dist_assumption <- "norm"  # set "norm" for normal and "std" for student-t
 # Clean data #
 
 # Return data
-# Remove all coloumns except Date, Symbol, Total Return and LogReturn
+# Define what columns to keep
 return_data <- return_data[,c("Date", "Symbol", "Total.Return", "LogReturn")]
 # remove .O at the end of all symbols
 return_data$Symbol = gsub("\\.O", "", return_data$Symbol)
@@ -27,7 +27,7 @@ return_data$Symbol = gsub("\\.O", "", return_data$Symbol)
 return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
 
 # Capire data/RV data
-# Remove all coloumns except Date, Symbol and RV_5
+# Define what coloumns to keep
 capire_data <- capire_data[,c("Date", "Symbol", "RV_5")]
 # ensure that the Date column is in the correct format
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
