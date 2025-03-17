@@ -51,9 +51,6 @@ validation_data <- data[data$Date >= as.Date("2021-12-31") & data$Date <= as.Dat
 # Loop trough symbols and fit model
 symbols <- unique(data$Symbol)
 
-# remove all sybols except TRV, UNH, V, VZ, WMT
-symbols <- symbols[symbols %in% c("TRV", "UNH", "V", "VZ", "WMT")]
-
 
 for (symbol in symbols) {
   symbol_data <- data[data$Symbol == symbol,]
