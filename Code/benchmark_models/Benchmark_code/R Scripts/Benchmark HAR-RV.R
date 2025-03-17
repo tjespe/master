@@ -1,3 +1,5 @@
+# HAR / HARQ model using Realized Volatility as the dependent variable following Bollerslev et al 2016 approach
+
 # load required libraries
 library(dplyr)
 library(zoo)
@@ -7,9 +9,8 @@ library(zoo)
 capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
 return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
-# define what distribution assumption we would like to use
-dist_assumption <- "norm"  # set "norm" for normal and "std" for student-t
-
+# Define wether to use HAR or HARQ, include_RQ = TRUE for HARQ
+include_RQ <- FALSE
 
 # Clean data #
 
@@ -23,11 +24,12 @@ return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
 
 # Capire data/RV data
 # Remove all coloumns except Date, Symbol and RV_5
-capire_data <- capire_data[,c("Date", "Symbol", "RV_5")]
+capire_data <- capire_data[,c("Date", "Symbol", "RV_5", "RQ_5")]
 # ensure that the Date column is in the correct format
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
 # transform the RV to become daily_rv
 capire_data$RV_5 = (capire_data$RV_5/100)/252
+capire_data$RQ_5 = (capire_data$RQ_5/100)/252
 
 # sort data by Date and Symbol
 return_data <- return_data[order(return_data$Symbol, return_data$Date),]
@@ -65,9 +67,15 @@ for (symbol in symbols) {
     symbol_data <- rbind(symbol_training_data, symbol_validation_data)
 
     # create features
-    symbol_data$RV_lag1 <- dplyr::lag(symbol_data$RV, 1)
-    symbol_data$RV_lag5 <- dplyr::lag(zoo::rollmean(symbol_data$RV, 5, align = "right", fill = NA), 1)
-    symbol_data$RV_lag22 <- dplyr::lag(zoo::rollmean(symbol_data$RV, 22, align = "right", fill = NA), 1)
+    symbol_data$RV_lag1 <- dplyr::lag(symbol_data$RV_5, 1)
+    symbol_data$RV_lag5 <- dplyr::lag(zoo::rollmean(symbol_data$RV_5, 5, align = "right", fill = NA), 1)
+    symbol_data$RV_lag22 <- dplyr::lag(zoo::rollmean(symbol_data$RV_5, 22, align = "right", fill = NA), 1)
+
+    # Conditionally add RQ features if HARQ is selected
+    if (include_RQ) {
+        symbol_data$RQ_lag1 <- dplyr::lag(symbol_data$RQ_5, 1)
+        symbol_data$RV_lag1_RQ_lag1 <- dplyr::lag(symbol_data$RV_lag1*sqrt(symbol_data$RQ_lag1), 1)
+    }
 
     total_obs <- nrow(symbol_data)
 
@@ -78,9 +86,12 @@ for (symbol in symbols) {
         # Define expanding training window
         train_data <- symbol_data[1:i, ]
         
-        # Fit HAR model
-        har_model <- lm(RV ~ RV_lag1 + RV_lag5 + RV_lag22, data = train_data)
-        
+        # Conditionally add RQ features if HARQ is selected
+        if (include_RQ) {
+            har_model <- lm(RV ~ RV_lag1 + RV_lag1_RQ_lag1 + RV_lag5 + RV_lag22, data = train_data)
+        } else {
+            har_model <- lm(RV ~ RV_lag1 + RV_lag5 + RV_lag22, data = train_data)
+        }
         # Forecast for i + 1
         forecast_data <- symbol_data[(i + 1), ]
         
@@ -111,5 +122,8 @@ for (symbol in symbols) {
 final_results <- rbindlist(results)
 
 # write results to csv
+if (include_RQ) {
+    write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/HARQ_R.csv"))
+} else {
 write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/HAR_R.csv"))
-
+}
