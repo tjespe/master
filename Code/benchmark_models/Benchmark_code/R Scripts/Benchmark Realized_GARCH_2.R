@@ -1,4 +1,5 @@
 # USING THE RUGARCH PACKAGE TO FIT A REALIZED GARCH MODEL TO THE DATA
+# (Not the same approach as in Hansen et al. 2012, but a more traditional GARCH model with realized volatility as an external regressor)
 # Load libraries #
 library(rugarch)
 library(readr)
@@ -31,9 +32,10 @@ return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
 capire_data <- capire_data[,c("Date", "Symbol", "RV_5")]
 # ensure that the Date column is in the correct format
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
-# transform the RV to become daily_rv
-capire_data$RV_5 = (capire_data$RV_5/100)/252
 
+# transform the RV to become log_daily_rv
+capire_data$RV_5 = (capire_data$RV_5/100)/252
+capire_data$RV_5 <- log(capire_data$RV_5 + 1e-10)
 # sort data by Date and Symbol
 return_data <- return_data[order(return_data$Symbol, return_data$Date),]
 capire_data <- capire_data[order(capire_data$Symbol, capire_data$Date),]
@@ -124,7 +126,8 @@ fit_symbol_garch <- function(symbol) {
     Date = forecast_dates,
     Symbol = symbol,
     Forecast_Volatility = forecast_volatility,
-    Mean = 0
+    Mean = 0,
+    LogReturn = symbol_data$LogReturn[(window_size + 1):total_observations]
   )
 
   return(forecast_results)
