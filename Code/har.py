@@ -61,8 +61,9 @@ capire_df = capire_df[['Date', 'Symbol', 'RV_5']]
 # Ensure the Date column is in datetime format
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
-# transform the RV to become daily_rv
+# transform the RV to become log_daily_rv
 capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0
+capire_df["RV"] = np.log(capire_df["RV"] + 1e-10)
 
 capire_df
 # %%
@@ -99,10 +100,10 @@ df
 
 # %%
 # scale to percentages
-df["RV"] = df["RV"] * 100
-df["RV_lag1"] = df["RV_lag1"] * 100
-df["RV_lag5"] = df["RV_lag5"] * 100
-df["RV_lag22"] = df["RV_lag22"] * 100
+df["RV"] = df["RV"] 
+df["RV_lag1"] = df["RV_lag1"] 
+df["RV_lag5"] = df["RV_lag5"] 
+df["RV_lag22"] = df["RV_lag22"] 
 
 
 # %%
@@ -162,7 +163,7 @@ for symbol in symbols:
         # forecast the next time point
         forecast_var = model.predict(X_pred) # forecast the next time point
         # scale down
-        forecast_var = forecast_var / 100
+        forecast_var = forecast_var 
 
         # print(forecast_var)
         # print(f"Forecast: {forecast_var.iloc[0]}")
