@@ -192,5 +192,5 @@ validation_data
 
 # %%
 # save the dataframe
-validation_data.to_csv("predictions/harq_model_predictions_dow_jones.csv", index=False)
+validation_data.to_csv("predictions/HARQ_python.csv", index=False)
 # %%

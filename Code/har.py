@@ -183,5 +183,5 @@ validation_data
 
 # %%
 # save the dataframe
-validation_data.to_csv("predictions/har_model_predictions_dow_jones.csv", index=False)
+validation_data.to_csv("predictions/HAR_python.csv", index=False)
 # %%
