@@ -34,8 +34,8 @@ capire_data <- capire_data[,c("Date", "Symbol", "RV_5")]
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
 
 # transform the RV to become log_daily_rv
-capire_data$RV_5 = (capire_data$RV_5/100)/252
-capire_data$RV_5 <- log(capire_data$RV_5 + 1e-10)
+capire_data$RV_5 = (capire_data$RV_5/100)/252 # annual percentage^2 --> daily decimal^2
+capire_data$RV_5 <- log(capire_data$RV_5 + 1e-10) # log transformation
 # sort data by Date and Symbol
 return_data <- return_data[order(return_data$Symbol, return_data$Date),]
 capire_data <- capire_data[order(capire_data$Symbol, capire_data$Date),]
