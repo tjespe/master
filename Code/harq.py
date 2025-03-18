@@ -62,11 +62,11 @@ capire_df = capire_df[['Date', 'Symbol', 'RV_5', 'RQ_5']]
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
 # transform the RV to become log_daily_rv
-capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0
+capire_df['RV'] = (capire_df['RV_5']/100) / 252.0
 
 # transform the RQ to become log_daily_rq
-capire_df['RQ'] = (capire_df['RQ_5'] /100^4) # annual percent^4 --> annual decimal^4
-capire_df["RQ"] = (capire_df["RQ"] / 252^2) # annual decimal^4 / 252^2 --> daily decimal^4
+capire_df['RQ'] = (capire_df['RQ_5'] /100.0**4) # annual percent^4 --> annual decimal^4
+capire_df["RQ"] = (capire_df["RQ"] / 252.0**2) # annual decimal^4 / 252^2 --> daily decimal^4
 capire_df
 # %%
 # Merge the two dataframes
@@ -185,7 +185,7 @@ print("Done")
 
 # %%
 # add the predictions to the dataframe
-validation_data["HARQ_vol"] = volatality_preds
+validation_data["HARQ_vol_python"] = volatality_preds
 validation_data["Mean"] = 0  # Assume mean is 0
 # set the index to be the Date and Symbol
 validation_data
@@ -193,4 +193,3 @@ validation_data
 # %%
 # save the dataframe
 validation_data.to_csv("predictions/HARQ_python.csv", index=False)
-# %%

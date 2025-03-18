@@ -168,7 +168,7 @@ print("Done")
 
 # %%
 # add the predictions to the dataframe
-validation_data["HAR_vol"] = volatality_preds
+validation_data["HAR_vol_python"] = volatality_preds
 validation_data["Mean"] = 0  # Assume mean is 0
 # set the index to be the Date and Symbol
 validation_data
