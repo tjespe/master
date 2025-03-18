@@ -243,7 +243,7 @@ for version in ["norm", "std"]:
         realized_garch_preds = pd.read_csv(
                 f"predictions/realized_garch_forecast_{version}.csv"
             )
-        realized_garch_preds["Date"] = pd.to_datetime(harq_preds["Date"])
+        realized_garch_preds["Date"] = pd.to_datetime(realized_garch_preds["Date"])
         realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
         realized_garch_dates = realized_garch_preds.index.get_level_values("Date")
         realized_garch_preds = realized_garch_preds[
