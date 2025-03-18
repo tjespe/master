@@ -98,14 +98,6 @@ df = df.dropna()
 df
 
 # %%
-# scale to percentages
-df["RV"] = df["RV"] 
-df["RV_lag1"] = df["RV_lag1"] 
-df["RV_lag5"] = df["RV_lag5"] 
-df["RV_lag22"] = df["RV_lag22"] 
-
-
-# %%
 # define training and validation data
 training_data = df[df["Date"] < TRAIN_VALIDATION_SPLIT]
 validation_data = df[(df["Date"] >= TRAIN_VALIDATION_SPLIT) & (df["Date"] < VALIDATION_TEST_SPLIT)]
