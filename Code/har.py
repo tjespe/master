@@ -61,9 +61,8 @@ capire_df = capire_df[['Date', 'Symbol', 'RV_5']]
 # Ensure the Date column is in datetime format
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
-# transform the RV to become log_daily_rv
-capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0
-capire_df["RV"] = np.log(capire_df["RV"] + 1e-10)
+# transform the RV to become daily_rv 
+capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0 # annual percentage^2 --> daily decimal^2
 
 capire_df
 # %%

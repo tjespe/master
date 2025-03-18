@@ -61,10 +61,12 @@ capire_df = capire_df[['Date', 'Symbol', 'RV_5', 'RQ_5']]
 # Ensure the Date column is in datetime format
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
-# transform the RV to become daily_rv
+# transform the RV to become log_daily_rv
 capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0
-capire_df['RQ'] = (capire_df['RQ_5'] /100) / 252.0
 
+# transform the RQ to become log_daily_rq
+capire_df['RQ'] = (capire_df['RQ_5'] /100^4) # annual percent^4 --> annual decimal^4
+capire_df["RQ"] = (capire_df["RQ"] / 252^2) # annual decimal^4 / 252^2 --> daily decimal^4
 capire_df
 # %%
 # Merge the two dataframes
@@ -101,12 +103,12 @@ df
 
 # %%
 # scale to percentages
-df["RV"] = df["RV"] * 100
-df["RV_lag1"] = df["RV_lag1"] * 100
-df["RV_lag5"] = df["RV_lag5"] * 100
-df["RV_lag22"] = df["RV_lag22"] * 100
-df["RQ"] = df["RQ"] * 100
-df["RQ_lag1"] = df["RQ_lag1"] * 100
+df["RV"] = df["RV"] 
+df["RV_lag1"] = df["RV_lag1"] 
+df["RV_lag5"] = df["RV_lag5"] 
+df["RV_lag22"] = df["RV_lag22"]
+df["RQ"] = df["RQ"] 
+df["RQ_lag1"] = df["RQ_lag1"] 
 
 # create the RV lag1 * RQ lag1
 df["RV_lag1_RQ_lag1"] = df["RV_lag1"] * np.sqrt(df["RQ_lag1"])
@@ -169,7 +171,7 @@ for symbol in symbols:
         # forecast the next time point
         forecast_var = model.predict(X_pred) # forecast the next time point
         # scale down
-        forecast_var = forecast_var / 100
+        forecast_var = forecast_var 
 
         # print(forecast_var)
         # print(f"Forecast: {forecast_var.iloc[0]}")
