@@ -110,11 +110,18 @@ for (symbol in symbols) {
     }
 
      # Create result dataframe for this symbol
+    if (include_RQ) {
+      forecast_df <- data.frame(
+          Date = forecast_dates,
+          Symbol = symbol,
+          HAR_vol_R = forecast_values)
+    } else {
     forecast_df <- data.frame(
         Date = forecast_dates,
         Symbol = symbol,
-        HAR_vol_R = forecast_values
+        HARQ_vol_R = forecast_values
     )
+    }
     
     # Append to the list
     results[[symbol]] <- forecast_df
