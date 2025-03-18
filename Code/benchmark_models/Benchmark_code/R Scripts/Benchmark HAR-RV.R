@@ -27,9 +27,10 @@ return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
 capire_data <- capire_data[,c("Date", "Symbol", "RV_5", "RQ_5")]
 # ensure that the Date column is in the correct format
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
-# transform the RV to become daily_rv
-capire_data$RV_5 = (capire_data$RV_5/100)/252
-capire_data$RQ_5 = (capire_data$RQ_5/100)/252
+
+# transform the RV and RQ to daily
+capire_data$RV_5 = (capire_data$RV_5/100)/252  # annual percentage^2 --> daily decimal^2
+capire_data$RQ_5 = (capire_data$RQ_5/100^4)/252^2 # annual percentage^4 --> daily decimal^4
 
 # sort data by Date and Symbol
 return_data <- return_data[order(return_data$Symbol, return_data$Date),]
