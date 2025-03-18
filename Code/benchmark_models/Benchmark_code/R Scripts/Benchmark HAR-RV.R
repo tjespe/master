@@ -3,6 +3,7 @@
 # load required libraries
 library(dplyr)
 library(zoo)
+library(data.table)
 
 ############################################
 # Load data #
@@ -10,7 +11,7 @@ capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/pr
 return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # Define wether to use HAR or HARQ, include_RQ = TRUE for HARQ
-include_RQ <- FALSE
+include_RQ <- TRUE
 
 # Clean data #
 
@@ -89,9 +90,9 @@ for (symbol in symbols) {
         
         # Conditionally add RQ features if HARQ is selected
         if (include_RQ) {
-            har_model <- lm(RV ~ RV_lag1 + RV_lag1_RQ_lag1 + RV_lag5 + RV_lag22, data = train_data)
+            har_model <- lm(RV_5 ~ RV_lag1 + RV_lag1_RQ_lag1 + RV_lag5 + RV_lag22, data = train_data)
         } else {
-            har_model <- lm(RV ~ RV_lag1 + RV_lag5 + RV_lag22, data = train_data)
+            har_model <- lm(RV_5 ~ RV_lag1 + RV_lag5 + RV_lag22, data = train_data)
         }
         # Forecast for i + 1
         forecast_data <- symbol_data[(i + 1), ]
@@ -103,8 +104,8 @@ for (symbol in symbols) {
         forecast_values[i - window_size + 1] <- predicted_vol
         
         # Progress indicator
-        if ((i - initial_window_size + 1) %% 20 == 0) {
-        cat("Progress:", round(100 * (i - initial_window_size + 1) / (total_obs - initial_window_size), 2), "%\n")
+        if ((i - window_size + 1) %% 20 == 0) {
+        cat("Progress:", round(100 * (i - window_size + 1) / (total_obs - window_size), 2), "%\n")
         }
     }
 
