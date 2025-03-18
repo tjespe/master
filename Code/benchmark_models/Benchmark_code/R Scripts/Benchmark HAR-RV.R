@@ -11,7 +11,7 @@ capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/pr
 return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # Define wether to use HAR or HARQ, include_RQ = TRUE for HARQ
-include_RQ <- TRUE
+include_RQ <- FALSE
 
 # Clean data #
 
@@ -113,7 +113,7 @@ for (symbol in symbols) {
     forecast_df <- data.frame(
         Date = forecast_dates,
         Symbol = symbol,
-        HAR_vol_forecast = forecast_values
+        HAR_vol_R = forecast_values
     )
     
     # Append to the list
