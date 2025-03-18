@@ -233,6 +233,62 @@ try:
 except FileNotFoundError:
     print("HARQ predictions not found")
 
+
+# Realized GARCH
+
+for version in ["norm", "std"]: 
+    try:
+        realized_garch_preds = pd.read_csv(
+                f"predictions/realized_garch_forecast_{version}.csv"
+            )
+        realized_garch_preds["Date"] = pd.to_datetime(harq_preds["Date"])
+        realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
+        realized_garch_dates = realized_garch_preds.index.get_level_values("Date")
+        realized_garch_preds = realized_garch_preds[
+            (realized_garch_dates >= TRAIN_VALIDATION_SPLIT)
+            & (realized_garch_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(realized_garch_preds, how="left", rsuffix="_Realized_GARCH")
+        realized_garch_preds = combined_df["Forecast_Volatility"].values
+        y_true = combined_df["LogReturn"].values
+        mus = combined_df["Mean"].values
+
+        entry = {
+            "name": "Realized GARCH",
+            "mean_pred": mus,
+            "volatility_pred": realized_garch_preds,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                y_true,
+                mus,
+                realized_garch_preds,
+            ),
+            "crps": crps_normal_univariate(y_true, mus, realized_garch_preds),
+        }
+
+        for cl in CONFIDENCE_LEVELS:
+            alpha = 1 - cl
+            z_alpha = norm.ppf(1 - alpha / 2)
+            lb = mus - z_alpha * realized_garch_preds
+            ub = mus + z_alpha * realized_garch_preds
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            es_alpha = alpha / 2
+            entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+                np.ones_like(mus).reshape(-1, 1),
+                mus.reshape(-1, 1),
+                realized_garch_preds.reshape(-1, 1),
+                lb,
+            )
+
+        preds_per_model.append(entry)
+        nans = np.isnan(realized_garch_preds).sum()
+        if nans > 0:
+            print(f"Realized GARCH has {nans} NaN predictions")
+    except FileNotFoundError:
+        print("Realized GARCH predictions not found")
+
+
 # LSTM MDN
 for version in [
     # "quick",
