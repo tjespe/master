@@ -142,5 +142,6 @@ final_results <- rbindlist(results_list)
 # Save results to CSV
 write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"), row.names = FALSE)
 
+print("Done")
 
 
