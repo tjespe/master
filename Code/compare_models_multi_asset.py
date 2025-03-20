@@ -382,7 +382,7 @@ for version in [
     # "last-time-step",
     # "tuned-overridden",
     # "w-fred",
-    # "tuned-8-mixtures",
+    "tuned-8-mixtures",
 ]:
     try:
         transformer_df = pd.read_csv(
