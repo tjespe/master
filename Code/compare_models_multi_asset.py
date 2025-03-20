@@ -1200,21 +1200,12 @@ for entry in preds_per_model:
             )
 
             quantile = 1 - es_alpha
-            entry[f"FZ0_{es_str}"] = np.nanmean(
-                fz_loss(y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile)
+            entry[f"FZ0_{es_str}"] = fz_loss(
+                y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile
             )
-            entry[f"AL_{es_str}"] = np.nanmean(
-                al_loss(y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile)
+            entry[f"AL_{es_str}"] = al_loss(
+                y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile
             )
-            if "Benchmark" in entry["name"]:
-                print("\n\nName:", entry["name"])
-                print(y_test_actual, "y_test_actual")
-                print(entry[f"LB_{cl_str}"], "LB")
-                print(es_pred, "ES")
-                print(quantile, "quantile")
-                print(entry[f"FZ0_{es_str}"], "FZ0")
-                print(entry[f"AL_{es_str}"], "AL")
-
         else:
             print(f"No ES_{es_str} predictions available for Bayer-Dimitriadis test.")
 
@@ -1372,14 +1363,17 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
                 bd_test_result["std_z"]
             )
-            results[f"[{format_cl(es_alpha)}] FZ Loss"].append(entry[f"FZ0_{es_str}"])
-            results[f"[{format_cl(es_alpha)}] AL Loss"].append(entry[f"AL_{es_str}"])
+            results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
+                np.mean(entry[f"FZ0_{es_str}"])
+            )
+            results[f"[{format_cl(es_alpha)}] AL Loss"].append(
+                np.mean(entry[f"AL_{es_str}"])
+            )
 
 
 results_df = pd.DataFrame(results)
 results_df = results_df.set_index("Model")
 
-# %%
 # Remove inadequate models
 for model in results_df.index:
     if "GARCH" in model:
@@ -1397,7 +1391,6 @@ for model in results_df.index:
     if passes == 0:
         results_df.drop(model, inplace=True)
 
-# %%
 # Identify winners
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
@@ -1446,9 +1439,29 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean violation"] = (
         results_df[f"[{es_str}] Bayer-Dimitriadis mean violation"].abs().idxmin()
     )
+    results_df.loc["Winner", f"[{es_str}] FZ Loss"] = results_df[
+        f"[{es_str}] FZ Loss"
+    ].idxmin()
+    results_df.loc["Winner", f"[{es_str}] AL Loss"] = results_df[
+        f"[{es_str}] AL Loss"
+    ].idxmin()
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
-results_df
+
+
+def underline_winner(row):
+    return [
+        (
+            "text-decoration: underline; font-weight: bold; color: gold;"
+            if col == row["Winner"]
+            else ""
+        )
+        for col in row.index
+    ]
+
+
+styled_df = results_df.style.apply(underline_winner, axis=1)
+styled_df
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
@@ -1741,38 +1754,69 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Calculate p-value of outperformance in terms of NLL
-passing_model_names = [entry["name"] for entry in passing_models]
-p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
-p_value_df.index.name = "Benchmark"
-p_value_df.columns.name = "Challenger"
+for loss_fn in [
+    "nll",
+    "crps",
+    "FZ0_95",
+    "AL_95",
+    "FZ0_97.5",
+    "AL_97.5",
+    "FZ0_99",
+    "AL_99",
+]:
+    passing_model_names = [entry["name"] for entry in passing_models]
+    p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
+    p_value_df.index.name = "Benchmark"
+    p_value_df.columns.name = "Challenger"
 
-for benchmark in passing_model_names:
-    for challenger in passing_model_names:
-        if benchmark == challenger:
-            continue
-        benchmark_entry = next(
-            entry for entry in passing_models if entry["name"] == benchmark
-        )
-        challenger_entry = next(
-            entry for entry in passing_models if entry["name"] == challenger
-        )
-        benchmark_nll = benchmark_entry["nll"]
-        challenger_nll = challenger_entry["nll"]
-        mask = ~np.isnan(benchmark_nll) & ~np.isnan(challenger_nll)
-        benchmark_nll = benchmark_nll[mask]
-        challenger_nll = challenger_nll[mask]
+    for benchmark in passing_model_names:
+        for challenger in passing_model_names:
+            if benchmark == challenger:
+                continue
+            benchmark_entry = next(
+                entry for entry in passing_models if entry["name"] == benchmark
+            )
+            challenger_entry = next(
+                entry for entry in passing_models if entry["name"] == challenger
+            )
+            benchmark_values = benchmark_entry.get(loss_fn)
+            challenger_values = challenger_entry.get(loss_fn)
+            if benchmark_values is None or challenger_values is None:
+                p_value_df.loc[benchmark, challenger] = np.nan
+                continue
+            benchmark_values = np.array(benchmark_values)
+            challenger_values = np.array(challenger_values)
+            mask = ~np.isnan(benchmark_values) & ~np.isnan(challenger_values)
+            benchmark_values = benchmark_values[mask]
+            challenger_values = challenger_values[mask]
 
-        # Paired one-sided t-test
-        t_stat, p_value = ttest_rel(challenger_nll, benchmark_nll, alternative="less")
+            # Paired one-sided t-test
+            t_stat, p_value = ttest_rel(
+                challenger_values, benchmark_values, alternative="less"
+            )
 
-        # Store the p-value in the dataframe
-        p_value_df.loc[benchmark, challenger] = p_value
+            # Store the p-value in the dataframe
+            p_value_df.loc[benchmark, challenger] = p_value
 
-p_value_df
+    print("\n\n===== Loss function:", loss_fn, "=====")
+    total_ps = p_value_df.fillna(1).sum(axis=0).T.sort_values().reset_index()
+    total_ps.columns = ["Model", "Sum of p-values"]
+    total_ps = total_ps.T
+    total_ps.columns.name = "Ranking"
+    try:
 
-# %%
-# Calculate winner based on p-values
-p_value_df.fillna(1).sum(axis=0).T.sort_values() - 2
+        def color_cells(val):
+            if val < 0.05:
+                return "color: gold"
+            else:
+                return ""  # No styling for other values
+
+        styled_df = p_value_df.style.applymap(color_cells)
+        display(styled_df)
+        print("Sum of p-values (for ranking):")
+        display(total_ps)
+    except Exception as e:
+        print(p_value_df)
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
