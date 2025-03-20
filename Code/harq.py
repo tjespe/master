@@ -23,7 +23,7 @@ from settings import (
 df = pd.read_csv(DATA_PATH)
 
 # remove all coloumns except: Date, Close, Symbol, Total Return
-df = df[['Date', 'Close', 'Symbol', 'Total Return']]
+df = df[['Date', 'Close', 'Symbol', 'Total Return', "LogReturn"]]
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
@@ -33,11 +33,6 @@ df = df.sort_values(["Symbol", "Date"])
 
 # remove .O at the end of all symbols
 df['Symbol'] = df['Symbol'].str.replace('.O', '')
-
-# Calculate log returns for each instrument separately using groupby
-df["LogReturn"] = (
-    df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
-)
 
 # ungroup the dataframe
 df = df.reset_index(drop=True)
