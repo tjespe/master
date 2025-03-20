@@ -68,6 +68,16 @@ df: pd.DataFrame = df.set_index(["Date", "Symbol"])
 df
 
 # %%
+# load capire data
+capire_df = pd.read_csv("data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
+capire_df["Date"] = pd.to_datetime(capire_df["Date"])
+capire_df = capire_df.set_index(["Date", "Symbol"])
+# merge with df based on date and symbol
+df = df.merge(capire_df, on=["Date", "Symbol"], how="inner")
+# transform RV to daily decimal
+df["RV_5_daily"] = (df["RV_5"] / 100) / 252.0
+df
+# %%
 # Filter away data before 1990
 df = df[df.index.get_level_values("Date") >= "1990-01-01"]
 df
@@ -1028,6 +1038,7 @@ def calculate_rmse(y_true, y_pred):
 # %%
 # Evaluate models
 y_test_actual = df_validation["LogReturn"].values
+y_test_RV = df_validation["RV_5_daily"].values
 abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
@@ -1191,6 +1202,9 @@ for entry in preds_per_model:
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
     entry["rmse"] = rmse
 
+    rmse_RV = calculate_rmse(y_test_RV, entry["volatility_pred"]**2)
+    entry["rmse_RV"] = rmse_RV
+
     correlation = calculate_uncertainty_error_correlation(
         y_test_actual, entry["mean_pred"], interval_width
     )
@@ -1243,6 +1257,7 @@ results = {
     "NLL": [],
     "CRPS": [],
     "RMSE": [],
+    "RMSE_RV": [],
     "Sign accuracy": [],
     "Correlation (vol. vs. errors)": [],
     # Quantile based metrics
@@ -1270,6 +1285,7 @@ for entry in preds_per_model:
         np.nanmean(crps) if (crps := entry.get("crps")) is not None else None
     )
     results["RMSE"].append(entry["rmse"])
+    results["RMSE_RV"].append(entry["rmse_RV"])
     results["Sign accuracy"].append(entry["sign_accuracy"])
     results["Correlation (vol. vs. errors)"].append(
         entry["uncertainty_error_correlation"]
@@ -1363,6 +1379,7 @@ results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
     "Correlation (vol. vs. errors)"
 ].idxmax()
 results_df.loc["Winner", "RMSE"] = results_df["RMSE"].idxmin()
+results_df.loc["Winner", "RMSE_RV"] = results_df["RMSE_RV"].idxmin()
 results_df.loc["Winner", "Sign accuracy"] = results_df["Sign accuracy"].idxmax()
 for cl in CONFIDENCE_LEVELS:
     cl_str = format_cl(cl)
