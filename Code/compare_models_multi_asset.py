@@ -136,15 +136,12 @@ for garch_type in ["GARCH", "EGARCH"]:
 # HAR Model
 for version in ["python", "R"]:
     try:
-        har_preds = pd.read_csv(
-                f"predictions/HAR_{version}.csv"
-            )
+        har_preds = pd.read_csv(f"predictions/HAR_{version}.csv")
         har_preds["Date"] = pd.to_datetime(har_preds["Date"])
         har_preds = har_preds.set_index(["Date", "Symbol"])
         har_dates = har_preds.index.get_level_values("Date")
         har_preds = har_preds[
-            (har_dates >= TRAIN_VALIDATION_SPLIT)
-            & (har_dates < VALIDATION_TEST_SPLIT)
+            (har_dates >= TRAIN_VALIDATION_SPLIT) & (har_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
         har_vol_pred = combined_df[f"HAR_vol_{version}"].values
@@ -189,9 +186,7 @@ for version in ["python", "R"]:
 # HARQ Model
 for version in ["python", "R"]:
     try:
-        harq_preds = pd.read_csv(
-                f"predictions/HARQ_{version}.csv"
-            )
+        harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
         harq_preds = harq_preds.set_index(["Date", "Symbol"])
         harq_dates = harq_preds.index.get_level_values("Date")
@@ -242,11 +237,11 @@ for version in ["python", "R"]:
 
 # Realized GARCH
 
-for version in ["norm", "std"]: 
+for version in ["norm", "std"]:
     try:
         realized_garch_preds = pd.read_csv(
-                f"predictions/realized_garch_forecast_{version}.csv"
-            )
+            f"predictions/realized_garch_forecast_{version}.csv"
+        )
         realized_garch_preds["Date"] = pd.to_datetime(realized_garch_preds["Date"])
         realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
         realized_garch_dates = realized_garch_preds.index.get_level_values("Date")
@@ -254,7 +249,9 @@ for version in ["norm", "std"]:
             (realized_garch_dates >= TRAIN_VALIDATION_SPLIT)
             & (realized_garch_dates < VALIDATION_TEST_SPLIT)
         ]
-        combined_df = df_validation.join(realized_garch_preds, how="left", rsuffix="_Realized_GARCH")
+        combined_df = df_validation.join(
+            realized_garch_preds, how="left", rsuffix="_Realized_GARCH"
+        )
         realized_garch_preds = combined_df["Forecast_Volatility"].values
         y_true = combined_df["LogReturn"].values
         mus = combined_df["Mean"].values
@@ -697,15 +694,12 @@ except FileNotFoundError:
     print("XGBoost predictions not found")
 
 try:
-    DB_preds = pd.read_csv(
-        f"predictions/val_predictions_DB_all_tickers.csv"
-    )
+    DB_preds = pd.read_csv(f"predictions/val_predictions_DB_all_tickers.csv")
     DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
     DB_preds = DB_preds.set_index(["Date", "Symbol"])
     DB_dates = DB_preds.index.get_level_values("Date")
     DB_preds = DB_preds[
-        (DB_dates >= TRAIN_VALIDATION_SPLIT)
-        & (DB_dates < VALIDATION_TEST_SPLIT)
+        (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
     ]
     combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
     # make a Mean_SP column full of 0s for now
@@ -1038,7 +1032,7 @@ abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Calculate prediction intervals
-    if "HAR" in entry['name']:
+    if "HAR" in entry["name"]:
         y_test_actual = df_validation["Total Return Test"].values
         print(f"Using Total Return Test for {entry['name']}")
     for cl in CONFIDENCE_LEVELS:
@@ -1212,6 +1206,7 @@ for entry in preds_per_model:
 # %%
 # Compile results into DataFrame
 pd.set_option("display.max_rows", 500)
+pd.set_option("display.max_columns", 500)
 quantile_metric_keys = [
     "PICP",
     "PICP Miss",
@@ -1347,12 +1342,12 @@ results_df = results_df.set_index("Model")
 for model in results_df.index:
     if "GARCH" in model:
         continue
-    if "Benchmark" in model:
-        continue
+    # if "Benchmark" in model:
+    #     continue
     if "HAR" in model:
         continue
-    if "VAE MDN" in model:
-        continue
+    # if "VAE MDN" in model:
+    #     continue
     passes = 0
     for cl in CONFIDENCE_LEVELS:
         if results_df.loc[model, f"[{format_cl(cl)}] Pooled CC p-value"] > 0.05:
