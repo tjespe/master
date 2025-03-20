@@ -69,7 +69,9 @@ df
 
 # %%
 # load capire data
-capire_df = pd.read_csv("data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
+capire_df = pd.read_csv(
+    "data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv"
+)
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 capire_df = capire_df.set_index(["Date", "Symbol"])
 # merge with df based on date and symbol
@@ -380,6 +382,7 @@ for version in [
     # "last-time-step",
     # "tuned-overridden",
     # "w-fred",
+    # "tuned-8-mixtures",
 ]:
     try:
         transformer_df = pd.read_csv(
@@ -1202,7 +1205,7 @@ for entry in preds_per_model:
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
     entry["rmse"] = rmse
 
-    rmse_RV = calculate_rmse(y_test_RV, entry["volatility_pred"]**2)
+    rmse_RV = calculate_rmse(y_test_RV, entry["volatility_pred"] ** 2)
     entry["rmse_RV"] = rmse_RV
 
     correlation = calculate_uncertainty_error_correlation(
