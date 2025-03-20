@@ -144,7 +144,7 @@ for version in ["python", "R"]:
         ]
         combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
         har_vol_pred = combined_df[f"HAR_vol_{version}"].values
-        y_true = combined_df["Total Return"].values
+        y_true = combined_df["LogReturn"].values
         mus = np.zeros_like(har_vol_pred)
 
         entry = {
