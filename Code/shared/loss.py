@@ -80,37 +80,39 @@ def nll_loss_maf(model, X_test, y_test):
     nll = -total_log_prob / len(X_test)
     return nll
 
+
 # def kde_negative_log_likelihood(y_obs, samples, bandwidth=0.1):
 #     """
 #     Compute -log p(y_obs) under a Gaussian KDE built from the given samples.
-    
+
 #     Args:
 #       y_obs: scalar, the observed value
 #       samples: array-like of shape (N,), the empirical distribution
 #       bandwidth: float, the smoothing parameter for the Gaussian kernel
-      
+
 #     Returns:
 #       A scalar representing the negative log-likelihood: -log p(y_obs)
 #     """
 #     samples = np.asarray(samples)
 #     N = len(samples)
-    
+
 #     # Evaluate the kernel for each sample
 #     # Gaussian kernel => 1/(sqrt(2*pi)*h) * exp( -(y-yi)^2 / (2h^2) )
 #     # We'll do it in a vectorized way
 #     coeff = 1.0 / (np.sqrt(2.0 * np.pi) * bandwidth)
 #     diff_sq = (y_obs - samples)**2
-    
+
 #     kernel_vals = coeff * np.exp(-0.5 * diff_sq / (bandwidth**2))
-    
+
 #     # Average over the N kernels
 #     pdf_est = np.mean(kernel_vals)
-    
+
 #     # If pdf_est is extremely small, the log might blow up
 #     # We'll do a minimal floor to avoid -inf
-#     pdf_est = max(pdf_est, 1e-40) 
-    
+#     pdf_est = max(pdf_est, 1e-40)
+
 #     return -np.log(pdf_est)
+
 
 def nll_loss_mean_and_log_var(y_true, means, log_vars):
     """
@@ -409,10 +411,34 @@ def mean_mdn_crps_tf(
     return loss_fn
 
 
-if __name__ == "__main__":
-    # Should be ~0.39 for standard Normal at median.
-    y = tf.constant([0.0])
-    mu = tf.constant([[0.0]])
-    sigma = tf.constant([[1.0]])
-    val = crps_normal(y, mu, sigma)
-    print(val.numpy())  # should be close to 0.39
+def fz_loss(returns: np.ndarray, VaR: np.ndarray, ES: np.ndarray, quantile: float):
+    """
+    Calculates the FZ loss, as specified by Patton et al. (2019).
+
+    Args:
+        returns: Array of returns.
+        VaR: Value at Risk estimates for the quantile level (negative number = loss).
+        ES: Expected Shortfall estimates for the quantile level (negative number = loss).
+        quantile: Quantile level (lower quantile => bigger loss). **NB**: Not confidence level.
+    """
+    L = (returns < VaR).astype(int)
+    term1 = -L * (VaR - returns) / (quantile * ES)
+    term2 = VaR / ES
+    term3 = np.log(-ES)
+    return term1 + term2 + term3 - 1
+
+
+def al_loss(returns: np.ndarray, VaR: np.ndarray, ES: np.ndarray, quantile: float):
+    """
+    Calculates Assymetric Laplace Density log score, as introduced by Taylor (2017).
+
+    Args:
+        returns: Array of returns.
+        VaR: Value at Risk estimates for the quantile level (negative number = loss).
+        ES: Expected Shortfall estimates for the quantile level (negative number = loss).
+        quantile: Quantile level. **NB**: Not confidence level.
+    """
+    L = (returns < VaR).astype(int)
+    term1 = -np.log((quantile - 1) / ES)
+    term2 = -(returns - VaR) * (quantile - L) / (quantile * ES)
+    return term1 + term2

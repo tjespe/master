@@ -2,7 +2,7 @@
 # Define parameters
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
-from shared.loss import crps_normal_univariate, nll_loss_mean_and_vol
+from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol
 from settings import (
     DATA_PATH,
     LOOKBACK_DAYS,
@@ -1198,6 +1198,23 @@ for entry in preds_per_model:
                 f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
                 f"p-value: {bayer_dimitriadis_result['p_value']}\n"
             )
+
+            quantile = 1 - es_alpha
+            entry[f"FZ0_{es_str}"] = np.nanmean(
+                fz_loss(y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile)
+            )
+            entry[f"AL_{es_str}"] = np.nanmean(
+                al_loss(y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile)
+            )
+            if "Benchmark" in entry["name"]:
+                print("\n\nName:", entry["name"])
+                print(y_test_actual, "y_test_actual")
+                print(entry[f"LB_{cl_str}"], "LB")
+                print(es_pred, "ES")
+                print(quantile, "quantile")
+                print(entry[f"FZ0_{es_str}"], "FZ0")
+                print(entry[f"AL_{es_str}"], "AL")
+
         else:
             print(f"No ES_{es_str} predictions available for Bayer-Dimitriadis test.")
 
@@ -1253,6 +1270,8 @@ es_metric_keys = [
     "Bayer-Dimitriadis p-value",
     "Bayer-Dimitriadis mean violation",
     "Bayer-Dimitriadis violation SD",
+    "FZ Loss",
+    "AL Loss",
 ]
 results = {
     "Model": [],
@@ -1337,6 +1356,8 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
                 np.nan
             )
+            results[f"[{format_cl(es_alpha)}] FZ Loss"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] AL Loss"].append(np.nan)
         else:
             bd_test_result = entry[f"bayer_dimitriadis_{es_str}"]
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(
@@ -1351,6 +1372,8 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
                 bd_test_result["std_z"]
             )
+            results[f"[{format_cl(es_alpha)}] FZ Loss"].append(entry[f"FZ0_{es_str}"])
+            results[f"[{format_cl(es_alpha)}] AL Loss"].append(entry[f"AL_{es_str}"])
 
 
 results_df = pd.DataFrame(results)
@@ -1426,12 +1449,6 @@ for cl in CONFIDENCE_LEVELS:
 results_df = results_df.T
 results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
 results_df
-
-# %%
-# Calculate overall winner
-winner_name = results_df["Winner"].mode()[0]
-winner_name
-
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
