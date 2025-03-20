@@ -54,6 +54,10 @@ df["LogReturn"] = (
     df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
 )
 
+df["Total Return Test"] = (
+    df.groupby("Symbol")["Close"].apply(lambda x: (x / x.shift(1)) - 1).droplevel(0)
+)
+
 # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
 df = df[~df["LogReturn"].isnull()]
 
@@ -128,6 +132,168 @@ for garch_type in ["GARCH", "EGARCH"]:
             print(f"{garch_type} has {nans} NaN predictions")
     except FileNotFoundError:
         print(f"{garch_type} predictions not found")
+
+# HAR Model
+for version in ["python", "R"]:
+    try:
+        har_preds = pd.read_csv(
+                f"predictions/HAR_{version}.csv"
+            )
+        har_preds["Date"] = pd.to_datetime(har_preds["Date"])
+        har_preds = har_preds.set_index(["Date", "Symbol"])
+        har_dates = har_preds.index.get_level_values("Date")
+        har_preds = har_preds[
+            (har_dates >= TRAIN_VALIDATION_SPLIT)
+            & (har_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
+        har_vol_pred = combined_df[f"HAR_vol_{version}"].values
+        y_true = combined_df["Total Return Test"].values
+        mus = np.zeros_like(har_vol_pred)
+
+        entry = {
+            "name": f"HAR_{version}",
+            "mean_pred": mus,
+            "volatility_pred": har_vol_pred,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                y_true,
+                mus,
+                har_vol_pred,
+            ),
+            "crps": crps_normal_univariate(y_true, mus, har_vol_pred),
+        }
+
+        for cl in CONFIDENCE_LEVELS:
+            alpha = 1 - cl
+            z_alpha = norm.ppf(1 - alpha / 2)
+            lb = mus - z_alpha * har_vol_pred
+            ub = mus + z_alpha * har_vol_pred
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            es_alpha = alpha / 2
+            entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+                np.ones_like(mus).reshape(-1, 1),
+                mus.reshape(-1, 1),
+                har_vol_pred.reshape(-1, 1),
+                lb,
+            )
+
+        preds_per_model.append(entry)
+        nans = np.isnan(har_vol_pred).sum()
+        if nans > 0:
+            print(f"HAR_{version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"HAR_{version} predictions not found")
+
+# HARQ Model
+for version in ["python", "R"]:
+    try:
+        harq_preds = pd.read_csv(
+                f"predictions/HARQ_{version}.csv"
+            )
+        harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
+        harq_preds = harq_preds.set_index(["Date", "Symbol"])
+        harq_dates = harq_preds.index.get_level_values("Date")
+        harq_preds = harq_preds[
+            (harq_dates >= TRAIN_VALIDATION_SPLIT)
+            & (harq_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(harq_preds, how="left", rsuffix="_HARQ")
+        harq_vol_pred = combined_df[f"HARQ_vol_{version}"].values
+        y_true = combined_df["Total Return Test"].values
+        mus = np.zeros_like(harq_vol_pred)
+
+        entry = {
+            "name": f"HARQ_{version}",
+            "mean_pred": mus,
+            "volatility_pred": harq_vol_pred,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                y_true,
+                mus,
+                harq_vol_pred,
+            ),
+            "crps": crps_normal_univariate(y_true, mus, harq_vol_pred),
+        }
+
+        for cl in CONFIDENCE_LEVELS:
+            alpha = 1 - cl
+            z_alpha = norm.ppf(1 - alpha / 2)
+            lb = mus - z_alpha * harq_vol_pred
+            ub = mus + z_alpha * harq_vol_pred
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            es_alpha = alpha / 2
+            entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+                np.ones_like(mus).reshape(-1, 1),
+                mus.reshape(-1, 1),
+                harq_vol_pred.reshape(-1, 1),
+                lb,
+            )
+
+        preds_per_model.append(entry)
+        nans = np.isnan(harq_vol_pred).sum()
+        if nans > 0:
+            print(f"HARQ_{version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"HARQ_{version} predictions not found")
+
+
+# Realized GARCH
+
+for version in ["norm", "std"]: 
+    try:
+        realized_garch_preds = pd.read_csv(
+                f"predictions/realized_garch_forecast_{version}.csv"
+            )
+        realized_garch_preds["Date"] = pd.to_datetime(realized_garch_preds["Date"])
+        realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
+        realized_garch_dates = realized_garch_preds.index.get_level_values("Date")
+        realized_garch_preds = realized_garch_preds[
+            (realized_garch_dates >= TRAIN_VALIDATION_SPLIT)
+            & (realized_garch_dates < VALIDATION_TEST_SPLIT)
+        ]
+        combined_df = df_validation.join(realized_garch_preds, how="left", rsuffix="_Realized_GARCH")
+        realized_garch_preds = combined_df["Forecast_Volatility"].values
+        y_true = combined_df["LogReturn"].values
+        mus = combined_df["Mean"].values
+
+        entry = {
+            "name": "Realized GARCH",
+            "mean_pred": mus,
+            "volatility_pred": realized_garch_preds,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "nll": nll_loss_mean_and_vol(
+                y_true,
+                mus,
+                realized_garch_preds,
+            ),
+            "crps": crps_normal_univariate(y_true, mus, realized_garch_preds),
+        }
+
+        for cl in CONFIDENCE_LEVELS:
+            alpha = 1 - cl
+            z_alpha = norm.ppf(1 - alpha / 2)
+            lb = mus - z_alpha * realized_garch_preds
+            ub = mus + z_alpha * realized_garch_preds
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            es_alpha = alpha / 2
+            entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+                np.ones_like(mus).reshape(-1, 1),
+                mus.reshape(-1, 1),
+                realized_garch_preds.reshape(-1, 1),
+                lb,
+            )
+
+        preds_per_model.append(entry)
+        nans = np.isnan(realized_garch_preds).sum()
+        if nans > 0:
+            print(f"Realized GARCH has {nans} NaN predictions")
+    except FileNotFoundError:
+        print("Realized GARCH predictions not found")
+
 
 # LSTM MDN
 for version in [
@@ -872,6 +1038,9 @@ abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Calculate prediction intervals
+    if "HAR" in entry['name']:
+        y_test_actual = df_validation["Total Return Test"].values
+        print(f"Using Total Return Test for {entry['name']}")
     for cl in CONFIDENCE_LEVELS:
         cl_str = format_cl(cl)
         if entry.get(f"LB_{cl_str}") is None or entry.get(f"UB_{cl_str}") is None:
@@ -1037,6 +1206,9 @@ for entry in preds_per_model:
     sign_accuracy = np.nanmean(np.sign(y_test_actual) == np.sign(entry["mean_pred"]))
     entry["sign_accuracy"] = sign_accuracy
 
+    # setting it back to correct value
+    y_test_actual = df_validation["LogReturn"].values
+
 # %%
 # Compile results into DataFrame
 pd.set_option("display.max_rows", 500)
@@ -1176,6 +1348,8 @@ for model in results_df.index:
     if "GARCH" in model:
         continue
     if "Benchmark" in model:
+        continue
+    if "HAR" in model:
         continue
     if "VAE MDN" in model:
         continue
