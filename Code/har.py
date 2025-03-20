@@ -24,6 +24,7 @@ df = pd.read_csv(DATA_PATH)
 
 # remove all coloumns except: Date, Close, Symbol, Total Return
 df = df[['Date', 'Close', 'Symbol', 'Total Return', "LogReturn"]]
+df["Total Return"] = df["Total Return"] / 100
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
@@ -33,6 +34,10 @@ df = df.sort_values(["Symbol", "Date"])
 
 # remove .O at the end of all symbols
 df['Symbol'] = df['Symbol'].str.replace('.O', '')
+
+df["Total Return Test"] = (
+    df.groupby("Symbol")["Close"].apply(lambda x: (x / x.shift(1)) - 1).droplevel(0)
+)
 
 # ungroup the dataframe
 df = df.reset_index(drop=True)
@@ -169,6 +174,54 @@ validation_data["Mean"] = 0  # Assume mean is 0
 validation_data
 
 # %%
+# plot som example distributions
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# plot  3 different plots of the Total Return Test for the validation data over time for the first 3 symbols
+for symbol in validation_data["Symbol"].unique()[:3]:
+    symbol_data = validation_data[validation_data["Symbol"] == symbol]
+    sns.lineplot(x="Date", y="Total Return Test", data=symbol_data)
+    # plot the mean prediction
+    sns.lineplot(x="Date", y="Mean", data=symbol_data)
+    # plot two standard deviations
+    plt.fill_between(symbol_data["Date"], 
+                     symbol_data["Mean"] - 2*symbol_data["HAR_vol_python"], 
+                     symbol_data["Mean"] + 2*symbol_data["HAR_vol_python"], 
+                     alpha=0.5,
+                     color="purple")
+    # plot the volatility of the mean as the standard deviation
+    plt.fill_between(symbol_data["Date"], 
+                     symbol_data["Mean"] - symbol_data["HAR_vol_python"], 
+                     symbol_data["Mean"] + symbol_data["HAR_vol_python"], 
+                     alpha=0.6,
+                     color="red")
+    # plot legends based on the colors
+    plt.legend(["Total Return Test", "Mean", "2 Standard Deviations", "Volatility of the Mean"])
+
+
+    plt.title(f"Total Return Test for {symbol}")
+    plt.show()
+
+# %%
+# plot the total return test vs the total return over time for the first 3 symbols
+for symbol in validation_data["Symbol"].unique()[:3]:
+    symbol_data = validation_data[validation_data["Symbol"] == symbol]
+    sns.lineplot(x="Date", y="Total Return", data=symbol_data, color="blue")
+    sns.lineplot(x="Date", y="Total Return Test", data=symbol_data, color="red")
+    plt.legend(["Total Return Test", "Total Return"])
+    plt.title(f"Total Return Test vs Total Return for {symbol}")
+    plt.show()
+
+
+# %%
+# check how simiar the Total Return Test and Total Return are
+validation_data["Total Return Test"].corr(validation_data["Total Return"])
+
+# %%
 # save the dataframe
 validation_data.to_csv("predictions/HAR_python.csv", index=False)
+# %%
+print(np.log(0.01))
+print(np.log(1.01))
 # %%

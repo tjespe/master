@@ -54,6 +54,10 @@ df["LogReturn"] = (
     df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
 )
 
+df["Total Return Test"] = (
+    df.groupby("Symbol")["Close"].apply(lambda x: (x / x.shift(1)) - 1).droplevel(0)
+)
+
 # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
 df = df[~df["LogReturn"].isnull()]
 
@@ -144,7 +148,7 @@ for version in ["python", "R"]:
         ]
         combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
         har_vol_pred = combined_df[f"HAR_vol_{version}"].values
-        y_true = combined_df["LogReturn"].values
+        y_true = combined_df["Total Return Test"].values
         mus = np.zeros_like(har_vol_pred)
 
         entry = {
@@ -197,7 +201,7 @@ for version in ["python", "R"]:
         ]
         combined_df = df_validation.join(harq_preds, how="left", rsuffix="_HARQ")
         harq_vol_pred = combined_df[f"HARQ_vol_{version}"].values
-        y_true = combined_df["LogReturn"].values
+        y_true = combined_df["Total Return Test"].values
         mus = np.zeros_like(harq_vol_pred)
 
         entry = {
@@ -1034,6 +1038,9 @@ abs_returns_test = np.abs(y_test_actual)
 
 for entry in preds_per_model:
     # Calculate prediction intervals
+    if "HAR" in entry['name']:
+        y_test_actual = df_validation["Total Return Test"].values
+        print(f"Using Total Return Test for {entry['name']}")
     for cl in CONFIDENCE_LEVELS:
         cl_str = format_cl(cl)
         if entry.get(f"LB_{cl_str}") is None or entry.get(f"UB_{cl_str}") is None:
@@ -1198,6 +1205,9 @@ for entry in preds_per_model:
     # Calculate sign of return accuracy
     sign_accuracy = np.nanmean(np.sign(y_test_actual) == np.sign(entry["mean_pred"]))
     entry["sign_accuracy"] = sign_accuracy
+
+    # setting it back to correct value
+    y_test_actual = df_validation["LogReturn"].values
 
 # %%
 # Compile results into DataFrame
