@@ -217,7 +217,11 @@ for symbol in validation_data["Symbol"].unique()[:3]:
 # %%
 # check how simiar the Total Return Test and Total Return are
 validation_data["Total Return Test"].corr(validation_data["Total Return"])
-
+# %%
+# plot acutal RV_5 vs predicted HAR_var
+sns.scatterplot(x="RV_5", y="HAR_var", data=validation_data)
+plt.title("Actual RV_5 vs Predicted HAR_var")
+plt.show()
 # %%
 # save the dataframe
 validation_data.to_csv("predictions/HAR_python.csv", index=False)
