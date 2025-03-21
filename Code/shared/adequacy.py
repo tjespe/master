@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.stats import chi2
+from scipy.stats import chi2, norm
 
 
 def christoffersen_test(exceedances, alpha, reset_indices=None):
@@ -103,4 +103,66 @@ def christoffersen_test(exceedances, alpha, reset_indices=None):
         "p_value_ind": p_value_ind,
         "LR_cc": LR_cc,
         "p_value_cc": p_value_cc,
+    }
+
+
+def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
+    """
+    Test that the expected value of VaR exceedances matches the expected shortfall,
+    i.e. that
+    E[ I(y_t > VaR_t^alpha) * (y_t - ES_t^alpha) ] = 0
+    where I is the indicator function.
+
+    Returns:
+      dict with:
+        test_statistic : the standardized test statistic
+        p_value        : two-sided p-value from the standard normal distribution
+        mean_z         : average of the test variable (should be ~ 0 if well-calibrated)
+        std_z          : standard deviation of the test variable
+    """
+    # Convert inputs to np.array for safety
+    y_true = np.asarray(y_true)
+    var_pred = np.asarray(var_pred)
+    es_pred = np.asarray(es_pred)
+
+    n = len(y_true)
+    if any(len(arr) != n for arr in [var_pred, es_pred]):
+        raise ValueError("y_true, var_pred, es_pred must have the same length.")
+
+    # Indicator of exceedance: 1 if actual loss is bigger than the VaR threshold
+    exceedances = y_true < var_pred
+
+    # Define the test variable z_t
+    # z_t = I(X_t > VaR_t^alpha) * [ (X_t - ES_t^alpha) / alpha ]
+    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0)
+
+    mean_z = np.nanmean(z)
+    std_z = np.nanstd(z, ddof=1)
+
+    # If the test variable is degenerate, return NaNs
+    if std_z == 0:
+        print("SD[Z] was 0 for alpha", alpha, "returning NaNs")
+        print("mean_z", mean_z)
+        print("std_z", std_z)
+        # print("exceedances", exceedances)
+        print("y_true", y_true)
+        print("var_pred", var_pred)
+        print("es_pred", es_pred)
+        return {
+            "test_statistic": np.nan,
+            "p_value": np.nan,
+            "mean_z": mean_z,
+            "std_z": std_z,
+        }
+
+    # Compute test statistic: T = sqrt(n) * (mean of z) / stdev(z)
+    test_statistic = np.sqrt(n) * mean_z / std_z
+    # Two-sided p-value
+    p_value = 2.0 * (1.0 - norm.cdf(abs(test_statistic)))
+
+    return {
+        "test_statistic": test_statistic,
+        "p_value": p_value,
+        "mean_z": mean_z,
+        "std_z": std_z,
     }

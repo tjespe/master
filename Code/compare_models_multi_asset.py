@@ -1,5 +1,5 @@
 # %%
-from shared.adequacy import christoffersen_test
+from shared.adequacy import bayer_dimitriadis_test, christoffersen_test
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol
@@ -24,6 +24,10 @@ CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
 # %%
 # Select whether to only filter on important tickers
 FILTER_ON_IMPORTANT_TICKERS = True
+
+# %%
+# Select wheter or not to print all of the christoffersen tests while testing
+PRINT_CHRISTOFFERSEN_TESTS = False
 
 # %%
 # Exclude uninteresting models
@@ -116,7 +120,7 @@ for garch_type in ["GARCH", "EGARCH"]:
             "mean_pred": mus,
             "volatility_pred": garch_vol_pred,
             "symbols": df_validation.index.get_level_values("Symbol"),
-            "dates": combined_df.index.get_level_values("Date"),
+            "dates": df_validation.index.get_level_values("Date"),
             "nll": nll_loss_mean_and_vol(
                 y_true,
                 mus,
@@ -874,68 +878,6 @@ def interpret_christoffersen_test(result):
     )
 
 
-def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
-    """
-    Test that the expected value of VaR exceedances matches the expected shortfall,
-    i.e. that
-    E[ I(y_t > VaR_t^alpha) * (y_t - ES_t^alpha) ] = 0
-    where I is the indicator function.
-
-    Returns:
-      dict with:
-        test_statistic : the standardized test statistic
-        p_value        : two-sided p-value from the standard normal distribution
-        mean_z         : average of the test variable (should be ~ 0 if well-calibrated)
-        std_z          : standard deviation of the test variable
-    """
-    # Convert inputs to np.array for safety
-    y_true = np.asarray(y_true)
-    var_pred = np.asarray(var_pred)
-    es_pred = np.asarray(es_pred)
-
-    n = len(y_true)
-    if any(len(arr) != n for arr in [var_pred, es_pred]):
-        raise ValueError("y_true, var_pred, es_pred must have the same length.")
-
-    # Indicator of exceedance: 1 if actual loss is bigger than the VaR threshold
-    exceedances = y_true < var_pred
-
-    # Define the test variable z_t
-    # z_t = I(X_t > VaR_t^alpha) * [ (X_t - ES_t^alpha) / alpha ]
-    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0)
-
-    mean_z = np.nanmean(z)
-    std_z = np.nanstd(z, ddof=1)
-
-    # If the test variable is degenerate, return NaNs
-    if std_z == 0:
-        print("SD[Z] was 0 for alpha", alpha, "returning NaNs")
-        print("mean_z", mean_z)
-        print("std_z", std_z)
-        print("exceedances", exceedances)
-        print("y_true", y_true)
-        print("var_pred", var_pred)
-        print("es_pred", es_pred)
-        return {
-            "test_statistic": np.nan,
-            "p_value": np.nan,
-            "mean_z": mean_z,
-            "std_z": std_z,
-        }
-
-    # Compute test statistic: T = sqrt(n) * (mean of z) / stdev(z)
-    test_statistic = np.sqrt(n) * mean_z / std_z
-    # Two-sided p-value
-    p_value = 2.0 * (1.0 - norm.cdf(abs(test_statistic)))
-
-    return {
-        "test_statistic": test_statistic,
-        "p_value": p_value,
-        "mean_z": mean_z,
-        "std_z": std_z,
-    }
-
-
 def interpret_bayer_dimitriadis_stat(p_value):
     if p_value < 0.05:
         return "❌"
@@ -1033,11 +975,14 @@ for entry in preds_per_model:
                 pooled_result
             )
 
-        print(f"\n{entry['name']} Pooled Christoffersen's Test Results ({cl_str}%):")
-        try:
-            display(entry[f"christoffersen_test_{cl_str}"])
-        except NameError:
-            print(entry[f"christoffersen_test_{cl_str}"])
+        if PRINT_CHRISTOFFERSEN_TESTS:
+            print(
+                f"\n{entry['name']} Pooled Christoffersen's Test Results ({cl_str}%):"
+            )
+            try:
+                display(entry[f"christoffersen_test_{cl_str}"])
+            except NameError:
+                print(entry[f"christoffersen_test_{cl_str}"])
 
         chr_results = []
         for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
@@ -1076,7 +1021,10 @@ for entry in preds_per_model:
         )
 
         # Print Christoffersen's Test Results
-        print(f"\n{entry['name']} Average Christoffersen's Test Results ({cl_str}%):")
+        if PRINT_CHRISTOFFERSEN_TESTS:
+            print(
+                f"\n{entry['name']} Average Christoffersen's Test Results ({cl_str}%):"
+            )
 
         entry[f"chr_results_df_{cl_str}"] = chr_results_df
         entry[f"uc_passes_{cl_str}"] = int(chr_results_df["uc_pass"].sum())
@@ -1088,29 +1036,65 @@ for entry in preds_per_model:
         entry[f"cc_passes_{cl_str}"] = int(chr_results_df["cc_pass"].sum())
         entry[f"cc_fails_{cl_str}"] = (chr_results_df["cc_pass"] == 0).sum()
         entry[f"cc_nans_{cl_str}"] = chr_results_df["cc_pass"].isna().sum()
-        print(
-            f"Unconditional Coverage:\t{entry[f'uc_passes_{cl_str}']} passes,\t{entry[f'uc_fails_{cl_str}']} fails,\t{entry[f'uc_nans_{cl_str}']} indeterminate\n"
-            f"Independence:\t\t{entry[f'ind_passes_{cl_str}']} passes,\t{entry[f'ind_fails_{cl_str}']} fails,\t{entry[f'ind_nans_{cl_str}']} indeterminate\n"
-            f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
-        )
+        if PRINT_CHRISTOFFERSEN_TESTS:
+            print(
+                f"Unconditional Coverage:\t{entry[f'uc_passes_{cl_str}']} passes,\t{entry[f'uc_fails_{cl_str}']} fails,\t{entry[f'uc_nans_{cl_str}']} indeterminate\n"
+                f"Independence:\t\t{entry[f'ind_passes_{cl_str}']} passes,\t{entry[f'ind_fails_{cl_str}']} fails,\t{entry[f'ind_nans_{cl_str}']} indeterminate\n"
+                f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
+            )
 
         es_alpha = 1 - (1 - cl) / 2
         es_str = format_cl(es_alpha)
         es_pred = entry.get(f"ES_{es_str}")
         if es_pred is not None:
-            bayer_dimitriadis_result = bayer_dimitriadis_test(
+            # Code left in for now, but we have not found academic support for this approach.
+            pooled_bayer_dimitriadis_result = bayer_dimitriadis_test(
                 y_test_actual, entry[f"LB_{cl_str}"], es_pred, cl
             )
-            entry[f"pooled_bayer_dimitriadis_{es_str}"] = bayer_dimitriadis_result
-            entry[f"pooled_bd_p_value_{es_str}"] = bayer_dimitriadis_result["p_value"]
-            entry[f"pooled_bd_mean_violation_{es_str}"] = bayer_dimitriadis_result[
-                "mean_z"
-            ]
-            print(
-                f"Pooled Bayer-Dimitriadis Test ({cl_str}%):\n"
-                f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
-                f"p-value: {bayer_dimitriadis_result['p_value']}\n"
+            entry[f"pooled_bayer_dimitriadis_{es_str}"] = (
+                pooled_bayer_dimitriadis_result
             )
+            entry[f"pooled_bd_p_value_{es_str}"] = pooled_bayer_dimitriadis_result[
+                "p_value"
+            ]
+            entry[f"pooled_bd_mean_violation_{es_str}"] = (
+                pooled_bayer_dimitriadis_result["mean_z"]
+            )
+
+            es_df = pd.DataFrame(
+                {
+                    "Symbol": entry["symbols"],
+                    "Date": y_test_actual,
+                    "LB": np.array(entry[f"LB_{cl_str}"]),
+                    "ES": np.array(es_pred),
+                }
+            )
+            passes = 0
+            fails = 0
+            indeterminate = 0
+            mean_violations = []
+            for symbol, group in es_df.groupby("Symbol"):
+                result = bayer_dimitriadis_test(
+                    group["Date"].values, group["LB"].values, group["ES"].values, cl
+                )
+                mean_violations.append(result["mean_z"])
+                p = result["p_value"]
+                if not np.isfinite(p):
+                    print(
+                        "WARNING: nan p-value in Bayer-Dimitriadis test for ",
+                        symbol,
+                        "at",
+                        cl_str,
+                    )
+                    indeterminate += 1
+                elif p < 0.05:
+                    fails += 1
+                else:
+                    passes += 1
+            entry[f"bayer_dim_passes_{es_str}"] = passes
+            entry[f"bayer_dim_fails_{es_str}"] = fails
+            entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
+            entry[f"bayer_dim_mean_violation_{es_str}"] = np.mean(mean_violations)
 
             quantile = 1 - es_alpha
             entry[f"FZ0_{es_str}"] = fz_loss(
@@ -1172,10 +1156,14 @@ quantile_metric_keys = [
     "CC indeterminate",
 ]
 es_metric_keys = [
-    "Pooled Bayer-Dimitriadis pass",
+    "Pooled Bayer-Dimitriadis pass?",
     "Pooled Bayer-Dimitriadis p-value",
     "Pooled Bayer-Dimitriadis mean violation",
     "Pooled Bayer-Dimitriadis violation SD",
+    "Bayer-Dimitriadis passes",
+    "Bayer-Dimitriadis fails",
+    "Bayer-Dimitriadis indeterminate",
+    "Bayer-Dimitriadis mean bias",
     "FZ Loss",
     "AL Loss",
 ]
@@ -1254,10 +1242,18 @@ for entry in preds_per_model:
         es_alpha = 1 - (1 - cl) / 2
         es_str = format_cl(es_alpha)
         if entry.get(f"pooled_bayer_dimitriadis_{es_str}") is None:
-            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass"].append(
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass?"].append(
                 np.nan
             )
             results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis p-value"].append(
+                np.nan
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis passes"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis fails"].append(np.nan)
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
+                np.nan
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
                 np.nan
             )
             results[
@@ -1269,19 +1265,31 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(np.nan)
             results[f"[{format_cl(es_alpha)}] AL Loss"].append(np.nan)
         else:
-            bd_test_result = entry[f"pooled_bayer_dimitriadis_{es_str}"]
-            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass"].append(
-                interpret_bayer_dimitriadis_stat(bd_test_result["p_value"])
+            pooled_bd_test_result = entry[f"pooled_bayer_dimitriadis_{es_str}"]
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass?"].append(
+                interpret_bayer_dimitriadis_stat(pooled_bd_test_result["p_value"])
             )
             results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis p-value"].append(
-                bd_test_result["p_value"]
+                pooled_bd_test_result["p_value"]
             )
             results[
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis mean violation"
-            ].append(bd_test_result["mean_z"])
+            ].append(pooled_bd_test_result["mean_z"])
             results[
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
-            ].append(bd_test_result["std_z"])
+            ].append(pooled_bd_test_result["std_z"])
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis passes"].append(
+                entry[f"bayer_dim_passes_{es_str}"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis fails"].append(
+                entry[f"bayer_dim_fails_{es_str}"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
+                entry[f"bayer_dim_indeterminate_{es_str}"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
+                entry[f"bayer_dim_mean_violation_{es_str}"]
+            )
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
                 np.mean(entry[f"FZ0_{es_str}"])
             )
@@ -1358,6 +1366,15 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{es_str}] Pooled Bayer-Dimitriadis mean violation"] = (
         results_df[f"[{es_str}] Pooled Bayer-Dimitriadis mean violation"].abs().idxmin()
     )
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis passes"] = results_df[
+        f"[{es_str}] Bayer-Dimitriadis passes"
+    ].idxmax()
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis fails"] = results_df[
+        f"[{es_str}] Bayer-Dimitriadis fails"
+    ].idxmin()
+    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean bias"] = (
+        results_df[f"[{es_str}] Bayer-Dimitriadis mean bias"].abs().idxmin()
+    )
     results_df.loc["Winner", f"[{es_str}] FZ Loss"] = results_df[
         f"[{es_str}] FZ Loss"
     ].idxmin()
@@ -1373,6 +1390,8 @@ def underline_winner(row):
         (
             "text-decoration: underline; font-weight: bold; color: gold;"
             if col == row["Winner"]
+            or row["Winner"] in row
+            and row[col] == row[row["Winner"]]
             else ""
         )
         for col in row.index
@@ -1411,11 +1430,14 @@ for metric in results_df.index:
         cl_str = metric.split(" ")[0].strip("[]")
         picp_target = float(cl_str) / 100
         key = (values - picp_target).abs()
-        ascending = True  # lower difference is better
-    elif "mean violation" in metric:
+    elif "mean violation" in metric or "mean bias" in metric:
         # Rank by closeness to zero.
+        print("metric", metric)
+        print("values", values)
         key = values.abs()
-        ascending = True
+        print("key", key)
+        print("best", key.min())
+        print("worst", key.max())
     elif any(
         s in metric
         for s in [
@@ -1428,29 +1450,63 @@ for metric in results_df.index:
         ]
     ):
         # For these, higher is better.
-        key = values
-        ascending = False
+        key = -values
     else:
         # For all other metrics, lower is better.
         key = values
-        ascending = True
 
-    # Compute the ranking; ties get the minimum rank.
-    rankings[metric] = key.rank(method="min", ascending=ascending)
+    best = key.min()
+    worst = key.max()
+    if best == worst:
+        # If all values are the same, set all rankings to 0.
+        rankings[metric] = 0
+        continue
+
+    percentile = (key - best) / (worst - best)
+
+    # Compute the ranking
+    rankings[metric] = percentile
 
 # Create a DataFrame of rankings with models as the index and metrics as columns.
 # Each cell shows the rank of that model for that metric (1 = best).
 rankings_df = pd.DataFrame(rankings, index=model_cols).T
-# Change data type to integer
-rankings_df = rankings_df.astype(pd.Int64Dtype)
-# Fill nan values with the maximum rank
-rankings_df = rankings_df.fillna(rankings_df.max().max() + 1)
+# Fill nan values with 1
+rankings_df = rankings_df.fillna(1)
+# Cast to simple floats (not scientific notation)
+rankings_df = rankings_df.applymap(lambda x: round(x * 100) / 100)
 # Add a row for the sum of ranks
-rankings_df.loc["Rank Sum"] = rankings_df.sum()
-rankings_df
+rankings_df.loc["Mean quantile"] = rankings_df.mean()
+
+
+def color_cells(val):
+    """
+    Returns a background color string where:
+    0   = green,
+    0.5 = white,
+    1   = red
+    """
+    if val < 0 or val > 1:
+        return ""
+    if val <= 0.5:
+        # interpolate from green to white
+        ratio = val / 0.5
+        r = int(255 * ratio)
+        g = 255
+        b = int(255 * ratio)
+    else:
+        # interpolate from white to red
+        ratio = (val - 0.5) / 0.5
+        r = 255
+        g = int(255 * (1 - ratio))
+        b = int(255 * (1 - ratio))
+    return f"color: rgb({r}, {g}, {b})"
+
+
+# Apply the color style to the rankings DataFrame
+rankings_df.style.applymap(color_cells)
 
 # %%
-print("Lowest total rank:", rankings_df.loc["Rank Sum"].idxmin())
+print("Lowest mean quantile:", rankings_df.loc["Mean quantile"].idxmin())
 
 # %%
 # Save rankings to CSV
