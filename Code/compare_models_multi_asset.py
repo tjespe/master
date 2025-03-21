@@ -19,7 +19,7 @@ from arch.bootstrap import MCS
 
 # %%
 # Defined which confidence level to use for prediction intervals
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
 
 # %%
 # Select whether to only filter on important tickers
@@ -152,7 +152,10 @@ for garch_type in ["GARCH", "EGARCH"]:
         print(f"{garch_type} predictions not found")
 
 # HAR Model
-for version in ["python", "R"]:
+for version in [
+    # "python",
+    "R",
+]:
     try:
         har_preds = pd.read_csv(f"predictions/HAR_{version}.csv")
         har_preds["Date"] = pd.to_datetime(har_preds["Date"])
@@ -317,26 +320,26 @@ for version in ["norm", "std"]:
 for version in [
     # "quick",
     # "fe",
-    "pireg",
-    "dynamic",
+    # "pireg",
+    # "dynamic",
     # "dynamic-weighted",
     # "embedded",
-    "l2",
+    # "l2",
     # "embedded-2",
-    "embedded-small",
+    # "embedded-small",
     # "crps",
     # "crps-2",
     # "nll-crps-mix",
-    3,
-    "basic",
-    "basic-w-tickers",
-    "rv-data",
+    # 3,
+    # "basic",
+    # "basic-w-tickers",
+    # "rv-data",
     "rv-data-2",
-    "rv-data-3",
-    "w-egarch",
-    "w-egarch-2",
+    # "rv-data-3",
+    # "w-egarch",
+    # "w-egarch-2",
     "ffnn",
-    "tuned",
+    # "tuned",
     # "tuned-w-fred",
 ]:
     try:
@@ -382,11 +385,11 @@ for version in [
 
 # Transformer MDN
 for version in [
-    3,
+    # 3,
     "time",
     # "time-2",
-    "mini",
-    "tuned",
+    # "mini",
+    # "tuned",
     # "tuned-2",
     # "time-step-attention",
     # "last-time-step",
@@ -498,7 +501,7 @@ for version in [4]:
 
 
 # LSTM MAF
-for version in ["v2", "v3", "v4"]:
+for version in []:  # ["v2", "v3", "v4"]:
     try:
         lstm_maf_preds = pd.read_csv(f"predictions/lstm_MAF_{version}{SUFFIX}.csv")
         lstm_maf_preds["Date"] = pd.to_datetime(lstm_maf_preds["Date"])
@@ -768,37 +771,6 @@ try:
 except FileNotFoundError:
     print("DB predictions not found")
 ###########################################
-
-try:
-    maf_entry = next(
-        entry for entry in preds_per_model if entry["name"] == "LSTM MAF v2"
-    )
-    mdn_entry = next(
-        entry for entry in preds_per_model if entry["name"] == "LSTM MDN rv-data-3"
-    )
-    preds_per_model.append(
-        {
-            "name": "LSTM MDN MAF Ensemble",
-            "mean_pred": (maf_entry["mean_pred"] + mdn_entry["mean_pred"]) / 2,
-            "volatility_pred": (
-                maf_entry["volatility_pred"] + mdn_entry["volatility_pred"]
-            )
-            / 2,
-            "LB_67": (maf_entry["LB_67"] + mdn_entry["LB_67"]) / 2,
-            "UB_67": (maf_entry["UB_67"] + mdn_entry["UB_67"]) / 2,
-            "LB_90": (maf_entry["LB_90"] + mdn_entry["LB_90"]) / 2,
-            "UB_90": (maf_entry["UB_90"] + mdn_entry["UB_90"]) / 2,
-            "LB_95": (maf_entry["LB_95"] + mdn_entry["LB_95"]) / 2,
-            "UB_95": (maf_entry["UB_95"] + mdn_entry["UB_95"]) / 2,
-            "LB_99": (maf_entry["LB_99"] + mdn_entry["LB_99"]) / 2,
-            "UB_99": (maf_entry["UB_99"] + mdn_entry["UB_99"]) / 2,
-            "nll": (maf_entry["nll"] + mdn_entry["nll"]) / 2,
-            "symbols": maf_entry["symbols"],
-            "dates": maf_entry["dates"],
-        }
-    )
-except ValueError:
-    print("Could not create ensemble: LSTM MAF V2 or LSTM MDN pireg not found")
 
 # %%
 # Remove excluded models
@@ -1072,6 +1044,8 @@ for entry in preds_per_model:
             passes = 0
             fails = 0
             indeterminate = 0
+            # We should use both 0.05 (since it's the default) and 0.10 (which is stricter) to show that GARCH underestimates risk
+            pass_threshold = 0.05
             mean_violations = []
             for symbol, group in es_df.groupby("Symbol"):
                 result = bayer_dimitriadis_test(
@@ -1087,7 +1061,7 @@ for entry in preds_per_model:
                         cl_str,
                     )
                     indeterminate += 1
-                elif p < 0.05:
+                elif p < pass_threshold:
                     fails += 1
                 else:
                     passes += 1
@@ -1163,6 +1137,7 @@ es_metric_keys = [
     "Bayer-Dimitriadis passes",
     "Bayer-Dimitriadis fails",
     "Bayer-Dimitriadis indeterminate",
+    "Bayer-Dimitriadis pass rate",
     "Bayer-Dimitriadis mean bias",
     "FZ Loss",
     "AL Loss",
@@ -1253,6 +1228,9 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
                 np.nan
             )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
+                np.nan
+            )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
                 np.nan
             )
@@ -1279,13 +1257,16 @@ for entry in preds_per_model:
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
             ].append(pooled_bd_test_result["std_z"])
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis passes"].append(
-                entry[f"bayer_dim_passes_{es_str}"]
+                passes := entry[f"bayer_dim_passes_{es_str}"]
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis fails"].append(
-                entry[f"bayer_dim_fails_{es_str}"]
+                fails := entry[f"bayer_dim_fails_{es_str}"]
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
                 entry[f"bayer_dim_indeterminate_{es_str}"]
+            )
+            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
+                passes / (passes + fails)
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
                 entry[f"bayer_dim_mean_violation_{es_str}"]
@@ -1398,8 +1379,7 @@ def underline_winner(row):
     ]
 
 
-styled_df = results_df.style.apply(underline_winner, axis=1)
-styled_df
+results_df.style.apply(underline_winner, axis=1)
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
@@ -1662,7 +1642,13 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Plot PICP for all the important tickers
-include_models = {"GARCH", "LSTM MDN ffnn", "LSTM MDN tuned", "Transformer MDN tuned"}
+include_models = {
+    "GARCH",
+    "LSTM MDN ffnn",
+    "LSTM MDN tuned",
+    "Transformer MDN tuned",
+    "Transformer MDN time",
+}
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
         set(df_validation.index.get_level_values("Symbol")).intersection(
