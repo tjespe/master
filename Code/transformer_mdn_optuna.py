@@ -28,6 +28,7 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.regularizers import l2
 
+from shared.adequacy import christoffersen_test
 from settings import LOOKBACK_DAYS
 import optuna
 from optuna.study import StudyDirection
@@ -212,12 +213,10 @@ class OptunaEpochCallback(tf.keras.callbacks.Callback):
 # We will run multiple trials, each trying out different hyperparameters.
 # We keep your defaults as the "preferred" or "default" values in the search.
 # -------------------------------------------------------------------------
-def objective(trial):
+def objective(trial: optuna.Trial):
     # Instead of searching over all hyperparameters, pick the ones that matter most:
     d_model = trial.suggest_int("D_MODEL", 16, 64, step=8)
-    n_mixtures = DEFAULTS[
-        "N_MIXTURES"
-    ]  # trial.suggest_int("N_MIXTURES", 1, 40, step=2)
+    n_mixtures = trial.suggest_int("N_MIXTURES", 1, 40, step=2)
     dropout = trial.suggest_float("DROPOUT", 0, 0.7, step=0.1)
     l2_reg = trial.suggest_float("L2_REGULARIZATION", 1e-7, 1e-3, log=True)
     num_encoders = trial.suggest_int("NUM_ENCODERS", 1, 4)
@@ -228,24 +227,27 @@ def objective(trial):
     hidden_units_ff = trial.suggest_int("HIDDEN_UNITS_FF", 16, 1000, step=32)
     d_ticker_embedding = trial.suggest_int("D_TICKER_EMBEDDING", 2, 30)
 
-    # Other booleans from your original code
     MULTIPLY_MARKET_FEATURES_BY_BETA = False
     PI_PENALTY = False
     MU_PENALTY = False
     SIGMA_PENALTY = False
-    INCLUDE_MARKET_FEATURES = trial.suggest_categorical(
-        "INCLUDE_MARKET_FEATURES", [True, False]
+    INCLUDE_MARKET_FEATURES = (
+        False  # trial.suggest_categorical("INCLUDE_MARKET_FEATURES", [True, False])
     )
-    INCLUDE_RETURNS = trial.suggest_categorical("INCLUDE_RETURNS", [True, False])
-    INCLUDE_FNG = trial.suggest_categorical("INCLUDE_FNG", [True, False])
-    INCLUDE_INDUSTRY = trial.suggest_categorical("INCLUDE_INDUSTRY", [True, False])
-    INCLUDE_GARCH = trial.suggest_categorical("INCLUDE_GARCH", [True, False])
-    INCLUDE_BETA = trial.suggest_categorical("INCLUDE_BETA", [True, False])
-    INCLUDE_OTHERS = trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
+    INCLUDE_RETURNS = (
+        False  # trial.suggest_categorical("INCLUDE_RETURNS", [True, False])
+    )
+    INCLUDE_FNG = False  # trial.suggest_categorical("INCLUDE_FNG", [True, False])
+    INCLUDE_INDUSTRY = (
+        False  # trial.suggest_categorical("INCLUDE_INDUSTRY", [True, False])
+    )
+    INCLUDE_GARCH = False  # trial.suggest_categorical("INCLUDE_GARCH", [True, False])
+    INCLUDE_BETA = False  # trial.suggest_categorical("INCLUDE_BETA", [True, False])
+    INCLUDE_OTHERS = False  # trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
     INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
 
     # -------------------------------------------------------------------------
-    # Data Loading (as in your original code)
+    # Data Loading
     # -------------------------------------------------------------------------
     print("Loading preprocessed data...")
 
@@ -321,6 +323,9 @@ def objective(trial):
         verbose=1,
     )
 
+    # Store how many epochs we actually trained for as trial attributes
+    trial.set_user_attr("epochs_trained", len(history.history["loss"]))
+
     # Evaluate
     val_loss = min(history.history["val_loss"])  # best validation loss from this run
 
@@ -346,12 +351,58 @@ def objective(trial):
     picp_miss = {cl: picp - cl for cl, picp in picps.items()}
     total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
 
+    chr_results = []
+    for i, cl in enumerate(confidence_levels):
+        df = pd.DataFrame(
+            index=[data.validation.tickers, data.validation.dates],
+            columns=["y_true", "interval_low", "interval_high"],
+        )
+        df.index.names = ["Symbol", "Date"]
+        df["y_true"] = data.validation.y
+        df["interval_low"] = intervals[:, i, 0]
+        df["interval_high"] = intervals[:, i, 1]
+        df["exceeded"] = (df["y_true"] < df["interval_low"]) | (
+            df["y_true"] > df["interval_high"]
+        )
+
+        pooled_exceedances_list = []
+        reset_indices = []
+        start_index = 0
+
+        # Group by symbol in original order.
+        df.sort_index(inplace=True)
+        for symbol, group in df.groupby(
+            df.index.get_level_values("Symbol"), sort=False
+        ):
+            asset_exceedances = (group["exceeded"].astype(bool)).values
+            pooled_exceedances_list.append(asset_exceedances)
+            reset_indices.append(start_index)  # mark start of this asset's series.
+            start_index += len(asset_exceedances)
+
+        pooled_exceedances = np.concatenate(pooled_exceedances_list)
+        pooled_result = christoffersen_test(
+            pooled_exceedances, 1 - cl, reset_indices=reset_indices
+        )
+        chr_results.append(pooled_result)
+
+    chr_results = pd.DataFrame(chr_results, index=confidence_levels)
+    total_fails = np.nansum(
+        (chr_results["p_value_uc"] < 0.05)
+        + (chr_results["p_value_ind"] < 0.05)
+        + (chr_results["p_value_cc"] < 0.05)
+    )
+    total_passes = np.nansum(
+        (chr_results["p_value_uc"] > 0.05)
+        + (chr_results["p_value_ind"] > 0.05)
+        + (chr_results["p_value_cc"] > 0.05)
+    )
+
     # Clean up GPU memory
     del transformer_model
     gc.collect()
     tf.keras.backend.clear_session()
 
-    return val_loss, total_picp_miss
+    return val_loss, total_picp_miss, total_passes, total_fails
 
 
 def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
@@ -384,13 +435,18 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     # Create or load a study
-    study_name = "transformer_mdn_hyperparam_and_feature_search_multi"
+    study_name = "transformer_mdn_hyperparam_and_feature_search_christoffersen"
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
         storage=storage,
         load_if_exists=True,
-        directions=[StudyDirection.MINIMIZE, StudyDirection.MINIMIZE],
+        directions=[
+            StudyDirection.MINIMIZE,
+            StudyDirection.MINIMIZE,
+            StudyDirection.MAXIMIZE,
+            StudyDirection.MINIMIZE,
+        ],
     )
 
     # Optimize
