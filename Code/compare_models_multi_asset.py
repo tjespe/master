@@ -1101,11 +1101,13 @@ for entry in preds_per_model:
             bayer_dimitriadis_result = bayer_dimitriadis_test(
                 y_test_actual, entry[f"LB_{cl_str}"], es_pred, cl
             )
-            entry[f"bayer_dimitriadis_{es_str}"] = bayer_dimitriadis_result
-            entry[f"bd_p_value_{es_str}"] = bayer_dimitriadis_result["p_value"]
-            entry[f"bd_mean_violation_{es_str}"] = bayer_dimitriadis_result["mean_z"]
+            entry[f"pooled_bayer_dimitriadis_{es_str}"] = bayer_dimitriadis_result
+            entry[f"pooled_bd_p_value_{es_str}"] = bayer_dimitriadis_result["p_value"]
+            entry[f"pooled_bd_mean_violation_{es_str}"] = bayer_dimitriadis_result[
+                "mean_z"
+            ]
             print(
-                f"Bayer-Dimitriadis Test ({cl_str}%):\n"
+                f"Pooled Bayer-Dimitriadis Test ({cl_str}%):\n"
                 f"Test statistic: {bayer_dimitriadis_result['test_statistic']}\n"
                 f"p-value: {bayer_dimitriadis_result['p_value']}\n"
             )
@@ -1118,7 +1120,9 @@ for entry in preds_per_model:
                 y_test_actual, entry[f"LB_{cl_str}"], es_pred, quantile
             )
         else:
-            print(f"No ES_{es_str} predictions available for Bayer-Dimitriadis test.")
+            print(
+                f"No ES_{es_str} predictions available for Pooled Bayer-Dimitriadis test."
+            )
 
     # Calculate RMSE
     rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
@@ -1168,10 +1172,10 @@ quantile_metric_keys = [
     "CC indeterminate",
 ]
 es_metric_keys = [
-    "Bayer-Dimitriadis pass",
-    "Bayer-Dimitriadis p-value",
-    "Bayer-Dimitriadis mean violation",
-    "Bayer-Dimitriadis violation SD",
+    "Pooled Bayer-Dimitriadis pass",
+    "Pooled Bayer-Dimitriadis p-value",
+    "Pooled Bayer-Dimitriadis mean violation",
+    "Pooled Bayer-Dimitriadis violation SD",
     "FZ Loss",
     "AL Loss",
 ]
@@ -1249,31 +1253,35 @@ for entry in preds_per_model:
     for cl in CONFIDENCE_LEVELS:
         es_alpha = 1 - (1 - cl) / 2
         es_str = format_cl(es_alpha)
-        if entry.get(f"bayer_dimitriadis_{es_str}") is None:
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(np.nan)
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(np.nan)
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
+        if entry.get(f"pooled_bayer_dimitriadis_{es_str}") is None:
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass"].append(
                 np.nan
             )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis p-value"].append(
                 np.nan
             )
+            results[
+                f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis mean violation"
+            ].append(np.nan)
+            results[
+                f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
+            ].append(np.nan)
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(np.nan)
             results[f"[{format_cl(es_alpha)}] AL Loss"].append(np.nan)
         else:
-            bd_test_result = entry[f"bayer_dimitriadis_{es_str}"]
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass"].append(
+            bd_test_result = entry[f"pooled_bayer_dimitriadis_{es_str}"]
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis pass"].append(
                 interpret_bayer_dimitriadis_stat(bd_test_result["p_value"])
             )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis p-value"].append(
+            results[f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis p-value"].append(
                 bd_test_result["p_value"]
             )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean violation"].append(
-                bd_test_result["mean_z"]
-            )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis violation SD"].append(
-                bd_test_result["std_z"]
-            )
+            results[
+                f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis mean violation"
+            ].append(bd_test_result["mean_z"])
+            results[
+                f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
+            ].append(bd_test_result["std_z"])
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
                 np.mean(entry[f"FZ0_{es_str}"])
             )
@@ -1344,11 +1352,11 @@ for cl in CONFIDENCE_LEVELS:
     ].idxmax()
     es_alpha = 1 - (1 - cl) / 2
     es_str = format_cl(es_alpha)
-    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis p-value"] = results_df[
-        f"[{es_str}] Bayer-Dimitriadis p-value"
-    ].idxmax()
-    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean violation"] = (
-        results_df[f"[{es_str}] Bayer-Dimitriadis mean violation"].abs().idxmin()
+    results_df.loc["Winner", f"[{es_str}] Pooled Bayer-Dimitriadis p-value"] = (
+        results_df[f"[{es_str}] Pooled Bayer-Dimitriadis p-value"].idxmax()
+    )
+    results_df.loc["Winner", f"[{es_str}] Pooled Bayer-Dimitriadis mean violation"] = (
+        results_df[f"[{es_str}] Pooled Bayer-Dimitriadis mean violation"].abs().idxmin()
     )
     results_df.loc["Winner", f"[{es_str}] FZ Loss"] = results_df[
         f"[{es_str}] FZ Loss"
