@@ -1,5 +1,5 @@
 # %%
-# Define parameters
+from shared.adequacy import christoffersen_test
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol
@@ -14,6 +14,7 @@ from data.tickers import IMPORTANT_TICKERS
 from scipy.stats import ttest_rel
 from scipy.stats import linregress
 from scipy.stats import ttest_1samp
+from arch.bootstrap import MCS
 
 
 # %%
@@ -30,7 +31,7 @@ EXCLUDE_MODELS = []
 
 # %%
 import numpy as np
-from scipy.stats import chi2, norm
+from scipy.stats import norm
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
@@ -115,6 +116,7 @@ for garch_type in ["GARCH", "EGARCH"]:
             "mean_pred": mus,
             "volatility_pred": garch_vol_pred,
             "symbols": df_validation.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "nll": nll_loss_mean_and_vol(
                 y_true,
                 mus,
@@ -165,6 +167,7 @@ for version in ["python", "R"]:
             "mean_pred": mus,
             "volatility_pred": har_vol_pred,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "nll": nll_loss_mean_and_vol(
                 y_true,
                 mus,
@@ -216,6 +219,7 @@ for version in ["python", "R"]:
             "mean_pred": mus,
             "volatility_pred": harq_vol_pred,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "nll": nll_loss_mean_and_vol(
                 y_true,
                 mus,
@@ -273,6 +277,7 @@ for version in ["norm", "std"]:
             "mean_pred": mus,
             "volatility_pred": realized_garch_preds,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "nll": nll_loss_mean_and_vol(
                 y_true,
                 mus,
@@ -349,6 +354,7 @@ for version in [
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "crps": (
                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
             ),
@@ -404,6 +410,7 @@ for version in [
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "dates": combined_df.index.get_level_values("Date"),
             "symbols": combined_df.index.get_level_values("Symbol"),
             "crps": (
                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
@@ -459,6 +466,7 @@ for version in [4]:
                 "volatility_pred": combined_df["Pred_Std"].values,
                 "nll": combined_df.get("NLL", combined_df.get("loss")).values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
+                "dates": combined_df.index.get_level_values("Date"),
                 "crps": (
                     crps.values
                     if (crps := combined_df.get("CRPS")) is not None
@@ -516,6 +524,7 @@ for version in ["v2", "v3", "v4"]:
                 "UB_99": combined_df["UB_99"].values,
                 "nll": combined_df["NLL"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
+                "dates": combined_df.index.get_level_values("Date"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
         )
@@ -554,6 +563,7 @@ for version in ["v1"]:
                     garch_vol_pred,
                 ),
                 "symbols": combined_df.index.get_level_values("Symbol"),
+                "dates": combined_df.index.get_level_values("Date"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
             }
         )
@@ -591,6 +601,7 @@ try:
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "LB_98": combined_df["Quantile_0.010"].values,
             "UB_98": combined_df["Quantile_0.990"].values,
             "LB_95": combined_df["Quantile_0.025"].values,
@@ -638,6 +649,7 @@ try:
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "LB_98": combined_df["Quantile_0.010"].values,
             "UB_98": combined_df["Quantile_0.990"].values,
             "LB_95": combined_df["Quantile_0.025"].values,
@@ -685,6 +697,7 @@ try:
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "LB_98": combined_df["Quantile_0.010"].values,
             "UB_98": combined_df["Quantile_0.990"].values,
             "LB_95": combined_df["Quantile_0.025"].values,
@@ -729,6 +742,7 @@ try:
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
             "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
             "LB_98": combined_df["DB_RV_set_0.01"].values,
             "UB_98": combined_df["DB_RV_set_0.99"].values,
             "LB_95": combined_df["DB_RV_set_0.025"].values,
@@ -776,6 +790,7 @@ try:
             "UB_99": (maf_entry["UB_99"] + mdn_entry["UB_99"]) / 2,
             "nll": (maf_entry["nll"] + mdn_entry["nll"]) / 2,
             "symbols": maf_entry["symbols"],
+            "dates": maf_entry["dates"],
         }
     )
 except ValueError:
@@ -824,110 +839,6 @@ def calculate_uncertainty_error_correlation(y_true, mean_pred, interval_width):
     prediction_errors = np.abs(y_true - mean_pred)
     correlation = pd.Series(prediction_errors).corr(pd.Series(np.array(interval_width)))
     return correlation
-
-
-def christoffersen_test(exceedances, alpha, reset_indices=None):
-    """
-    exceedances: array-like of 1 if exceedance, 0 otherwise.
-    alpha: expected probability of exceedance (e.g. 0.05 for 95% VaR).
-    reset_indices: positions in the pooled array that mark the start of a new asset.
-    """
-    # Ensure positional indexing.
-    exceedances = np.asarray(exceedances)
-    N = len(exceedances)
-    x = np.sum(exceedances)
-    pi_hat = x / N
-
-    # Check for degenerate series.
-    if x == 0 or x == N:
-        return {
-            "LR_uc": np.nan,
-            "p_value_uc": np.nan,
-            "LR_ind": np.nan,
-            "p_value_ind": np.nan,
-            "LR_cc": np.nan,
-            "p_value_cc": np.nan,
-        }
-
-    # Unconditional Coverage Test using logs.
-    try:
-        logL0 = (N - x) * np.log(1 - alpha) + x * np.log(alpha)
-        logL1 = (N - x) * np.log(1 - pi_hat) + x * np.log(pi_hat)
-    except Exception:
-        return {
-            "LR_uc": np.nan,
-            "p_value_uc": np.nan,
-            "LR_ind": np.nan,
-            "p_value_ind": np.nan,
-            "LR_cc": np.nan,
-            "p_value_cc": np.nan,
-        }
-    LR_uc = -2 * (logL0 - logL1)
-    p_value_uc = 1 - chi2.cdf(LR_uc, df=1)
-
-    # Independence Test: use only transitions within each asset.
-    valid = np.ones(N, dtype=bool)
-    valid[0] = False  # first observation has no predecessor.
-    if reset_indices is not None:
-        for idx in reset_indices:
-            valid[idx] = False
-
-    valid_indices = np.nonzero(valid)[0]
-    if len(valid_indices) == 0:
-        return {
-            "LR_uc": LR_uc,
-            "p_value_uc": p_value_uc,
-            "LR_ind": np.nan,
-            "p_value_ind": np.nan,
-            "LR_cc": np.nan,
-            "p_value_cc": np.nan,
-        }
-
-    # Form transition pairs for valid indices.
-    prev = exceedances[valid_indices - 1]
-    curr = exceedances[valid_indices]
-
-    N_00 = np.sum((prev == 0) & (curr == 0))
-    N_01 = np.sum((prev == 0) & (curr == 1))
-    N_10 = np.sum((prev == 1) & (curr == 0))
-    N_11 = np.sum((prev == 1) & (curr == 1))
-
-    denom_0 = N_00 + N_01
-    denom_1 = N_10 + N_11
-    pi_0 = N_01 / denom_0 if denom_0 > 0 else 0
-    pi_1 = N_11 / denom_1 if denom_1 > 0 else 0
-
-    # If either conditional probability is degenerate, skip the independence test.
-    if pi_0 in [0, 1] or pi_1 in [0, 1]:
-        LR_ind = np.nan
-        p_value_ind = np.nan
-    else:
-        try:
-            logL_null = (N - x) * np.log(1 - pi_hat) + x * np.log(pi_hat)
-            logL_alt = (
-                N_00 * np.log(1 - pi_0)
-                + N_01 * np.log(pi_0)
-                + N_10 * np.log(1 - pi_1)
-                + N_11 * np.log(pi_1)
-            )
-        except Exception:
-            LR_ind = np.nan
-            p_value_ind = np.nan
-        else:
-            LR_ind = -2 * (logL_null - logL_alt)
-            p_value_ind = 1 - chi2.cdf(LR_ind, df=1)
-
-    LR_cc = LR_uc + LR_ind if (not np.isnan(LR_uc) and not np.isnan(LR_ind)) else np.nan
-    p_value_cc = 1 - chi2.cdf(LR_cc, df=2) if not np.isnan(LR_cc) else np.nan
-
-    return {
-        "LR_uc": LR_uc,
-        "p_value_uc": p_value_uc,
-        "LR_ind": LR_ind,
-        "p_value_ind": p_value_ind,
-        "LR_cc": LR_cc,
-        "p_value_cc": p_value_cc,
-    }
 
 
 def interpret_christoffersen_stat(p_value):
@@ -1754,7 +1665,7 @@ for cl in CONFIDENCE_LEVELS:
 
 # %%
 # Calculate p-value of outperformance in terms of NLL
-for loss_fn in [
+loss_fns = [
     "nll",
     "crps",
     "FZ0_95",
@@ -1763,7 +1674,8 @@ for loss_fn in [
     "AL_97.5",
     "FZ0_99",
     "AL_99",
-]:
+]
+for loss_fn in loss_fns:
     passing_model_names = [entry["name"] for entry in passing_models]
     p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
     p_value_df.index.name = "Benchmark"
@@ -1817,6 +1729,72 @@ for loss_fn in [
         display(total_ps)
     except Exception as e:
         print(p_value_df)
+
+# %%
+# Perform Model Confidence Set analysis
+# Prepare a DataFrame of all losses for a given metric, indexed by (symbol, time_index)
+# (We'll do this inside the loop for each metric to avoid huge memory usage)
+for metric in loss_fns:
+    # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
+    df_losses = df_validation.copy()
+    for entry in passing_models:
+        entry_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+            columns=[entry["name"]],
+        )
+        loss_vals = entry.get(metric)
+        if loss_vals is None:
+            continue
+        if np.isnan(loss_vals).any():
+            print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
+            continue
+        entry_df[entry["name"]] = entry.get(metric)
+        df_losses = df_losses.join(entry_df, how="left")
+
+    # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
+    # We take the mean across symbols at each time index for each model
+    avg_losses_by_time = df_losses.groupby(
+        df_losses.index.get_level_values("Date")
+    ).mean(numeric_only=True)
+    # (If all assets are present at each time_idx, this is just the average over 30 assets)
+
+    # Convert the DataFrame of average losses to a numpy array for MCS (T x M)
+    loss_matrix = avg_losses_by_time.to_numpy()  # shape: [T, num_models]
+
+    # Ensure no NaNs or infs
+    assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
+
+    # Remove degenerate models (those with zero variance)
+    stds = loss_matrix.std(axis=0)
+    non_constant_cols = stds > 1e-8
+    loss_matrix = loss_matrix[:, non_constant_cols]
+
+    # Perform the MCS procedure at 5% significance (95% confidence)
+    # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
+    T = loss_matrix.shape[0]
+    block_len = int(
+        T**0.5
+    )  # using sqrt(T) as a rule of thumb&#8203;:contentReference[oaicite:13]{index=13}
+    mcs = MCS(
+        loss_matrix,
+        size=0.05,
+        reps=1000,
+        block_size=block_len,
+        bootstrap="stationary",
+        method="R",
+    )
+    mcs.compute()  # run the bootstrap elimination procedure
+
+    # Get indices of models included in the MCS and their p-values
+    included_indices = mcs.included  # list of column indices that remain
+    pvals = mcs.pvalues.values()  # array of p-values for each model
+    included_models = [avg_losses_by_time.columns[i] for i in included_indices]
+
+    print(f"\nMCS results for {metric}:")
+    print("Included models (95% MCS):", included_models)
+    # Optionally, print p-values for reference
+    for model_name, pval in zip(avg_losses_by_time.columns, pvals):
+        print(f"  p-value for {model_name}: {pval}")
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
