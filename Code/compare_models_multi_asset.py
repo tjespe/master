@@ -1664,10 +1664,9 @@ for cl in CONFIDENCE_LEVELS:
     plt.show()
 
 # %%
-# Calculate p-value of outperformance in terms of NLL
+# Define the most important loss functions
 loss_fns = [
     "nll",
-    "crps",
     "FZ0_95",
     "AL_95",
     "FZ0_97.5",
@@ -1675,6 +1674,9 @@ loss_fns = [
     "FZ0_99",
     "AL_99",
 ]
+
+# %%
+# Calculate p-value of outperformance in terms of NLL
 for loss_fn in loss_fns:
     passing_model_names = [entry["name"] for entry in passing_models]
     p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
@@ -1732,11 +1734,18 @@ for loss_fn in loss_fns:
 
 # %%
 # Perform Model Confidence Set analysis
-# Prepare a DataFrame of all losses for a given metric, indexed by (symbol, time_index)
-# (We'll do this inside the loop for each metric to avoid huge memory usage)
+# For each model, we calculate the average loss across symbols at each time index to be
+# able to simply perform the MCS procedure.
+# This approach is supported by Patton, A. J., & Timmermann, A. (2007) [https://doi.org/10.1093/rfs/hhm004]:
+#
+# |  We average the forecast errors over the cross-section of assets to obtain a measure
+# |  of overall performance... This is appropriate when no single asset is of primary
+# |  interest and we wish to evaluate models on their generalizability.
+#
+all_results = pd.DataFrame(index=passing_model_names, columns=loss_fns)
 for metric in loss_fns:
     # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
-    df_losses = df_validation.copy()
+    df_losses = pd.DataFrame(index=df_validation.index)
     for entry in passing_models:
         entry_df = pd.DataFrame(
             index=[entry["symbols"], entry["dates"]],
@@ -1745,10 +1754,12 @@ for metric in loss_fns:
         loss_vals = entry.get(metric)
         if loss_vals is None:
             continue
+        if not isinstance(loss_vals, np.ndarray):
+            loss_vals = np.array(loss_vals)
         if np.isnan(loss_vals).any():
             print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
             continue
-        entry_df[entry["name"]] = entry.get(metric)
+        entry_df[entry["name"]] = loss_vals
         df_losses = df_losses.join(entry_df, how="left")
 
     # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
@@ -1756,18 +1767,16 @@ for metric in loss_fns:
     avg_losses_by_time = df_losses.groupby(
         df_losses.index.get_level_values("Date")
     ).mean(numeric_only=True)
-    # (If all assets are present at each time_idx, this is just the average over 30 assets)
+
+    # Remove degenenerate columns (no variation in losses)
+    avg_losses_by_time = avg_losses_by_time.loc[:, avg_losses_by_time.nunique() > 1]
+    # print(f"Competitors for {metric}:", list(avg_losses_by_time.columns))
 
     # Convert the DataFrame of average losses to a numpy array for MCS (T x M)
     loss_matrix = avg_losses_by_time.to_numpy()  # shape: [T, num_models]
 
     # Ensure no NaNs or infs
     assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
-
-    # Remove degenerate models (those with zero variance)
-    stds = loss_matrix.std(axis=0)
-    non_constant_cols = stds > 1e-8
-    loss_matrix = loss_matrix[:, non_constant_cols]
 
     # Perform the MCS procedure at 5% significance (95% confidence)
     # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
@@ -1781,20 +1790,38 @@ for metric in loss_fns:
         reps=1000,
         block_size=block_len,
         bootstrap="stationary",
-        method="R",
+        method="max",
     )
     mcs.compute()  # run the bootstrap elimination procedure
 
     # Get indices of models included in the MCS and their p-values
     included_indices = mcs.included  # list of column indices that remain
-    pvals = mcs.pvalues.values()  # array of p-values for each model
+    pvals = mcs.pvalues.values  # array of p-values for each model
     included_models = [avg_losses_by_time.columns[i] for i in included_indices]
 
-    print(f"\nMCS results for {metric}:")
-    print("Included models (95% MCS):", included_models)
+    # print(f"\nMCS results for {metric}:")
+    # print("Included models (95% MCS):", included_models)
+    for model in passing_model_names:
+        if model in list(avg_losses_by_time.columns):
+            all_results.loc[model, metric] = False
+        if model in included_models:
+            all_results.loc[model, metric] = True
     # Optionally, print p-values for reference
-    for model_name, pval in zip(avg_losses_by_time.columns, pvals):
-        print(f"  p-value for {model_name}: {pval}")
+    # for model_name, pval in zip(avg_losses_by_time.columns, pvals):
+    #     print(f"  p-value for {model_name}: {pval}")
+
+
+def color_cells(val):
+    if np.isnan(val):
+        return "color: gray"
+    elif val:
+        return "color: gold"
+    else:
+        return ""
+
+
+styled_df = all_results.style.applymap(color_cells)
+styled_df
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
