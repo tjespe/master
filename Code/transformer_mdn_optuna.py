@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import warnings
+import sys
 
 # For type hints
 from typing import Optional
@@ -450,7 +451,7 @@ if __name__ == "__main__":
     )
 
     # Optimize
-    n_trials = 5  # set how many trials you want
+    n_trials = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
