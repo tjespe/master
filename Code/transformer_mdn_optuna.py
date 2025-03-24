@@ -226,7 +226,6 @@ def objective(trial: optuna.Trial):
 
     # The feed-forward size is typically 4 * d_model. We can keep or let it vary:
     hidden_units_ff = trial.suggest_int("HIDDEN_UNITS_FF", 16, 1000, step=32)
-    d_ticker_embedding = trial.suggest_int("D_TICKER_EMBEDDING", 2, 30)
 
     MULTIPLY_MARKET_FEATURES_BY_BETA = False
     PI_PENALTY = False
@@ -246,6 +245,12 @@ def objective(trial: optuna.Trial):
     INCLUDE_BETA = False  # trial.suggest_categorical("INCLUDE_BETA", [True, False])
     INCLUDE_OTHERS = False  # trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
     INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
+    if INCLUDE_TICKERS:
+        d_ticker_embedding = trial.suggest_int(
+            "TICKER_EMBEDDING_DIM", 1, 30, step=1, log=True
+        )
+    else:
+        d_ticker_embedding = None
     INCLUDE_10_DAY_IVOL = trial.suggest_categorical(
         "INCLUDE_10_DAY_IVOL", [True, False]
     )

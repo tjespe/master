@@ -146,9 +146,6 @@ def objective(trial: optuna.Trial):
     learning_rate = trial.suggest_float("LEARNING_RATE", 1e-5, 1e-3, log=True)
     l2_reg = trial.suggest_float("L2_REG", 1e-6, 1e-2, log=True)
     batch_size = trial.suggest_int("BATCH_SIZE", 16, 128, log=True)
-    ticker_embedding_dimensions = trial.suggest_int(
-        "TICKER_EMBEDDING_DIM", 1, 30, step=1, log=True
-    )
     weight_decay = trial.suggest_float("WEIGHT_DECAY", 1e-6, 0.1, log=True)
 
     MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -167,6 +164,12 @@ def objective(trial: optuna.Trial):
     INCLUDE_BETA = False  # trial.suggest_categorical("INCLUDE_BETA", [True, False])
     INCLUDE_OTHERS = False  # trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
     INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
+    if INCLUDE_TICKERS:
+        ticker_embedding_dimensions = trial.suggest_int(
+            "TICKER_EMBEDDING_DIM", 1, 30, step=1, log=True
+        )
+    else:
+        ticker_embedding_dimensions = None
     INCLUDE_10_DAY_IVOL = trial.suggest_categorical(
         "INCLUDE_10_DAY_IVOL", [True, False]
     )
