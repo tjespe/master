@@ -1,7 +1,7 @@
-# optuna_lstm_mdn.py
-
+# %%
 import os
 import gc
+import sys
 import numpy as np
 import pandas as pd
 import warnings
@@ -23,59 +23,21 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 
 import optuna
+from optuna.study import StudyDirection
 
+from shared.adequacy import christoffersen_test
 from shared.conf_levels import format_cl
 from shared.mdn import (
+    calculate_intervals_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
+    parse_mdn_output,
 )
 from shared.loss import mdn_nll_tf
 from shared.processing import get_lstm_train_test_new
 from settings import SUFFIX, LOOKBACK_DAYS
 
-warnings.filterwarnings("ignore")
 
-# -------------------------------------------------------------------------
-# Global constants and fixed settings
-VERSION = "seq_tickers"
-
-# Feature inclusion flags (fixed for this experiment)
-MULTIPLY_MARKET_FEATURES_BY_BETA = False
-PI_PENALTY = False
-INCLUDE_MARKET_FEATURES = False
-INCLUDE_RETURNS = False
-INCLUDE_FNG = False
-INCLUDE_INDUSTRY = False
-INCLUDE_GARCH = False
-INCLUDE_BETA = False
-INCLUDE_OTHERS = False
-INCLUDE_TICKERS = True
-
-# -------------------------------------------------------------------------
-# Data Loading
-# -------------------------------------------------------------------------
-print("Loading preprocessed data...")
-data = get_lstm_train_test_new(
-    multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
-    include_returns=INCLUDE_RETURNS,
-    include_spx_data=INCLUDE_MARKET_FEATURES,
-    include_others=INCLUDE_OTHERS,
-    include_beta=INCLUDE_BETA,
-    include_fng=INCLUDE_FNG,
-    include_garch=INCLUDE_GARCH,
-    include_industry=INCLUDE_INDUSTRY,
-)
-gc.collect()
-
-print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
-print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shape}")
-if INCLUDE_TICKERS:
-    print(f"Ticker IDs dimension: {data.ticker_ids_dim}")
-
-
-# -------------------------------------------------------------------------
-# Model Building Function
-# -------------------------------------------------------------------------
 def build_lstm_mdn(
     num_features: int,
     ticker_ids_dim: int,
@@ -148,11 +110,35 @@ def build_lstm_mdn(
     return model
 
 
+class OptunaEpochCallback(tf.keras.callbacks.Callback):
+    def __init__(self, trial):
+        super().__init__()
+        self.trial = trial
+
+    def on_epoch_end(self, epoch, logs=None):
+        if logs is None:
+            return
+        train_loss = logs.get("loss")
+        val_loss = logs.get("val_loss")
+
+        # Save as user attributes so you can inspect them later:
+        self.trial.set_user_attr(f"train_loss_epoch_{epoch}", train_loss)
+        self.trial.set_user_attr(f"val_loss_epoch_{epoch}", val_loss)
+
+        # This is not possible with multi objectives
+        # self.trial.report(val_loss, step=epoch)
+
+        # We can choose to prune here if performance is bad:
+        # if self.trial.should_prune():
+        #     raise optuna.TrialPruned()
+
+
 # -------------------------------------------------------------------------
-# Objective Function for Hyperparameter Optimization
+# Setup Optuna objective
+# We will run multiple trials, each trying out different hyperparameters.
+# We keep your defaults as the "preferred" or "default" values in the search.
 # -------------------------------------------------------------------------
-def objective(trial):
-    # Suggest hyperparameters to optimize
+def objective(trial: optuna.Trial):
     hidden_units = trial.suggest_int("HIDDEN_UNITS", 1, 80, step=4)
     num_hidden_layers = trial.suggest_int("NUM_HIDDEN_LAYERS", 0, 4)
     n_mixtures = trial.suggest_int("N_MIXTURES", 1, 30, step=5)
@@ -160,12 +146,81 @@ def objective(trial):
     learning_rate = trial.suggest_float("LEARNING_RATE", 1e-5, 1e-3, log=True)
     l2_reg = trial.suggest_float("L2_REG", 1e-6, 1e-2, log=True)
     batch_size = trial.suggest_int("BATCH_SIZE", 16, 128, log=True)
-    ticker_embedding_dimensions = trial.suggest_int(
-        "TICKER_EMBEDDING_DIM", 1, 30, step=1, log=True
-    )
     weight_decay = trial.suggest_float("WEIGHT_DECAY", 1e-6, 0.1, log=True)
 
-    # Build and compile the LSTM MDN model with these hyperparameters
+    MULTIPLY_MARKET_FEATURES_BY_BETA = False
+    PI_PENALTY = False
+    INCLUDE_MARKET_FEATURES = (
+        False  # trial.suggest_categorical("INCLUDE_MARKET_FEATURES", [True, False])
+    )
+    INCLUDE_RETURNS = (
+        False  # trial.suggest_categorical("INCLUDE_RETURNS", [True, False])
+    )
+    INCLUDE_FNG = False  # trial.suggest_categorical("INCLUDE_FNG", [True, False])
+    INCLUDE_INDUSTRY = (
+        False  # trial.suggest_categorical("INCLUDE_INDUSTRY", [True, False])
+    )
+    INCLUDE_GARCH = False  # trial.suggest_categorical("INCLUDE_GARCH", [True, False])
+    INCLUDE_BETA = False  # trial.suggest_categorical("INCLUDE_BETA", [True, False])
+    INCLUDE_OTHERS = False  # trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
+    INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
+    if INCLUDE_TICKERS:
+        ticker_embedding_dimensions = trial.suggest_int(
+            "TICKER_EMBEDDING_DIM", 1, 30, step=1, log=True
+        )
+    else:
+        ticker_embedding_dimensions = None
+    INCLUDE_10_DAY_IVOL = trial.suggest_categorical(
+        "INCLUDE_10_DAY_IVOL", [True, False]
+    )
+    INCLUDE_30_DAY_IVOL = trial.suggest_categorical(
+        "INCLUDE_30_DAY_IVOL", [True, False]
+    )
+    INCLUDE_1MIN_RV = trial.suggest_categorical("INCLUDE_1MIN_RVOL", [True, False])
+    INCLUDE_5MIN_RV = trial.suggest_categorical("INCLUDE_5MIN_RVOL", [True, False])
+
+    if (
+        not INCLUDE_10_DAY_IVOL
+        and not INCLUDE_30_DAY_IVOL
+        and not INCLUDE_1MIN_RV
+        and not INCLUDE_5MIN_RV
+    ):
+        raise optuna.exceptions.TrialPruned()
+
+    # -------------------------------------------------------------------------
+    # Data Loading
+    # -------------------------------------------------------------------------
+    print("Loading preprocessed data...")
+
+    # Get data
+    try:
+        data = get_lstm_train_test_new(
+            multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+            include_returns=INCLUDE_RETURNS,
+            include_spx_data=INCLUDE_MARKET_FEATURES,
+            include_others=INCLUDE_OTHERS,
+            include_beta=INCLUDE_BETA,
+            include_fng=INCLUDE_FNG,
+            include_garch=INCLUDE_GARCH,
+            include_industry=INCLUDE_INDUSTRY,
+            include_1min_rv=INCLUDE_1MIN_RV,
+            include_5min_rv=INCLUDE_5MIN_RV,
+            include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
+            + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
+        )
+    except ValueError:
+        raise optuna.exceptions.TrialPruned()
+
+    gc.collect()
+
+    print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
+    print(
+        f"X_val.shape: {data.validation.X.shape}, y_val.shape: {data.validation.y.shape}"
+    )
+    if INCLUDE_TICKERS:
+        print(f"Ticker IDs dimension: {data.ticker_ids_dim}")
+
+    # Build the model with these hyperparams
     lstm_model = build_lstm_mdn(
         num_features=data.train.X.shape[2],
         ticker_ids_dim=(data.ticker_ids_dim if INCLUDE_TICKERS else None),
@@ -184,6 +239,7 @@ def objective(trial):
     early_stop = EarlyStopping(
         monitor="val_loss", patience=3, restore_best_weights=True, verbose=1
     )
+    # optuna_callback = OptunaEpochCallback(trial)
 
     history = lstm_model.fit(
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
@@ -196,64 +252,143 @@ def objective(trial):
             ),
             data.validation.y,
         ),
-        epochs=30,
+        epochs=50,
         batch_size=batch_size,
-        callbacks=[early_stop],
+        callbacks=[early_stop],  # , optuna_callback],
         verbose=1,
     )
 
-    val_loss = min(history.history["val_loss"])
+    # Store how many epochs we actually trained for as trial attributes
+    trial.set_user_attr("epochs_trained", len(history.history["loss"]))
+    for epoch in range(len(history.history["loss"])):
+        trial.set_user_attr(f"train_loss_epoch_{epoch}", history.history["loss"][epoch])
+        trial.set_user_attr(
+            f"val_loss_epoch_{epoch}", history.history["val_loss"][epoch]
+        )
 
-    # Cleanup
+    # Evaluate
+    val_loss = min(history.history["val_loss"])  # best validation loss from this run
+
+    # Calculate confidence intervals and PICPs
+    y_val_pred = lstm_model.predict(
+        [data.validation.X, data.validation_ticker_ids]
+        if INCLUDE_TICKERS
+        else data.validation.X
+    )
+    pis, mus, sigmas = parse_mdn_output(y_val_pred, n_mixtures)
+    confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.98, 0.99, 0.995, 0.999]
+    intervals = calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels)
+
+    picps = {
+        cl: np.mean(
+            np.logical_and(
+                data.validation.y > intervals[:, i, 0],
+                data.validation.y < intervals[:, i, 1],
+            )
+        )
+        for i, cl in enumerate(confidence_levels)
+    }
+    picp_miss = {cl: picp - cl for cl, picp in picps.items()}
+    total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
+
+    chr_results = []
+    chr_results_indices = []
+    for i, cl in enumerate(confidence_levels):
+        df = pd.DataFrame(
+            index=[data.validation.tickers, data.validation.dates],
+            columns=["y_true", "interval_low", "interval_high"],
+        )
+        df.index.names = ["Symbol", "Date"]
+        df["y_true"] = data.validation.y
+        df["interval_low"] = intervals[:, i, 0]
+        df["interval_high"] = intervals[:, i, 1]
+        df["exceeded"] = (df["y_true"] < df["interval_low"]) | (
+            df["y_true"] > df["interval_high"]
+        )
+
+        # Group by symbol in original order.
+        df.sort_index(inplace=True)
+        for symbol, group in df.groupby(
+            df.index.get_level_values("Symbol"), sort=False
+        ):
+            exceedances = (group["exceeded"].astype(bool)).values
+            result = christoffersen_test(exceedances, 1 - cl)
+            chr_results.append(result)
+            chr_results_indices.append((symbol, cl))
+
+    chr_results = pd.DataFrame(chr_results, index=chr_results_indices)
+    print(chr_results)
+    total_fails = np.nansum(
+        (chr_results["p_value_uc"] < 0.05).astype(int)
+        + (chr_results["p_value_ind"] < 0.05).astype(int)
+        + (chr_results["p_value_cc"] < 0.05).astype(int)
+    )
+    total_passes = np.nansum(
+        (chr_results["p_value_uc"] > 0.05).astype(int)
+        + (chr_results["p_value_ind"] > 0.05).astype(int)
+        + (chr_results["p_value_cc"] > 0.05).astype(int)
+    )
+
+    # Clean up GPU memory
     del lstm_model
     gc.collect()
     tf.keras.backend.clear_session()
 
-    return val_loss
+    return val_loss, total_picp_miss, total_passes, total_fails
 
 
-# -------------------------------------------------------------------------
-# Optional Git Commit Callback (commits study DB after each trial)
-# -------------------------------------------------------------------------
 def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
     print(
-        f"Trial {trial.number} finished with value: {trial.value}. Committing study DB to git."
+        f"Trial {trial.number} finished with value: {trial.values}. Committing DB to git."
     )
     try:
+        # Update the local repo
         subprocess.run(["git", "pull", "--no-edit"], check=True)
+        # Stage the sqlite DB file
         subprocess.run(["git", "add", "optuna"], check=True)
-        commit_header = f"Trial {trial.number} - LSTM MDN study DB update"
+        # Build a detailed commit message
+        commit_header = f"Trial {trial.number} - Updated study DB"
         commit_body = (
-            f"Trial {trial.number} finished with value: {trial.value}\n"
+            f"Trial {trial.number} finished with objective values: {trial.values}\n"
             f"Hyperparameters: {trial.params}\n"
-            f"Study Best Value: {study.best_value}\n"
-            f"Study Best Params: {study.best_trial.params}\n"
         )
+        # Commit with the constructed message
         subprocess.run(
             ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
         )
+        # Push the commit
         subprocess.run(["git", "push"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Git commit failed: {e}")
 
 
 # -------------------------------------------------------------------------
-# Run the Study
+# Running the Optuna study
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
-    study_name = "lstm_mdn_hyperparam_search"
+    # Create or load a study
+    study_name = "lstm_mdn_hyperparam_and_feature_search_christoffersen_per_asset"
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
         storage=storage,
         load_if_exists=True,
-        direction="minimize",
+        directions=[
+            StudyDirection.MINIMIZE,
+            StudyDirection.MINIMIZE,
+            StudyDirection.MAXIMIZE,
+            StudyDirection.MINIMIZE,
+        ],
     )
 
-    n_trials = 1000  # Set the number of trials to run
+    # Optimize
+    try:
+        n_trials = int(sys.argv[1])
+    except:
+        n_trials = 1000
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
-    # Display the best trial
+    # Print best result
     best_trial = study.best_trial
     print("Best trial:")
     print(f"  Value (val_loss): {best_trial.value}")
@@ -261,7 +396,7 @@ if __name__ == "__main__":
     for key, val in best_trial.params.items():
         print(f"    {key}: {val}")
 
-    # Save trial results to CSV for future reference
+    # Optionally save all trials to a CSV for your records
     df = study.trials_dataframe()
-    df.to_csv("lstm_study_results.csv", index=False)
-    print("\nAll trial results have been saved to 'lstm_study_results.csv'.")
+    df.to_csv("optuna/lstm_mdn_study_results.csv", index=False)
+    print("\nAll trial results have been saved to 'lstm_mdn_study_results.csv'.")

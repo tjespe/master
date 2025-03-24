@@ -2,7 +2,13 @@
 from shared.adequacy import bayer_dimitriadis_test, christoffersen_test
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
-from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol
+from shared.loss import (
+    al_loss,
+    crps_normal_univariate,
+    fz_loss,
+    nll_loss_mean_and_vol,
+    student_t_nll,
+)
 from settings import (
     DATA_PATH,
     LOOKBACK_DAYS,
@@ -158,40 +164,42 @@ try:
     garch_t_vol_pred = garch_t_vol_pred.set_index(["Date", "Symbol"])
     garch_t_dates = garch_t_vol_pred.index.get_level_values("Date")
     garch_t_vol_pred = garch_t_vol_pred[
-        (garch_t_dates >= TRAIN_VALIDATION_SPLIT) & (garch_t_dates < VALIDATION_TEST_SPLIT)
+        (garch_t_dates >= TRAIN_VALIDATION_SPLIT)
+        & (garch_t_dates < VALIDATION_TEST_SPLIT)
     ]
     combined_df = df_validation.join(garch_t_vol_pred, how="left", rsuffix="_GARCH_t")
     garch_t_vol_pred = combined_df["GARCH_t_Vol"].values
     y_true = combined_df["LogReturn"].values
     mus = np.zeros_like(garch_t_vol_pred)
+    nus = combined_df["GARCH_t_Nu"].values
+    crps = combined_df["GARCH_t_CRPS"].values
 
     entry = {
         "name": "GARCH Student-t",
         "mean_pred": mus,
         "volatility_pred": garch_t_vol_pred,
         "symbols": combined_df.index.get_level_values("Symbol"),
-        "nll": nll_loss_mean_and_vol(
+        "dates": combined_df.index.get_level_values("Date"),
+        "nll": student_t_nll(
             y_true,
             mus,
             garch_t_vol_pred,
+            nus,
         ),
-        "crps": crps_normal_univariate(y_true, mus, garch_t_vol_pred),
+        "crps": crps,
+        "LB_67": combined_df["LB_67"].values,
+        "UB_67": combined_df["UB_67"].values,
+        "LB_90": combined_df["LB_90"].values,
+        "UB_90": combined_df["UB_90"].values,
+        "LB_95": combined_df["LB_95"].values,
+        "UB_95": combined_df["UB_95"].values,
+        "LB_98": combined_df["LB_98"].values,
+        "UB_98": combined_df["UB_98"].values,
+        "ES_83.5": combined_df["ES_83.5"].values,
+        "ES_95": combined_df["ES_95"].values,
+        "ES_97.5": combined_df["ES_97.5"].values,
+        "ES_99": combined_df["ES_99"].values,
     }
-
-    for cl in CONFIDENCE_LEVELS:
-        alpha = 1 - cl
-        z_alpha = norm.ppf(1 - alpha / 2)
-        lb = mus - z_alpha * garch_t_vol_pred
-        ub = mus + z_alpha * garch_t_vol_pred
-        entry[f"LB_{format_cl(cl)}"] = lb
-        entry[f"UB_{format_cl(cl)}"] = ub
-        es_alpha = alpha / 2
-        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
-            np.ones_like(mus).reshape(-1, 1),
-            mus.reshape(-1, 1),
-            garch_t_vol_pred.reshape(-1, 1),
-            lb,
-        )
 
     preds_per_model.append(entry)
     nans = np.isnan(garch_t_vol_pred).sum()
@@ -199,7 +207,7 @@ try:
         print(f"GARCH Student-t has {nans} NaN predictions")
 except FileNotFoundError:
     print("GARCH Student-t predictions not found")
-    
+
 
 # HAR Model
 for version in [
@@ -446,6 +454,7 @@ for version in [
     # "tuned-overridden",
     # "w-fred",
     "tuned-8-mixtures",
+    "tuned-calibration",
 ]:
     try:
         transformer_df = pd.read_csv(

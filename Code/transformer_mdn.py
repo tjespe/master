@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned-8-mixtures"
+VERSION = "tuned-calibration"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -24,13 +24,13 @@ INCLUDE_FRED_MD = False
 INCLUDE_TICKERS = False
 
 # Model architecture
-D_MODEL = 24
-HIDDEN_UNITS_FF = 848
-N_MIXTURES = 8
+D_MODEL = 32
+HIDDEN_UNITS_FF = 336
+N_MIXTURES = 15
 DROPOUT = 0
-L2_REGULARIZATION = 0
-NUM_ENCODERS = 2
-NUM_HEADS = 4
+L2_REGULARIZATION = 4.4e-7
+NUM_ENCODERS = 1
+NUM_HEADS = 2
 D_TICKER_EMBEDDING = None
 
 # Meta
