@@ -23,11 +23,15 @@ from tensorflow.keras.optimizers import Adam
 from tensorflow.keras.callbacks import EarlyStopping
 
 import optuna
+from optuna.study import StudyDirection
 
+from shared.adequacy import christoffersen_test
 from shared.conf_levels import format_cl
 from shared.mdn import (
+    calculate_intervals_vectorized,
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
+    parse_mdn_output,
 )
 from shared.loss import mdn_nll_tf
 from shared.processing import get_lstm_train_test_new
@@ -202,14 +206,86 @@ def objective(trial):
         verbose=1,
     )
 
-    val_loss = min(history.history["val_loss"])
+    # Store how many epochs we actually trained for as trial attributes
+    trial.set_user_attr("epochs_trained", len(history.history["loss"]))
 
-    # Cleanup
+    # Evaluate
+    val_loss = min(history.history["val_loss"])  # best validation loss from this run
+
+    # Calculate confidence intervals and PICPs
+    y_val_pred = transformer_model.predict(
+        [data.validation.X, data.validation_ticker_ids]
+        if INCLUDE_TICKERS
+        else data.validation.X
+    )
+    pis, mus, sigmas = parse_mdn_output(y_val_pred, n_mixtures)
+    confidence_levels = [0.67, 0.90, 0.95, 0.975, 0.98, 0.99, 0.995, 0.999]
+    intervals = calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels)
+
+    picps = {
+        cl: np.mean(
+            np.logical_and(
+                data.validation.y > intervals[:, i, 0],
+                data.validation.y < intervals[:, i, 1],
+            )
+        )
+        for i, cl in enumerate(confidence_levels)
+    }
+    picp_miss = {cl: picp - cl for cl, picp in picps.items()}
+    total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
+
+    chr_results = []
+    for i, cl in enumerate(confidence_levels):
+        df = pd.DataFrame(
+            index=[data.validation.tickers, data.validation.dates],
+            columns=["y_true", "interval_low", "interval_high"],
+        )
+        df.index.names = ["Symbol", "Date"]
+        df["y_true"] = data.validation.y
+        df["interval_low"] = intervals[:, i, 0]
+        df["interval_high"] = intervals[:, i, 1]
+        df["exceeded"] = (df["y_true"] < df["interval_low"]) | (
+            df["y_true"] > df["interval_high"]
+        )
+
+        pooled_exceedances_list = []
+        reset_indices = []
+        start_index = 0
+
+        # Group by symbol in original order.
+        df.sort_index(inplace=True)
+        for symbol, group in df.groupby(
+            df.index.get_level_values("Symbol"), sort=False
+        ):
+            asset_exceedances = (group["exceeded"].astype(bool)).values
+            pooled_exceedances_list.append(asset_exceedances)
+            reset_indices.append(start_index)  # mark start of this asset's series.
+            start_index += len(asset_exceedances)
+
+        pooled_exceedances = np.concatenate(pooled_exceedances_list)
+        pooled_result = christoffersen_test(
+            pooled_exceedances, 1 - cl, reset_indices=reset_indices
+        )
+        chr_results.append(pooled_result)
+
+    chr_results = pd.DataFrame(chr_results, index=confidence_levels)
+    total_fails = np.nansum(
+        (chr_results["p_value_uc"] < 0.05)
+        + (chr_results["p_value_ind"] < 0.05)
+        + (chr_results["p_value_cc"] < 0.05)
+    )
+    total_passes = np.nansum(
+        (chr_results["p_value_uc"] > 0.05)
+        + (chr_results["p_value_ind"] > 0.05)
+        + (chr_results["p_value_cc"] > 0.05)
+    )
+
+    # Clean up GPU memory
     del lstm_model
     gc.collect()
     tf.keras.backend.clear_session()
 
-    return val_loss
+    return val_loss, total_picp_miss, total_passes, total_fails
 
 
 # -------------------------------------------------------------------------
@@ -241,13 +317,18 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 # Run the Study
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
-    study_name = "lstm_mdn_hyperparam_search"
+    study_name = "lstm_mdn_hyperparam_search_calibration"
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
         storage=storage,
         load_if_exists=True,
-        direction="minimize",
+        directions=[
+            StudyDirection.MINIMIZE,
+            StudyDirection.MINIMIZE,
+            StudyDirection.MAXIMIZE,
+            StudyDirection.MINIMIZE,
+        ],
     )
 
     n_trials = 1000  # Set the number of trials to run

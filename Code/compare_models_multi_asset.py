@@ -2,7 +2,13 @@
 from shared.adequacy import bayer_dimitriadis_test, christoffersen_test
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
-from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol, student_t_nll
+from shared.loss import (
+    al_loss,
+    crps_normal_univariate,
+    fz_loss,
+    nll_loss_mean_and_vol,
+    student_t_nll,
+)
 from settings import (
     DATA_PATH,
     LOOKBACK_DAYS,
@@ -158,7 +164,8 @@ try:
     garch_t_vol_pred = garch_t_vol_pred.set_index(["Date", "Symbol"])
     garch_t_dates = garch_t_vol_pred.index.get_level_values("Date")
     garch_t_vol_pred = garch_t_vol_pred[
-        (garch_t_dates >= TRAIN_VALIDATION_SPLIT) & (garch_t_dates < VALIDATION_TEST_SPLIT)
+        (garch_t_dates >= TRAIN_VALIDATION_SPLIT)
+        & (garch_t_dates < VALIDATION_TEST_SPLIT)
     ]
     combined_df = df_validation.join(garch_t_vol_pred, how="left", rsuffix="_GARCH_t")
     garch_t_vol_pred = combined_df["GARCH_t_Vol"].values
@@ -199,7 +206,7 @@ try:
         print(f"GARCH Student-t has {nans} NaN predictions")
 except FileNotFoundError:
     print("GARCH Student-t predictions not found")
-    
+
 
 # HAR Model
 for version in [
@@ -446,6 +453,7 @@ for version in [
     # "tuned-overridden",
     # "w-fred",
     "tuned-8-mixtures",
+    "tuned-calibration",
 ]:
     try:
         transformer_df = pd.read_csv(
