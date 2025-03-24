@@ -2,7 +2,7 @@
 from shared.adequacy import bayer_dimitriadis_test, christoffersen_test
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
-from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol
+from shared.loss import al_loss, crps_normal_univariate, fz_loss, nll_loss_mean_and_vol, student_t_nll
 from settings import (
     DATA_PATH,
     LOOKBACK_DAYS,
@@ -164,18 +164,21 @@ try:
     garch_t_vol_pred = combined_df["GARCH_t_Vol"].values
     y_true = combined_df["LogReturn"].values
     mus = np.zeros_like(garch_t_vol_pred)
+    nus = combined_df["GARCH_t_Nu"].values
+    crps = combined_df["GARCH_t_CRPS"].values
 
     entry = {
         "name": "GARCH Student-t",
         "mean_pred": mus,
         "volatility_pred": garch_t_vol_pred,
         "symbols": combined_df.index.get_level_values("Symbol"),
-        "nll": nll_loss_mean_and_vol(
+        "nll": student_t_nll(
             y_true,
             mus,
             garch_t_vol_pred,
+            nus,
         ),
-        "crps": crps_normal_univariate(y_true, mus, garch_t_vol_pred),
+        "crps": crps,
     }
 
     for cl in CONFIDENCE_LEVELS:

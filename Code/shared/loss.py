@@ -1,5 +1,8 @@
 import numpy as np
 import tensorflow as tf
+from scipy.special import gammaln
+from scipy.stats import t
+from scipy.integrate import quad
 
 
 def mdn_nll_numpy(num_mixtures):
@@ -147,6 +150,46 @@ def nll_loss_mean_and_vol(y_true, means, vols):
     """
     log_vars = 2 * np.log(vols)
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
+
+def student_t_nll(y_true, means, vols, nu):
+    """
+    Negative log-likelihood for a Student-t distribution.
+
+    Args:
+        y_true: (B, 1) actual values
+        means: (B, 1) predicted means
+        vols: (B, 1) predicted standard deviations (sigma)
+        nu: scalar or (B, 1), degrees of freedom parameter (ν)
+
+    Returns:
+        nll: Negative log-likelihood (B,)
+    """
+    y_true = np.squeeze(y_true)
+    means = np.squeeze(means)
+    vols = np.squeeze(vols)
+    
+    # Ensure nu is an array of same shape, if it's scalar
+    nu = np.full_like(y_true, nu) if np.isscalar(nu) else np.squeeze(nu)
+    
+    # Compute standardized residuals: (y - mu) / sigma
+    standardized_residuals = (y_true - means) / vols
+    
+    # Compute the gamma-related term: log(Gamma((nu+1)/2)) - log(Gamma(nu/2))
+    log_gamma_term = gammaln((nu + 1) / 2) - gammaln(nu / 2)
+    
+    # The coefficient part in the log PDF:
+    # -0.5 * log(nu*pi) - log(sigma)
+    log_coeff = -0.5 * np.log(nu * np.pi) - np.log(vols)
+    
+    # The kernel part: -(nu+1)/2 * log(1 + (1/nu) * standardized_residuals^2)
+    log_kernel = - (nu + 1) / 2 * np.log(1 + (1 / nu) * standardized_residuals ** 2)
+    
+    # Log probability density for each observation
+    log_prob = log_gamma_term + log_coeff + log_kernel
+    
+    # Return the negative log-likelihood
+    nll = -log_prob
+    return nll
 
 
 def mdn_nll_tf(num_mixtures, add_pi_penalty=False):
@@ -442,3 +485,29 @@ def al_loss(returns: np.ndarray, VaR: np.ndarray, ES: np.ndarray, quantile: floa
     term1 = -np.log((quantile - 1) / ES)
     term2 = -(returns - VaR) * (quantile - L) / (quantile * ES)
     return term1 + term2
+
+def crps_student_t(x, mu, sigma, nu):
+    """
+    Compute the CRPS for a Student-t distribution with location mu, scale sigma, and degrees of freedom nu at observation x.
+    
+    Args:
+        x (float): The observation.
+        mu (float): Location parameter of the Student-t distribution.
+        sigma (float): Scale parameter.
+        nu (float): Degrees of freedom.
+    
+    Returns:
+        float: CRPS value.
+    """
+    # Define the Student-t CDF with parameters mu, sigma, nu.
+    def F(y):
+        return t.cdf((y - mu) / sigma, df=nu)
+    
+    # Define the integrand of the CRPS integral.
+    def integrand(y):
+        indicator = 1.0 if y >= x else 0.0
+        return (F(y) - indicator) ** 2
+    
+    # Perform numerical integration over the real line.
+    crps_value, _ = quad(integrand, -np.inf, np.inf)
+    return crps_value
