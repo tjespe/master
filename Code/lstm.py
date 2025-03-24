@@ -12,7 +12,7 @@ from settings import (
 MODEL_NAME = f"lstm_log_var_{LOOKBACK_DAYS}_days{SUFFIX}"
 
 # %%
-from Code.shared.mc_dropout import predict_with_mc_dropout
+from shared.mc_dropout import predict_with_mc_dropout
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
