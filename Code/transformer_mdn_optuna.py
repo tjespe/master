@@ -398,7 +398,6 @@ def objective(trial: optuna.Trial):
             chr_results_indices.append((symbol, cl))
 
     chr_results = pd.DataFrame(chr_results, index=chr_results_indices)
-    chr_results.index.names = ["Symbol", "Confidence Level"]
     print(chr_results)
     total_fails = np.nansum(
         (chr_results["p_value_uc"] < 0.05).astype(int)
