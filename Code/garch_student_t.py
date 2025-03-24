@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from arch import arch_model
 import warnings
-
+from scipy.stats import t
 from shared.loss import crps_student_t
 warnings.filterwarnings("ignore")
 
@@ -148,6 +148,33 @@ crps_values = [
 
 df_validation["GARCH_t_CRPS"] = crps_values
 df_validation
+
+# %%
+# calculate upper and lower bounds for given quantiles
+def format_cl(cl):
+    return f"{100*cl:1f}".rstrip("0").rstrip(".")
+
+confidence_levels = [0.67, 0.90, 0.95, 0.98]
+for cl in confidence_levels:
+    alpha = 1 - cl
+    # Calculate the lower and upper quantiles based on Student-t
+    lb = df_validation["GARCH_t_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
+    ub = df_validation["GARCH_t_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+    df_validation[f"LB_{format_cl(cl)}"] = lb
+    df_validation[f"UB_{format_cl(cl)}"] = ub
+
+    es_alpha = alpha / 2
+    # Compute Expected Shortfall (ES) for the lower tail using the closed-form formula:
+    # ES = mu - sigma * [ (nu + z^2)/(nu-1) ] * [ t.pdf(z) / p ], where z = t.ppf(p, df=nu)
+    z_p = t.ppf(es_alpha, df=nu_values)
+    t_pdf_z = t.pdf(z_p, df=nu_values)
+    es = df_validation["GARCH_t_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
+    df_validation[f"ES_{format_cl(1 - es_alpha)}"] = es
+
+
+df_validation
 # %%
 df_validation.to_csv("predictions/garch_predictions_student_t.csv")
 
+
+# %%
