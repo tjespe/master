@@ -179,6 +179,7 @@ try:
         "mean_pred": mus,
         "volatility_pred": garch_t_vol_pred,
         "symbols": combined_df.index.get_level_values("Symbol"),
+        "dates": combined_df.index.get_level_values("Date"),
         "nll": student_t_nll(
             y_true,
             mus,
