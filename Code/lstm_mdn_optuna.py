@@ -249,7 +249,7 @@ def objective(trial: optuna.Trial):
             ),
             data.validation.y,
         ),
-        epochs=30,
+        epochs=50,
         batch_size=batch_size,
         callbacks=[early_stop, optuna_callback],
         verbose=1,
