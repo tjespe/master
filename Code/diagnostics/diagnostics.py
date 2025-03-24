@@ -5,7 +5,7 @@
 # 1. Augmented Dikcy Fuller test - for stationarity (test on each stock)
 # 2. Ljung-Box or Breusch-Godfrey for serial correlation (test on each stock)
 # 3. ARCH-LM (Engle) test for conditional heteroskedasticity (test on each stock)
-# 4. Durbin-Watson statistic for residual autocorrelation (test on each stock)
+# 4. Durbin-Watson statistic for residual autocorrelation (test on each stock) (post-diagnostic after a Model is made)
 # 5. Jarque-Bera test for normality (test on each stock)
 # 6 VIF (Variance Inflation Factor) for multicollinearity (test on each stock)
 
@@ -217,4 +217,16 @@ arch_lm_results
 
 
 # %%
-# 4. Durbin-Watson statistic for residual autocorrelation (test on each stock)
+# 5. Jarque-Bera test for normality (test on each stock)
+def jarque_bera_test(series):
+    result = jarque_bera(series)
+    return result[1] > 0.05
+
+# apply the test on each stock
+jarque_bera_results = df.groupby("Symbol")["LogReturn"].apply(jarque_bera_test)
+# dsiplay the results as a dataframe
+jarque_bera_results = pd.DataFrame(jarque_bera_results)
+jarque_bera_results.columns = ["Normality"]
+jarque_bera_results
+
+# %%
