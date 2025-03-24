@@ -570,7 +570,7 @@ def ece_mdn(num_mixtures, y_true, y_pred, n_bins=20):
 ##############################################################################
 # ECE for Univariate Gaussians (calls the MDN version with one mixture)
 ##############################################################################
-def ece_gaussian(y_true, means, log_vars, n_bins=10):
+def ece_gaussian(y_true, means, log_vars, n_bins=20):
     """
     Compute ECE for a univariate Gaussian by wrapping it into the MDN structure
     with a single mixture component.
@@ -590,7 +590,7 @@ def ece_gaussian(y_true, means, log_vars, n_bins=10):
 ##############################################################################
 # ECE for Student-t Distribution
 ##############################################################################
-def ece_student_t(y_true, means, vols, nu, n_bins=10):
+def ece_student_t(y_true, means, vols, nu, n_bins=20):
     """
     Compute an approximate ECE for a univariate Student-t distribution with
     location=means, scale=vols, and degrees of freedom=nu.  We do a binning

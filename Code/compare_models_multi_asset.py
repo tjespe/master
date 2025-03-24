@@ -5,6 +5,8 @@ from shared.conf_levels import format_cl
 from shared.loss import (
     al_loss,
     crps_normal_univariate,
+    ece_gaussian,
+    ece_student_t,
     fz_loss,
     nll_loss_mean_and_vol,
     student_t_nll,
@@ -120,6 +122,7 @@ for garch_type in ["GARCH", "EGARCH"]:
         garch_vol_pred = df_validation[f"{garch_type}_Vol"].values
         y_true = df_validation["LogReturn"].values
         mus = np.zeros_like(garch_vol_pred)
+        log_vars = np.log(garch_vol_pred**2)
 
         entry = {
             "name": garch_type,
@@ -133,6 +136,7 @@ for garch_type in ["GARCH", "EGARCH"]:
                 garch_vol_pred,
             ),
             "crps": crps_normal_univariate(y_true, mus, garch_vol_pred),
+            "ece": ece_gaussian(y_true, mus, log_vars),
         }
 
         for cl in CONFIDENCE_LEVELS:
@@ -187,6 +191,7 @@ try:
             nus,
         ),
         "crps": crps,
+        "ece": ece_student_t(y_true, mus, garch_t_vol_pred, nus),
         "LB_67": combined_df["LB_67"].values,
         "UB_67": combined_df["UB_67"].values,
         "LB_90": combined_df["LB_90"].values,
@@ -239,6 +244,7 @@ for version in [
                 har_vol_pred,
             ),
             "crps": crps_normal_univariate(y_true, mus, har_vol_pred),
+            "ece": ece_gaussian(y_true, mus, np.log(har_vol_pred**2)),
         }
 
         for cl in CONFIDENCE_LEVELS:
@@ -291,6 +297,7 @@ for version in ["python", "R"]:
                 harq_vol_pred,
             ),
             "crps": crps_normal_univariate(y_true, mus, harq_vol_pred),
+            "ece": ece_gaussian(y_true, mus, np.log(harq_vol_pred**2)),
         }
 
         for cl in CONFIDENCE_LEVELS:
@@ -349,6 +356,7 @@ for version in ["norm", "std"]:
                 realized_garch_preds,
             ),
             "crps": crps_normal_univariate(y_true, mus, realized_garch_preds),
+            "ece": ece_gaussian(y_true, mus, np.log(realized_garch_preds**2)),
         }
 
         for cl in CONFIDENCE_LEVELS:
@@ -413,6 +421,7 @@ for version in [
             & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
+        ece_col = combined_df.get("ECE")
         entry = {
             "name": f"LSTM MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
@@ -424,6 +433,7 @@ for version in [
                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
             ),
             "p_up": combined_df.get("Prob_Increase"),
+            "ece": ece_col.median() if ece_col is not None else None,
         }
         for cl in CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
@@ -471,6 +481,7 @@ for version in [
         combined_df = df_validation.join(
             transformer_df, how="left", rsuffix="_Transformer_MDN"
         )
+        ece_col = combined_df.get("ECE")
         entry = {
             "name": f"Transformer MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
@@ -482,6 +493,7 @@ for version in [
                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
             ),
             "p_up": combined_df.get("Prob_Increase"),
+            "ece": ece_col.median() if ece_col is not None else None,
         }
         for cl in CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
@@ -526,6 +538,7 @@ for version in [4]:
                 pred_df, how="left", rsuffix="_Transformer_MDN"
             )
             name = f"VAE MDN {version} {predictor}"
+            ece_col = combined_df.get("ECE")
             entry = {
                 "name": name,
                 "mean_pred": combined_df["Pred_Mean"].values,
@@ -539,6 +552,7 @@ for version in [4]:
                     else None
                 ),
                 "p_up": combined_df.get("Prob_Increase"),
+                "ece": ece_col.median() if ece_col is not None else None,
             }
             for cl in CONFIDENCE_LEVELS:
                 lb = combined_df.get(f"LB_{format_cl(cl)}")
@@ -571,6 +585,7 @@ for version in []:  # ["v2", "v3", "v4"]:
             & (lstm_maf_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(lstm_maf_preds, how="left", rsuffix="_MAF")
+        ece_col = combined_df.get("ECE")
         preds_per_model.append(
             {
                 "name": f"LSTM MAF {version}",
@@ -592,6 +607,7 @@ for version in []:  # ["v2", "v3", "v4"]:
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+                "ece": ece_col.median() if ece_col is not None else None,
             }
         )
         nans = combined_df["Mean_SP"].isnull().sum()
@@ -610,6 +626,7 @@ for version in ["v1"]:
             (vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)
         ]
         combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
+        ece_col = combined_df.get("ECE")
         preds_per_model.append(
             {
                 "name": f"VAE {version}",
@@ -631,6 +648,7 @@ for version in ["v1"]:
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
                 # "crps": lstm_mdn_preds["CRPS"].values.mean(),
+                "ece": ece_col.median() if ece_col is not None else None,
             }
         )
         nans = combined_df["Mean_SP"].isnull().sum()
@@ -1205,6 +1223,7 @@ results = {
     "Model": [],
     # Non-quantile-based metrics
     "NLL": [],
+    "ECE": [],
     "CRPS": [],
     "RMSE": [],
     "RMSE_RV": [],
@@ -1234,6 +1253,7 @@ for entry in preds_per_model:
     results["CRPS"].append(
         np.nanmean(crps) if (crps := entry.get("crps")) is not None else None
     )
+    results["ECE"].append(entry.get("ece"))
     results["RMSE"].append(entry["rmse"])
     results["RMSE_RV"].append(entry["rmse_RV"])
     results["Sign accuracy"].append(entry["sign_accuracy"])
@@ -1360,6 +1380,7 @@ for model in results_df.index:
 
 # Identify winners
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
+results_df.loc["Winner", "ECE"] = results_df["ECE"].idxmin()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
 results_df.loc["Winner", "Correlation (vol. vs. errors)"] = results_df[
     "Correlation (vol. vs. errors)"
