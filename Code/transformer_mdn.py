@@ -21,6 +21,8 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
+INCLUDE_1MIN_RV = True
+INCLUDE_5MIN_RV = True
 INCLUDE_TICKERS = False
 
 # Model architecture
@@ -58,6 +60,7 @@ from shared.mdn import (
     univariate_mixture_mean_and_var_approx,
 )
 from shared.loss import (
+    ece_mdn,
     mdn_crps_tf,
     mdn_nll_numpy,
     mean_mdn_loss_numpy,
@@ -111,6 +114,8 @@ if "data" not in dir() or input("Reload data? (y/N): ") == "y":
         include_garch=INCLUDE_GARCH,
         include_industry=INCLUDE_INDUSTRY,
         include_fred_md=INCLUDE_FRED_MD,
+        include_1min_rv=INCLUDE_1MIN_RV,
+        include_5min_rv=INCLUDE_5MIN_RV,
     )
 
 # %%
@@ -622,6 +627,12 @@ df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 # Calculate CRPS
 crps = mdn_crps_tf(N_MIXTURES)
 df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
+
+# %%
+# Calculate ECE
+ece = ece_mdn(N_MIXTURES, data.validation.y, y_pred_mdn)
+df_validation["ECE"] = ece
+df_validation["ECE"]
 
 # %%
 # Add confidence intervals

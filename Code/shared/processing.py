@@ -45,9 +45,21 @@ GICS_SECTOR_MAPPING = {
 @dataclass
 class LabelledDataSet:
     ticker: str
-    X: np.ndarray
+    X: np.ndarray  # [n_samples, sequence_length, n_features]
+    col_names: list[str]  # Column names for the X matrix
     y: np.ndarray
     y_dates: list[pd.Timestamp]
+
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "Date": self.y_dates,
+                "Symbol": [self.ticker] * len(self.y_dates),
+                "ActualReturn": self.y,
+                **{col: self.X[:, -1, i] for i, col in enumerate(self.col_names)},
+            }
+        ).set_index(["Date", "Symbol"])
 
     def __str__(self):
         return f"LabelledDataSet(ticker={self.ticker}, X.shape={self.X.shape}, y.shape={self.y.shape})"
@@ -92,6 +104,10 @@ class DataSetCollection:
             OrderedDict((k, v) for k, v in self.sets.items() if k in tickers)
         )
 
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        return pd.concat([s.df for s in self.sets.values()])
+
 
 @dataclass
 class ProcessedData:
@@ -127,6 +143,16 @@ class ProcessedData:
     def ticker_ids_dim(self):
         self._initialize_ticker_lookup()
         return self._ticker_lookup.vocabulary_size()
+
+    @cached_property
+    def df(self) -> pd.DataFrame:
+        train_df = self.train.df.copy()
+        train_df["Set"] = "Train"
+        validation_df = self.validation.df.copy()
+        validation_df["Set"] = "Validation"
+        test_df = self.test.df.copy()
+        test_df["Set"] = "Test"
+        return pd.concat([train_df, validation_df, test_df])
 
 
 def get_lstm_train_test_new(
@@ -594,6 +620,7 @@ def get_lstm_train_test_new(
 
         # Start out with an empty data array
         data = np.zeros((len(group), 0))
+        col_names = []
 
         if include_others:
             data = np.hstack(
@@ -603,6 +630,7 @@ def get_lstm_train_test_new(
                     next_day_trading_day,
                 )
             )
+            col_names = ["LogSquaredReturn", "SignReturn", "NextDayTradingDay"]
 
         if include_beta:
             data = np.hstack(
@@ -612,6 +640,7 @@ def get_lstm_train_test_new(
                     beta_60d,
                 )
             )
+            col_names += ["Beta5y", "Beta60d"]
 
         if include_returns:
             data = np.hstack(
@@ -620,6 +649,7 @@ def get_lstm_train_test_new(
                     returns,
                 )
             )
+            col_names += ["LogReturn"]
 
         if include_spx_data:
             data = np.hstack(
@@ -635,6 +665,17 @@ def get_lstm_train_test_new(
                     vix_rvol_diff * market_feature_factor,
                 )
             )
+            col_names += [
+                "RVOL_SP",
+                "RVOL_SP_Change1d",
+                "RVOL_SP_Change2d",
+                "RVOL_SP_Change7d",
+                "VIXChange1d",
+                "VIXChange2d",
+                "VIXChange7d",
+                "RVOL_SP_Std",
+                "VIXRVOLDiff",
+            ]
 
         if include_fred_md:
             fred_features = fred_md_df.columns
@@ -644,6 +685,7 @@ def get_lstm_train_test_new(
                     group[fred_features].values,
                 )
             )
+            col_names += fred_features
 
         if include_fng:
             data = np.hstack(
@@ -654,6 +696,7 @@ def get_lstm_train_test_new(
                     fear_greed_7d * 10 * market_feature_factor,
                 )
             )
+            col_names += ["FearGreed", "FearGreed1d", "FearGreed7d"]
 
         # If we have RVOL data, add it as a feature
         if "RV" in group.columns:
@@ -673,6 +716,7 @@ def get_lstm_train_test_new(
                     daily_var_decimal + 1e-10
                 )  # small offset to avoid log(0)
                 data = np.hstack((data, log_daily_var))
+                col_names.append(key)
 
             # 2) Quarticity measures: RQ (and RQ_5)
             quarticity_keys = (["RQ"] if include_1min_rv else []) + (
@@ -689,6 +733,7 @@ def get_lstm_train_test_new(
                         np.log(annual_q_decimal + 1e-12),
                     )
                 )
+                col_names.append(key)
 
             # 3) Estimate realized skewness and kurtosis
             if include_others:
@@ -708,6 +753,7 @@ def get_lstm_train_test_new(
                         daily_kurt / 10,
                     )
                 )
+                col_names += ["Skew", "Kurt"]
 
         if include_industry and "IDY_CODE" in group.columns:
             # If we have GICS sectors, add them as a feature
@@ -715,6 +761,10 @@ def get_lstm_train_test_new(
             one_hot_sector = np.zeros((len(group), num_sectors))
             one_hot_sector[np.arange(len(group)), group["IDY_CODE"]] = 1
             data = np.hstack((data, one_hot_sector))
+            col_names += [
+                next(k for k, v in GICS_SECTOR_MAPPING.items() if v == i)
+                for i in range(num_sectors)
+            ]
 
         # If we have GARCH predictions, add them as a feature
         for garch_type in ["GARCH", "EGARCH"]:
@@ -731,6 +781,11 @@ def get_lstm_train_test_new(
                         garch_kurtosis,
                     )
                 )
+                col_names += [
+                    f"{garch_type}_Vol",
+                    f"{garch_type}_Skew",
+                    f"{garch_type}_Kurt",
+                ]
 
         # Include relative high-low difference as a feature if available to indicate volatility
         if (
@@ -744,6 +799,7 @@ def get_lstm_train_test_new(
                 (group["High"] - group["Low"]) / group["Close"]
             ).values.reshape(-1, 1)
             data = np.hstack((data, high_low_diff))
+            col_names += ["HighLowDiff"]
 
         if include_ivol_cols:
             for ivol_col in include_ivol_cols:
@@ -753,6 +809,7 @@ def get_lstm_train_test_new(
                 daily_var = annual_var / 252
                 log_daily_var = np.log(daily_var + 1e-10)
                 data = np.hstack((data, log_daily_var))
+                col_names.append(ivol_col)
 
         # Create training sequences of length 'sequence_length'
         X_train = []
@@ -769,6 +826,7 @@ def get_lstm_train_test_new(
             train_sets[symbol] = LabelledDataSet(
                 symbol,
                 np.array(X_train).astype(np.float32),
+                col_names,
                 np.array(y_train).astype(np.float32),
                 y_train_dates,
             )
@@ -788,6 +846,7 @@ def get_lstm_train_test_new(
             validation_sets[symbol] = LabelledDataSet(
                 symbol,
                 np.array(X_val).astype(np.float32),
+                col_names,
                 np.array(y_val).astype(np.float32),
                 y_val_dates,
             )
@@ -806,6 +865,7 @@ def get_lstm_train_test_new(
             test_sets[symbol] = LabelledDataSet(
                 symbol,
                 np.array(X_test).astype(np.float32),
+                col_names,
                 np.array(y_test).astype(np.float32),
                 y_test_dates,
             )
