@@ -1,6 +1,7 @@
 # %%
 import os
 import gc
+import sys
 import numpy as np
 import pandas as pd
 import warnings
@@ -235,6 +236,7 @@ def objective(trial: optuna.Trial):
     early_stop = EarlyStopping(
         monitor="val_loss", patience=3, restore_best_weights=True, verbose=1
     )
+    optuna_callback = OptunaEpochCallback(trial)
 
     history = lstm_model.fit(
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
@@ -249,7 +251,7 @@ def objective(trial: optuna.Trial):
         ),
         epochs=30,
         batch_size=batch_size,
-        callbacks=[early_stop],
+        callbacks=[early_stop, optuna_callback],
         verbose=1,
     )
 
