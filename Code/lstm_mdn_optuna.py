@@ -239,7 +239,7 @@ def objective(trial: optuna.Trial):
     early_stop = EarlyStopping(
         monitor="val_loss", patience=3, restore_best_weights=True, verbose=1
     )
-    optuna_callback = OptunaEpochCallback(trial)
+    # optuna_callback = OptunaEpochCallback(trial)
 
     history = lstm_model.fit(
         [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
@@ -254,12 +254,17 @@ def objective(trial: optuna.Trial):
         ),
         epochs=50,
         batch_size=batch_size,
-        callbacks=[early_stop, optuna_callback],
+        callbacks=[early_stop],  # , optuna_callback],
         verbose=1,
     )
 
     # Store how many epochs we actually trained for as trial attributes
     trial.set_user_attr("epochs_trained", len(history.history["loss"]))
+    for epoch in range(len(history.history["loss"])):
+        trial.set_user_attr(f"train_loss_epoch_{epoch}", history.history["loss"][epoch])
+        trial.set_user_attr(
+            f"val_loss_epoch_{epoch}", history.history["val_loss"][epoch]
+        )
 
     # Evaluate
     val_loss = min(history.history["val_loss"])  # best validation loss from this run
