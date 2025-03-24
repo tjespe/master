@@ -179,22 +179,21 @@ try:
             nus,
         ),
         "crps": crps,
+        "LB_67": combined_df["LB_67"].values,
+        "UB_67": combined_df["UB_67"].values,
+        "LB_90": combined_df["LB_90"].values,
+        "UB_90": combined_df["UB_90"].values,
+        "LB_95": combined_df["LB_95"].values,
+        "UB_95": combined_df["UB_95"].values,
+        "LB_97.5": combined_df["LB_97"].values,
+        "UB_97.5": combined_df["UB_97"].values,
+        "LB_99": combined_df["LB_99"].values,
+        "UB_99": combined_df["UB_99"].values,
+        "ES_83.5": combined_df["ES_83.5"].values,
+        "ES_95": combined_df["ES_95"].values,
+        "ES_97.5": combined_df["ES_97.5"].values,
+        "ES_99": combined_df["ES_99"].values,
     }
-
-    for cl in CONFIDENCE_LEVELS:
-        alpha = 1 - cl
-        z_alpha = norm.ppf(1 - alpha / 2)
-        lb = mus - z_alpha * garch_t_vol_pred
-        ub = mus + z_alpha * garch_t_vol_pred
-        entry[f"LB_{format_cl(cl)}"] = lb
-        entry[f"UB_{format_cl(cl)}"] = ub
-        es_alpha = alpha / 2
-        entry[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
-            np.ones_like(mus).reshape(-1, 1),
-            mus.reshape(-1, 1),
-            garch_t_vol_pred.reshape(-1, 1),
-            lb,
-        )
 
     preds_per_model.append(entry)
     nans = np.isnan(garch_t_vol_pred).sum()
