@@ -461,7 +461,11 @@ if __name__ == "__main__":
     study_name = (
         "transformer_mdn_hyperparam_and_feature_search_christoffersen_per_asset"
     )
-    storage = "sqlite:///optuna/optuna.db"
+    try:
+        storage = sys.argv[2]
+    except:
+        storage = "sqlite:///optuna/optuna.db"
+    print(f"Using storage: {storage}")
     study = optuna.create_study(
         study_name=study_name,
         storage=storage,
@@ -479,6 +483,7 @@ if __name__ == "__main__":
         n_trials = int(sys.argv[1])
     except:
         n_trials = 1000
+    print(f"Running {n_trials} trials...")
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
