@@ -151,6 +151,7 @@ def nll_loss_mean_and_vol(y_true, means, vols):
     log_vars = 2 * np.log(vols)
     return nll_loss_mean_and_log_var(y_true, means, log_vars)
 
+
 def student_t_nll(y_true, means, vols, nu):
     """
     Negative log-likelihood for a Student-t distribution.
@@ -167,26 +168,26 @@ def student_t_nll(y_true, means, vols, nu):
     y_true = np.squeeze(y_true)
     means = np.squeeze(means)
     vols = np.squeeze(vols)
-    
+
     # Ensure nu is an array of same shape, if it's scalar
     nu = np.full_like(y_true, nu) if np.isscalar(nu) else np.squeeze(nu)
-    
+
     # Compute standardized residuals: (y - mu) / sigma
     standardized_residuals = (y_true - means) / vols
-    
+
     # Compute the gamma-related term: log(Gamma((nu+1)/2)) - log(Gamma(nu/2))
     log_gamma_term = gammaln((nu + 1) / 2) - gammaln(nu / 2)
-    
+
     # The coefficient part in the log PDF:
     # -0.5 * log(nu*pi) - log(sigma)
     log_coeff = -0.5 * np.log(nu * np.pi) - np.log(vols)
-    
+
     # The kernel part: -(nu+1)/2 * log(1 + (1/nu) * standardized_residuals^2)
-    log_kernel = - (nu + 1) / 2 * np.log(1 + (1 / nu) * standardized_residuals ** 2)
-    
+    log_kernel = -(nu + 1) / 2 * np.log(1 + (1 / nu) * standardized_residuals**2)
+
     # Log probability density for each observation
     log_prob = log_gamma_term + log_coeff + log_kernel
-    
+
     # Return the negative log-likelihood
     nll = -log_prob
     return nll
@@ -486,28 +487,143 @@ def al_loss(returns: np.ndarray, VaR: np.ndarray, ES: np.ndarray, quantile: floa
     term2 = -(returns - VaR) * (quantile - L) / (quantile * ES)
     return term1 + term2
 
+
 def crps_student_t(x, mu, sigma, nu):
     """
     Compute the CRPS for a Student-t distribution with location mu, scale sigma, and degrees of freedom nu at observation x.
-    
+
     Args:
         x (float): The observation.
         mu (float): Location parameter of the Student-t distribution.
         sigma (float): Scale parameter.
         nu (float): Degrees of freedom.
-    
+
     Returns:
         float: CRPS value.
     """
+
     # Define the Student-t CDF with parameters mu, sigma, nu.
     def F(y):
         return t.cdf((y - mu) / sigma, df=nu)
-    
+
     # Define the integrand of the CRPS integral.
     def integrand(y):
         indicator = 1.0 if y >= x else 0.0
         return (F(y) - indicator) ** 2
-    
+
     # Perform numerical integration over the real line.
     crps_value, _ = quad(integrand, -np.inf, np.inf)
     return crps_value
+
+
+##############################################################################
+# ECE for Mixture Density Networks
+##############################################################################
+def ece_mdn(num_mixtures, y_true, y_pred, n_bins=20):
+    """
+    Compute an approximate Expected Calibration Error (ECE) for a univariate
+    Mixture of Gaussians. We:
+      1) Parse the mixture parameters: [logits_pi, mu, log_var].
+      2) For each data point i, compute CDF_i = sum_k pi_k * Phi((y_i - mu_k)/sigma_k).
+      3) Bin the CDF values and measure how far the empirical coverage deviates
+         from the nominal coverage, then average.
+
+    Args:
+      num_mixtures: int, number of mixture components
+      y_true: shape (B,)
+      y_pred: shape (B, 3*num_mixtures)
+      n_bins: number of calibration bins
+
+    Returns:
+      ece_value: scalar float
+    """
+    # 1) Parse mixture parameters
+    logits_pi = y_pred[:, :num_mixtures]  # (B, M)
+    mu = y_pred[:, num_mixtures : 2 * num_mixtures]  # (B, M)
+    log_var = y_pred[:, 2 * num_mixtures :]  # (B, M)
+
+    # softmax for pi
+    pi = np.exp(
+        logits_pi - np.logaddexp.reduce(logits_pi, axis=-1, keepdims=True)
+    )  # (B, M)
+    sigma = np.exp(0.5 * log_var)  # interpret log_var as log-variance => (B, M)
+
+    # 2) Compute CDF_i for each data point i
+    #    For mixture k:  cdf_k_i = Phi((y_i - mu_k)/sigma_k).
+    #    Then total CDF_i = sum_k pi_k * cdf_k_i.
+    y_true_expanded = y_true[:, None]  # (B, 1)
+    z = (y_true_expanded - mu) / (sigma + 1e-12)  # shape (B, M)
+    cdf_components = normal_cdf(z, 0.0, 1.0)  # shape (B, M)
+    cdf_vals = np.sum(pi * cdf_components, axis=1)  # shape (B,)
+
+    # 3) Bin-based ECE
+    bin_centers = (np.arange(n_bins) + 0.5) / n_bins  # e.g. 0.05, 0.15, ..., 0.95
+    ece = 0.0
+    for q in bin_centers:
+        p_emp = np.mean(cdf_vals <= q)
+        ece += abs(p_emp - q)
+    ece /= n_bins
+
+    return ece
+
+
+##############################################################################
+# ECE for Univariate Gaussians (calls the MDN version with one mixture)
+##############################################################################
+def ece_gaussian(y_true, means, log_vars, n_bins=10):
+    """
+    Compute ECE for a univariate Gaussian by wrapping it into the MDN structure
+    with a single mixture component.
+    """
+    B = len(y_true)
+    # We'll build y_pred = [logits_pi=0, mu=means, log_var=log_vars]
+    # => shape (B, 3) for one mixture
+    # For logits_pi=0 => pi=1
+    logits_pi = np.zeros((B, 1), dtype=np.float32)
+    means = means.reshape(B, 1)
+    log_vars = log_vars.reshape(B, 1)
+    y_pred = np.concatenate([logits_pi, means, log_vars], axis=1)
+
+    return ece_mdn(num_mixtures=1, y_true=y_true, y_pred=y_pred, n_bins=n_bins)
+
+
+##############################################################################
+# ECE for Student-t Distribution
+##############################################################################
+def ece_student_t(y_true, means, vols, nu, n_bins=10):
+    """
+    Compute an approximate ECE for a univariate Student-t distribution with
+    location=means, scale=vols, and degrees of freedom=nu.  We do a binning
+    of the distribution CDF at the observed data.
+
+    Args:
+      y_true: shape (B,)
+      means: shape (B,) or broadcastable
+      vols: shape (B,) or broadcastable
+      nu: scalar or shape (B,) degrees of freedom
+      n_bins: int, number of bins
+    """
+    from scipy.stats import t
+
+    y_true = np.squeeze(y_true)
+    means = np.squeeze(means)
+    vols = np.squeeze(vols)
+
+    # If nu is scalar, make an array
+    if np.isscalar(nu):
+        nu = np.full_like(y_true, nu)
+
+    # 1) Compute cdf_i = T.cdf( (y_i - mu_i)/sigma_i; df=nu_i )
+    #    We'll rely on scipy.stats.t
+    standardized = (y_true - means) / (vols + 1e-12)
+    cdf_vals = t.cdf(standardized, df=nu)  # shape (B,)
+
+    # 2) Bin-based ECE
+    bin_centers = (np.arange(n_bins) + 0.5) / n_bins
+    ece = 0.0
+    for q in bin_centers:
+        p_emp = np.mean(cdf_vals <= q)
+        ece += abs(p_emp - q)
+    ece /= n_bins
+
+    return ece
