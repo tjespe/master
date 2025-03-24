@@ -134,10 +134,10 @@ def get_lstm_train_test_new(
     include_fng=False,
     include_spx_data=False,
     include_returns=False,
-    include_industry=True,
-    include_garch=True,
-    include_beta=True,
-    include_others=True,
+    include_industry=False,
+    include_garch=False,
+    include_beta=False,
+    include_others=False,
     include_fred_md=False,
     include_fred_qd=False,
     include_ivol_cols: Union[None, list[str]] = None,
@@ -675,7 +675,7 @@ def get_lstm_train_test_new(
                 data = np.hstack((data, log_daily_var))
 
             # 2) Quarticity measures: RQ (and RQ_5)
-            quarticity_keys = [["RQ"] if include_1min_rv else []] + (
+            quarticity_keys = (["RQ"] if include_1min_rv else []) + (
                 ["RQ_5"] if include_5min_rv else []
             )
             for key in quarticity_keys:
