@@ -246,6 +246,22 @@ def objective(trial: optuna.Trial):
     INCLUDE_BETA = False  # trial.suggest_categorical("INCLUDE_BETA", [True, False])
     INCLUDE_OTHERS = False  # trial.suggest_categorical("INCLUDE_OTHERS", [True, False])
     INCLUDE_TICKERS = trial.suggest_categorical("INCLUDE_TICKERS", [True, False])
+    INCLUDE_10_DAY_IVOL = trial.suggest_categorical(
+        "INCLUDE_10_DAY_IVOL", [True, False]
+    )
+    INCLUDE_30_DAY_IVOL = trial.suggest_categorical(
+        "INCLUDE_30_DAY_IVOL", [True, False]
+    )
+    INCLUDE_1MIN_RV = trial.suggest_categorical("INCLUDE_1MIN_RVOL", [True, False])
+    INCLUDE_5MIN_RV = trial.suggest_categorical("INCLUDE_5MIN_RVOL", [True, False])
+
+    if (
+        not INCLUDE_10_DAY_IVOL
+        and not INCLUDE_30_DAY_IVOL
+        and not INCLUDE_1MIN_RV
+        and not INCLUDE_5MIN_RV
+    ):
+        raise ValueError("At least one of the IVOL or RV features must be included.")
 
     # -------------------------------------------------------------------------
     # Data Loading
@@ -262,6 +278,10 @@ def objective(trial: optuna.Trial):
         include_fng=INCLUDE_FNG,
         include_garch=INCLUDE_GARCH,
         include_industry=INCLUDE_INDUSTRY,
+        include_1min_rv=INCLUDE_1MIN_RV,
+        include_5min_rv=INCLUDE_5MIN_RV,
+        include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
+        + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
     )
 
     gc.collect()
@@ -353,6 +373,7 @@ def objective(trial: optuna.Trial):
     total_picp_miss = np.sum(np.abs(list(picp_miss.values())))
 
     chr_results = []
+    chr_results_indices = []
     for i, cl in enumerate(confidence_levels):
         df = pd.DataFrame(
             index=[data.validation.tickers, data.validation.dates],
@@ -366,36 +387,28 @@ def objective(trial: optuna.Trial):
             df["y_true"] > df["interval_high"]
         )
 
-        pooled_exceedances_list = []
-        reset_indices = []
-        start_index = 0
-
         # Group by symbol in original order.
         df.sort_index(inplace=True)
         for symbol, group in df.groupby(
             df.index.get_level_values("Symbol"), sort=False
         ):
-            asset_exceedances = (group["exceeded"].astype(bool)).values
-            pooled_exceedances_list.append(asset_exceedances)
-            reset_indices.append(start_index)  # mark start of this asset's series.
-            start_index += len(asset_exceedances)
+            exceedances = (group["exceeded"].astype(bool)).values
+            result = christoffersen_test(exceedances, 1 - cl)
+            chr_results.append(result)
+            chr_results_indices.append((symbol, cl))
 
-        pooled_exceedances = np.concatenate(pooled_exceedances_list)
-        pooled_result = christoffersen_test(
-            pooled_exceedances, 1 - cl, reset_indices=reset_indices
-        )
-        chr_results.append(pooled_result)
-
-    chr_results = pd.DataFrame(chr_results, index=confidence_levels)
+    chr_results = pd.DataFrame(chr_results, index=chr_results_indices)
+    chr_results.index.names = ["Symbol", "Confidence Level"]
+    print(chr_results)
     total_fails = np.nansum(
-        (chr_results["p_value_uc"] < 0.05)
-        + (chr_results["p_value_ind"] < 0.05)
-        + (chr_results["p_value_cc"] < 0.05)
+        (chr_results["p_value_uc"] < 0.05).astype(int)
+        + (chr_results["p_value_ind"] < 0.05).astype(int)
+        + (chr_results["p_value_cc"] < 0.05).astype(int)
     )
     total_passes = np.nansum(
-        (chr_results["p_value_uc"] > 0.05)
-        + (chr_results["p_value_ind"] > 0.05)
-        + (chr_results["p_value_cc"] > 0.05)
+        (chr_results["p_value_uc"] > 0.05).astype(int)
+        + (chr_results["p_value_ind"] > 0.05).astype(int)
+        + (chr_results["p_value_cc"] > 0.05).astype(int)
     )
 
     # Clean up GPU memory
@@ -436,7 +449,9 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 # -------------------------------------------------------------------------
 if __name__ == "__main__":
     # Create or load a study
-    study_name = "transformer_mdn_hyperparam_and_feature_search_christoffersen"
+    study_name = (
+        "transformer_mdn_hyperparam_and_feature_search_christoffersen_per_asset"
+    )
     storage = "sqlite:///optuna/optuna.db"
     study = optuna.create_study(
         study_name=study_name,
@@ -451,7 +466,10 @@ if __name__ == "__main__":
     )
 
     # Optimize
-    n_trials = int(sys.argv[1]) if len(sys.argv) > 1 else 1000
+    try:
+        n_trials = int(sys.argv[1])
+    except:
+        n_trials = 1000
     study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
     # Print best result
