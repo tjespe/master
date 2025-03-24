@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from functools import cached_property
 from collections import OrderedDict
-from typing import Iterable
+from typing import Iterable, Union
 import os
 import tensorflow as tf
 from settings import (
@@ -140,10 +140,27 @@ def get_lstm_train_test_new(
     include_others=True,
     include_fred_md=False,
     include_fred_qd=False,
+    include_ivol_cols: Union[None, list[str]] = None,
+    include_5min_rv=True,
+    include_1min_rv=False,
 ) -> ProcessedData:
     """
     Prepare data for LSTM
     """
+    print("Processing data...")
+    print("Multiply by beta:", multiply_by_beta)
+    print("Include FNG:", include_fng)
+    print("Include SPX data:", include_spx_data)
+    print("Include returns:", include_returns)
+    print("Include industry:", include_industry)
+    print("Include GARCH:", include_garch)
+    print("Include beta:", include_beta)
+    print("Include others:", include_others)
+    print("Include FRED-MD:", include_fred_md)
+    print("Include FRED-QD:", include_fred_qd)
+    print("Include IVOL cols:", include_ivol_cols)
+    print("Include 5min RV:", include_5min_rv)
+    print("Include 1min RV:", include_1min_rv)
     # %%
     df = pd.read_csv(DATA_PATH)
 
@@ -230,9 +247,25 @@ def get_lstm_train_test_new(
     # Join in FRED-MD data
     if include_fred_md:
         fred_md_df = get_fred_md()
-        fred_md_df = fred_md_df.reindex(df.index.get_level_values("Date")).ffill()
+        fred_md_df = (
+            fred_md_df.reindex(df.index.get_level_values("Date"))
+            .groupby("Symbol")
+            .ffill()
+        )
         fred_md_df.index = df.index
         df = df.join(fred_md_df)
+    df
+
+    # %%
+    # Join in IVOL data
+    if include_ivol_cols:
+        ivol_df = pd.read_csv(
+            f"{BASEDIR}/data/dow_jones/processed_data/processed_ivol_data.csv"
+        )
+        ivol_df["Date"] = pd.to_datetime(ivol_df["Date"]).dt.date
+        ivol_df.set_index(["Date", "Symbol"], inplace=True)
+        ivol_df = ivol_df[ivol_df.columns.intersection(include_ivol_cols)]
+        df = df.join(ivol_df, how="left")
     df
 
     # %%
@@ -263,14 +296,24 @@ def get_lstm_train_test_new(
     )
     df[["Close", "LogReturn", "DownsideVol"]]
 
+    # %%
     # Define columns that must be non-nan
     important_cols = [
         "LogReturn",
-        "Close_RVOL",
-        "Close_VIX",
-        "RVOL_Std",
-        "Beta_5y",
-    ]
+    ] + (include_ivol_cols or [])
+
+    if include_spx_data:
+        important_cols += [
+            "Close_RVOL",
+            "Close_VIX",
+            "RVOL_Std",
+        ]
+
+    if include_beta:
+        important_cols += [
+            "Beta_5y",
+            "Beta_60d",
+        ]
 
     # %%
     # If we have GARCH predictions, calculate skewness nd kurtosis based on GARCH residuals
@@ -398,23 +441,23 @@ def get_lstm_train_test_new(
 
     # %%
     # Impute missing RVOL values using the last available value
-    df["Close_RVOL"] = df["Close_RVOL"].ffill()
-    df["RVOL_Std"] = df["RVOL_Std"].ffill()
+    df["Close_RVOL"] = df.groupby("Symbol")["Close_RVOL"].ffill()
+    df["RVOL_Std"] = df.groupby("Symbol")["RVOL_Std"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing VIX values using the last available value
-    df["Close_VIX"] = df["Close_VIX"].ffill()
+    df["Close_VIX"] = df.groupby("Symbol")["Close_VIX"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing DownsideVol values using the last available value
-    df["DownsideVol"] = df["DownsideVol"].ffill()
+    df["DownsideVol"] = df.groupby("Symbol")["DownsideVol"].ffill()
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing Fear Greed values using the last available value
-    df["Fear Greed"] = df["Fear Greed"].ffill()
+    df["Fear Greed"] = df.groupby("Symbol")["Fear Greed"].ffill()
     df[["LogReturn", "Fear Greed"]].loc[nan_mask]
 
     # %%
@@ -452,6 +495,14 @@ def get_lstm_train_test_new(
     # %%
     # Remove rows with nan beta
     df = df[~df["Beta_5y"].isna()]
+    df
+
+    # %%
+    # For any IVOL cols, front-fill with latest value if missing
+    if include_ivol_cols:
+        for col in include_ivol_cols:
+            # Make sure we don't ffill across assets
+            df[col] = df.groupby("Symbol")[col].ffill()
     df
 
     # %%
@@ -607,7 +658,11 @@ def get_lstm_train_test_new(
         # If we have RVOL data, add it as a feature
         if "RV" in group.columns:
             # 1) Variance-like measures: RV, BPV, Good, Bad (and their 5-min versions)
-            for key in ["RV", "BPV", "Good", "Bad", "RV_5", "BPV_5", "Good_5", "Bad_5"]:
+            variance_keys = [
+                *(["RV", "BPV", "Good", "Bad"] if include_1min_rv else []),
+                *(["RV_5", "BPV_5", "Good_5", "Bad_5"] if include_5min_rv else []),
+            ]
+            for key in variance_keys:
                 # annualized variance in "percent^2" => convert to decimal => then daily
                 annual_var_pct2 = group[key].values.reshape(
                     -1, 1
@@ -620,7 +675,10 @@ def get_lstm_train_test_new(
                 data = np.hstack((data, log_daily_var))
 
             # 2) Quarticity measures: RQ (and RQ_5)
-            for key in ["RQ", "RQ_5"]:
+            quarticity_keys = [["RQ"] if include_1min_rv else []] + (
+                ["RQ_5"] if include_5min_rv else []
+            )
+            for key in quarticity_keys:
                 # annualized quarticity in "percent^4" => decimal => daily
                 annual_q_pct4 = group[key].values.reshape(-1, 1)  # e.g. 263 => 263%²
                 annual_q_decimal = annual_q_pct4 / (100.0**2)  # => 2.63 in decimal^2
@@ -686,6 +744,15 @@ def get_lstm_train_test_new(
                 (group["High"] - group["Low"]) / group["Close"]
             ).values.reshape(-1, 1)
             data = np.hstack((data, high_low_diff))
+
+        if include_ivol_cols:
+            for ivol_col in include_ivol_cols:
+                annual_pct_vol = group[ivol_col].values.reshape(-1, 1)
+                annual_vol = annual_pct_vol / 100
+                annual_var = annual_vol**2
+                daily_var = annual_var / 252
+                log_daily_var = np.log(daily_var + 1e-10)
+                data = np.hstack((data, log_daily_var))
 
         # Create training sequences of length 'sequence_length'
         X_train = []
@@ -971,23 +1038,23 @@ def get_lstm_train_test_old(include_log_returns=False, include_fng=True):
 
     # %%
     # Impute missing RVOL values using the last available value
-    df["Close_RVOL"] = df["Close_RVOL"].ffill()
-    df["RVOL_Std"] = df["RVOL_Std"].fillna(method="ffill")
+    df["Close_RVOL"] = df.groupby("Symbol")["Close_RVOL"].ffill()
+    df["RVOL_Std"] = df.groupby("Symbol")["RVOL_Std"].fillna(method="ffill")
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing VIX values using the last available value
-    df["Close_VIX"] = df["Close_VIX"].fillna(method="ffill")
+    df["Close_VIX"] = df.groupby("Symbol")["Close_VIX"].fillna(method="ffill")
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing DownsideVol values using the last available value
-    df["DownsideVol"] = df["DownsideVol"].fillna(method="ffill")
+    df["DownsideVol"] = df.groupby("Symbol")["DownsideVol"].fillna(method="ffill")
     df[important_cols].loc[nan_mask]
 
     # %%
     # Impute missing Fear Greed values using the last available value
-    df["Fear Greed"] = df["Fear Greed"].fillna(method="ffill")
+    df["Fear Greed"] = df.groupby("Symbol")["Fear Greed"].fillna(method="ffill")
     df[["LogReturn", "Fear Greed"]].loc[nan_mask]
 
     # %%
