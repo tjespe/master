@@ -201,3 +201,20 @@ ljungbox_results_df = pd.DataFrame(ljungbox_results)
 ljungbox_results_df
 
 # %%
+# 3. ARCH-LM (Engle) test for conditional heteroskedasticity (test on each stock)
+def arch_lm_test(series):
+    result = het_arch(series, nlags=20)
+    p_value = result[1]
+    return p_value < 0.05
+
+# apply the test on each stock
+arch_lm_results = df.groupby("Symbol")["LogReturn"].apply(arch_lm_test)
+# dsiplay the results as a dataframe
+arch_lm_results = pd.DataFrame(arch_lm_results)
+arch_lm_results.columns = ["Conditional Heteroskedasticity"]
+arch_lm_results
+
+
+
+# %%
+# 4. Durbin-Watson statistic for residual autocorrelation (test on each stock)
