@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "ensemble"
+VERSION = "tuned-8-mixtures"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -21,28 +21,28 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
-INCLUDE_TICKERS = True
+INCLUDE_TICKERS = False
 
 # Model architecture
-D_MODEL = 64
-HIDDEN_UNITS_FF = 720
-N_MIXTURES = 8  # Optuna suggests 17, but overrided to avoid zero-ish mixtures interfering with tail performance
-DROPOUT = 0.3
-L2_REGULARIZATION = 1.57e-06
-NUM_ENCODERS = 1
-NUM_HEADS = 2
-D_TICKER_EMBEDDING = 4
+D_MODEL = 24
+HIDDEN_UNITS_FF = 848
+N_MIXTURES = 8
+DROPOUT = 0
+L2_REGULARIZATION = 0
+NUM_ENCODERS = 2
+NUM_HEADS = 4
+D_TICKER_EMBEDDING = None
 
 # Meta
 MODEL_NAME = f"transformer_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # Settings for training
-REDUCE_LR_PATIENCE = 5  # Patience before halving learning rate
-PATIENCE = 20  # Early stopping patience
-REWEIGHT_WORST_PERFORMERS = True
-REWEIGHT_WORST_PERFORMERS_EPOCHS = 2
-BATCH_SIZE = 40
-ENSEMBLE_MODELS = 10
+REDUCE_LR_PATIENCE = 3  # Patience before halving learning rate
+PATIENCE = 10  # Early stopping patience
+REWEIGHT_WORST_PERFORMERS = False
+REWEIGHT_WORST_PERFORMERS_EPOCHS = None
+BATCH_SIZE = 24
+ENSEMBLE_MODELS = None
 
 # %%
 # Imports from code shared across models

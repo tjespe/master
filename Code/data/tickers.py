@@ -9,7 +9,7 @@ IMPORTANT_TICKERS = [
     "CSCO",  # Cisco (NASDAQ)
     "CVX",  # Chevron (NYSE)
     "DIS",  # Disney (NYSE)
-    "DOW",  # Dow Inc. (NYSE)
+    # "DOW",  # Dow Inc. (NYSE)
     "GS",  # Goldman Sachs (NYSE)
     "HD",  # Home Depot (NYSE)
     "HON",  # Honeywell (NASDAQ)

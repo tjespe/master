@@ -23,7 +23,8 @@ from settings import (
 df = pd.read_csv(DATA_PATH)
 
 # remove all coloumns except: Date, Close, Symbol, Total Return
-df = df[['Date', 'Close', 'Symbol', 'Total Return']]
+df = df[['Date', 'Close', 'Symbol', 'Total Return', "LogReturn"]]
+df["Total Return"] = df["Total Return"] / 100
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
@@ -34,9 +35,8 @@ df = df.sort_values(["Symbol", "Date"])
 # remove .O at the end of all symbols
 df['Symbol'] = df['Symbol'].str.replace('.O', '')
 
-# Calculate log returns for each instrument separately using groupby
-df["LogReturn"] = (
-    df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
+df["Total Return Test"] = (
+    df.groupby("Symbol")["Close"].apply(lambda x: (x / x.shift(1)) - 1).droplevel(0)
 )
 
 # ungroup the dataframe
@@ -61,8 +61,8 @@ capire_df = capire_df[['Date', 'Symbol', 'RV_5']]
 # Ensure the Date column is in datetime format
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
-# transform the RV to become daily_rv
-capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0
+# transform the RV to become daily_rv 
+capire_df['RV'] = (capire_df['RV_5'] /100) / 252.0 # annual percentage^2 --> daily decimal^2
 
 capire_df
 # %%
@@ -96,14 +96,6 @@ df
 # drop rows with NaN values
 df = df.dropna()
 df
-
-# %%
-# scale to percentages
-df["RV"] = df["RV"] * 100
-df["RV_lag1"] = df["RV_lag1"] * 100
-df["RV_lag5"] = df["RV_lag5"] * 100
-df["RV_lag22"] = df["RV_lag22"] * 100
-
 
 # %%
 # define training and validation data
@@ -162,7 +154,7 @@ for symbol in symbols:
         # forecast the next time point
         forecast_var = model.predict(X_pred) # forecast the next time point
         # scale down
-        forecast_var = forecast_var / 100
+        forecast_var = forecast_var 
 
         # print(forecast_var)
         # print(f"Forecast: {forecast_var.iloc[0]}")
@@ -176,12 +168,64 @@ print("Done")
 
 # %%
 # add the predictions to the dataframe
-validation_data["HAR_vol"] = volatality_preds
+validation_data["HAR_vol_python"] = volatality_preds
 validation_data["Mean"] = 0  # Assume mean is 0
 # set the index to be the Date and Symbol
 validation_data
 
 # %%
+# plot som example distributions
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# plot  3 different plots of the Total Return Test for the validation data over time for the first 3 symbols
+for symbol in validation_data["Symbol"].unique()[:3]:
+    symbol_data = validation_data[validation_data["Symbol"] == symbol]
+    sns.lineplot(x="Date", y="Total Return Test", data=symbol_data)
+    # plot the mean prediction
+    sns.lineplot(x="Date", y="Mean", data=symbol_data)
+    # plot two standard deviations
+    plt.fill_between(symbol_data["Date"], 
+                     symbol_data["Mean"] - 2*symbol_data["HAR_vol_python"], 
+                     symbol_data["Mean"] + 2*symbol_data["HAR_vol_python"], 
+                     alpha=0.5,
+                     color="purple")
+    # plot the volatility of the mean as the standard deviation
+    plt.fill_between(symbol_data["Date"], 
+                     symbol_data["Mean"] - symbol_data["HAR_vol_python"], 
+                     symbol_data["Mean"] + symbol_data["HAR_vol_python"], 
+                     alpha=0.6,
+                     color="red")
+    # plot legends based on the colors
+    plt.legend(["Total Return Test", "Mean", "2 Standard Deviations", "Volatility of the Mean"])
+
+
+    plt.title(f"Total Return Test for {symbol}")
+    plt.show()
+
+# %%
+# plot the total return test vs the total return over time for the first 3 symbols
+for symbol in validation_data["Symbol"].unique()[:3]:
+    symbol_data = validation_data[validation_data["Symbol"] == symbol]
+    sns.lineplot(x="Date", y="Total Return", data=symbol_data, color="blue")
+    sns.lineplot(x="Date", y="Total Return Test", data=symbol_data, color="red")
+    plt.legend(["Total Return Test", "Total Return"])
+    plt.title(f"Total Return Test vs Total Return for {symbol}")
+    plt.show()
+
+
+# %%
+# check how simiar the Total Return Test and Total Return are
+validation_data["Total Return Test"].corr(validation_data["Total Return"])
+# %%
+# plot acutal RV_5 vs predicted HAR_var
+sns.scatterplot(x="RV_5", y="HAR_var", data=validation_data)
+plt.title("Actual RV_5 vs Predicted HAR_var")
+plt.show()
+# %%
 # save the dataframe
-validation_data.to_csv("predictions/har_model_predictions_dow_jones.csv", index=False)
+validation_data.to_csv("predictions/HAR_python.csv", index=False)
+# %%
+print(np.log(0.01))
+print(np.log(1.01))
 # %%
