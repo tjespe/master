@@ -243,42 +243,106 @@ if os.path.exists(model_fname):
     )
     print("Loaded pre-trained model from disk.")
 
+
 # %%
 # 5) Train model
-# Train until validation loss stops decreasing
-histories = []
-val_losses = []
-for i, member in enumerate(ensemble_model.submodels):
+# Define code for training each member
+def _train_single_member(args):
+    """
+    Worker function for parallel training of one submodel.
+    Returns (submodel_index, trained_model, history_dict, best_val_loss).
+    """
+    (
+        i,
+        model,
+        X_train,
+        y_train,
+        X_val,
+        y_val,
+        batch_size,
+        patience,
+        lr,
+        weight_decay,
+        n_mixtures,
+        pi_penalty,
+    ) = args
+
+    # Rebuild callbacks/optimizer/loss in each process
     early_stop = EarlyStopping(
         monitor="val_loss",
-        patience=PATIENCE,  # number of epochs with no improvement to wait
+        patience=patience,
         restore_best_weights=True,
     )
-    member.compile(
-        optimizer=Adam(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+    model.compile(
+        optimizer=Adam(learning_rate=lr, weight_decay=weight_decay),
+        loss=mdn_nll_tf(n_mixtures, pi_penalty),
     )
-    print(f"Fitting model {i}...", flush=True)
-    history = member.fit(
-        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
-        data.train.y,
+
+    print(f"[Parallel] Fitting model {i}...")
+    history = model.fit(
+        X_train,
+        y_train,
         epochs=50,
-        batch_size=BATCH_SIZE,
-        verbose=1,
-        validation_data=(
-            (
-                [data.validation.X, data.validation_ticker_ids]
-                if INCLUDE_TICKERS
-                else data.validation.X
-            ),
-            data.validation.y,
-        ),
+        batch_size=batch_size,
+        verbose=1,  # set 0 if you want silent training
+        validation_data=(X_val, y_val),
         callbacks=[early_stop],
     )
-    val_loss = np.array(history.history["val_loss"]).min()
-    print(f"Validation loss: {val_loss}")
-    histories.append(history)
-    val_losses.append(val_loss)
+    val_loss = float(np.min(history.history["val_loss"]))
+    best_epoch = np.argmin(history.history["val_loss"])
+    print(f"[Parallel] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
+    return i, model, history.history, val_loss, best_epoch
+
+
+# Train each member in parallel until val loss converges
+X_train = [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X
+y_train = data.train.y
+X_val = (
+    [data.validation.X, data.validation_ticker_ids]
+    if INCLUDE_TICKERS
+    else data.validation.X
+)
+y_val = data.validation.y
+
+# Create argument tuples for each submodel
+job_args = []
+for i, member in enumerate(ensemble_model.submodels):
+    job_args.append(
+        (
+            i,
+            member,
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            BATCH_SIZE,
+            PATIENCE,
+            LEARNING_RATE,
+            WEIGHT_DECAY,
+            N_MIXTURES,
+            PI_PENALTY,
+        )
+    )
+
+histories = [None] * N_ENSEMBLE_MEMBERS
+val_losses = [None] * N_ENSEMBLE_MEMBERS
+optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
+
+with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
+    results = pool.map(_train_single_member, job_args)
+
+# results is a list of (i, trained_model, history_dict, val_loss).
+# Sort by i so we can store them in order:
+results.sort(key=lambda x: x[0])
+
+# Store trained submodels back into the ensemble, plus record histories/losses
+for i, trained_model, hist_dict, best_loss, best_epoch in results:
+    ensemble_model.submodels[i] = trained_model
+    histories[i] = hist_dict
+    val_losses[i] = best_loss
+    optimal_epochs[i] = best_epoch
+    print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
+
 
 # %%
 # 6) Save model
