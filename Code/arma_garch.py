@@ -1,10 +1,9 @@
 # %%
 # Define version paramaters 
 AR_LAGS = 1
-MA_LAGS = 1
-DIST = "norm"
+DIST = "normal"
 
-VERSION = f"ARMA({AR_LAGS},{MA_LAGS})-GARCH({1},{1})-{DIST}"
+VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
 # %%
 # Define parameters
@@ -60,7 +59,7 @@ df
 df = df[df.index.get_level_values("Date") >= "1990-01-01"]
 df
 # %%
-# FIT THE ARMA GARCH MODEL AND PREDICT
+# FIT THE AR GARCH MODEL AND PREDICT
 symbols = df.index.get_level_values("Symbol").unique()
 # initialize an empty list to store forecasts
 garch_vol_pred = []
@@ -98,7 +97,7 @@ for symbol in symbols:
         returns_sample = returns_combined.iloc[:end]
 
         # Fit the GARCH model
-        am = arch_model(returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=(AR_LAGS, MA_LAGS))
+        am = arch_model(returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=AR_LAGS)
         res = am.fit(disp="off")
 
         # Store the nu value for this iteration
@@ -132,47 +131,38 @@ df_validation.reset_index(inplace=True)
 df_validation = df_validation[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
 df_validation
 # %%
-df_validation["ARMA_GARCH_Vol"] = garch_vol_pred
+df_validation["AR_GARCH_Vol"] = garch_vol_pred
 if DIST == "t":
-    df_validation["ARMA_GARCH_Nu"] = nu_values
-df_validation["ARMA_GARCH_Mean"] = 0
+    df_validation["AR_GARCH_Nu"] = nu_values
+df_validation["AR_GARCH_Mean"] = 0
 df_validation
 # %%
 from tqdm import tqdm
 
 # Compute CRPS for each observation with a progress bar based on what distribution is used
-if DIST == "norm":
-    crps_values = [
-        crps_normal_univariate(x, mu, sigma)
-        for x, mu, sigma in tqdm(
-            zip(
-                df_validation["LogReturn"],
-                df_validation["ARMA_GARCH_Mean"],
-                df_validation["ARMA_GARCH_Vol"],
-            ),
-            total=len(df_validation),
-            desc="Computing CRPS"
-        )
-    ]
-    # crps_values is a tensor, so convert it to a numpy array
-    crps_values = np.array(crps_values)
-
+if DIST == "normal":
+    crps_values = crps_normal_univariate(
+    df_validation["LogReturn"].values.astype(np.float32),
+    df_validation["AR_GARCH_Mean"].values.astype(np.float32),
+    df_validation["AR_GARCH_Vol"].values.astype(np.float32)
+    ).numpy()
+    
 elif DIST == "t":
     crps_values = [
         crps_student_t(x, mu, sigma, nu)
         for x, mu, sigma, nu in tqdm(
             zip(
                 df_validation["LogReturn"],
-                df_validation["ARMA_GARCH_Mean"],
-                df_validation["ARMA_GARCH_Vol"],
-                df_validation["ARMA_GARCH_Nu"],
+                df_validation["AR_GARCH_Mean"],
+                df_validation["AR_GARCH_Vol"],
+                df_validation["AR_GARCH_Nu"],
             ),
             total=len(df_validation),
             desc="Computing CRPS"
         )
     ]
 
-df_validation["ARMA_GARCH_CRPS"] = crps_values
+df_validation["AR_GARCH_CRPS"] = crps_values
 df_validation
 
 # %%
@@ -183,25 +173,25 @@ def format_cl(cl):
 confidence_levels = [0.67, 0.90, 0.95, 0.98]
 for cl in confidence_levels:
     alpha = 1 - cl
-    if DIST == "norm":
+    if DIST == "normal":
         # Calculate the lower and upper quantiles based on Normal
-        lb = df_validation["ARMA_GARCH_Mean"] - norm.ppf(1- alpha / 2) * garch_vol_pred
-        ub = df_validation["ARMA_GARCH_Mean"] + norm.ppf(1 - alpha / 2) * garch_vol_pred
+        lb = df_validation["AR_GARCH_Mean"] - norm.ppf(1- alpha / 2) * garch_vol_pred
+        ub = df_validation["AR_GARCH_Mean"] + norm.ppf(1 - alpha / 2) * garch_vol_pred
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
         es_alpha = alpha / 2
         df_validation[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
-                np.ones_like(df_validation["ARMA_GARCH_Mean"]).reshape(-1, 1),
-                df_validation["ARMA_GARCH_Mean"].reshape(-1, 1),
-                df_validation["ARMA_GARCH_Vol"].reshape(-1, 1),
-                lb,
+                np.ones_like(df_validation["AR_GARCH_Mean"]).reshape(-1, 1),
+                df_validation["AR_GARCH_Mean"].values.reshape(-1, 1),
+                df_validation["AR_GARCH_Vol"].values.reshape(-1, 1),
+                lb.to_numpy(),
             )
 
     elif DIST == "t":
         # Calculate the lower and upper quantiles based on Student-t
-        lb = df_validation["ARMA_GARCH_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
-        ub = df_validation["ARMA_GARCH_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+        lb = df_validation["AR_GARCH_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
+        ub = df_validation["AR_GARCH_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
@@ -210,7 +200,7 @@ for cl in confidence_levels:
         # ES = mu - sigma * [ (nu + z^2)/(nu-1) ] * [ t.pdf(z) / p ], where z = t.ppf(p, df=nu)
         z_p = t.ppf(es_alpha, df=nu_values)
         t_pdf_z = t.pdf(z_p, df=nu_values)
-        es = df_validation["ARMA_GARCH_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
+        es = df_validation["AR_GARCH_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
         df_validation[f"ES_{format_cl(1 - es_alpha)}"] = es
 
 
