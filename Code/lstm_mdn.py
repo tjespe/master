@@ -30,8 +30,6 @@ MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 # %%
 # Settings for training
 PATIENCE = 3  # Early stopping patience
-REWEIGHT_WORST_PERFORMERS = True
-REWEIGHT_WORST_PERFORMERS_EPOCHS = 0
 WEIGHT_DECAY = 0.01459  # from optuna
 LEARNING_RATE = 0.00015956356887196678  # from optuna
 BATCH_SIZE = 59
@@ -201,7 +199,6 @@ lstm_mdn_model = build_lstm_mdn(
     num_features=data.train.X.shape[2],
     ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
 )
-already_trained = False
 
 # %%
 # 4) Load existing model if it exists
@@ -225,219 +222,41 @@ if os.path.exists(model_fname):
         loss=mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
     )
     print("Loaded pre-trained model from disk.")
-    already_trained = True
 
 # %%
-# 5) Train
-val_loss = (
-    lstm_mdn_model.evaluate(
-        [data.validation.X, data.validation_ticker_ids] if INCLUDE_TICKERS else None,
-        data.validation.y,
-        verbose=0,
-    )
-    if already_trained
-    else np.inf
-)
-histories = []
-weight_per_ticker = pd.Series(index=np.unique(data.train.tickers)).fillna(1)
-
-
-# %%
-def calculate_weight_per_ticker() -> pd.Series:
-    """
-    Use the training loss of each ticker to give more weights to series with poor loss.
-    Also calculate quantiles for some of the stocks with the worst loss and give even
-    higher weight to samples where the coverage does not match the confidence level.
-    """
-    print("Collecting garbage...")
-    gc.collect()  # We need a lot of memory to make a prediction on the entire training set
-    ## Calculate loss per ticker
-    print("Calculating loss per ticker...")
-    y_train_pred = lstm_mdn_model.predict(
-        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X
-    )
-    nlls = mdn_nll_numpy(N_MIXTURES)(data.train.y, y_train_pred)
-    train_dates = np.array(data.train.dates)
-    train_tickers = np.array(data.train.tickers)
-    loss_df = pd.DataFrame(
-        {
-            "Date": train_dates,
-            "Symbol": train_tickers,
-            "loss": nlls,
-        }
-    )
-    loss_per_ticker = loss_df.groupby("Symbol")["loss"].mean().sort_values()
-    try:
-        display(loss_per_ticker)
-    except:
-        print(loss_per_ticker)
-
-    ## Calculate weights based on loss
-    print("Calculating weights based on loss...")
-    weight_best_nll = 0.1
-    weight_worst_nll = 1
-    best_nll = loss_per_ticker.min()
-    underperformance_per_ticker = loss_per_ticker - best_nll
-    underperformance_per_ticker = (
-        underperformance_per_ticker / underperformance_per_ticker.max()
-    )
-    weight_per_ticker = (
-        weight_best_nll
-        + (weight_worst_nll - weight_best_nll) * underperformance_per_ticker
-    )
-    weight_per_ticker = weight_per_ticker.clip(0, 1)
-    n_tickers = len(weight_per_ticker)
-
-    ## Add extra weight to the worst performing tickers with the worst coverage
-    print("Calculating coverage for worst tickers...")
-    worst_tickers = loss_per_ticker.tail(int(n_tickers / 10)).index
-    worst_ticker_mask = np.isin(np.array(data.train.tickers), worst_tickers)
-    filtered_y_train_pred = y_train_pred[worst_ticker_mask]
-    pi_pred, mu_pred, sigma_pred = parse_mdn_output(filtered_y_train_pred, N_MIXTURES)
-    confidence_levels = [0.67, 0.90, 0.95, 0.99]
-    intervals = calculate_intervals_vectorized(
-        pi_pred, mu_pred, sigma_pred, confidence_levels
-    )
-    actuals = data.train.y[worst_ticker_mask]
-    within_bounds = {
-        cl: np.logical_and(
-            actuals > intervals[:, i, 0],
-            actuals < intervals[:, i, 1],
-        )
-        for i, cl in enumerate(confidence_levels)
-    }
-    within_bounds_df = pd.DataFrame(
-        {
-            "Date": train_dates[worst_ticker_mask],
-            "Symbol": train_tickers[worst_ticker_mask],
-            "WithinBounds-0.95": within_bounds[0.95],
-            "WithinBounds-0.99": within_bounds[0.99],
-        }
-    ).set_index(["Date", "Symbol"])
-    coverage = within_bounds_df.groupby("Symbol").mean()
-    coverage_miss = pd.DataFrame(
-        {
-            "CoverageMiss-0.95": np.abs(0.95 - coverage["WithinBounds-0.95"]),
-            "CoverageMiss-0.99": np.abs(0.99 - coverage["WithinBounds-0.99"]),
-        },
-        index=coverage.index,
-    )
-    mean_miss = coverage_miss.mean(axis=1)
-    worst_miss = mean_miss.max()
-    extra_weight_worst_miss = 1
-    picp_based_weight = extra_weight_worst_miss * mean_miss / worst_miss
-
-    ## Combine weights
-    weight_per_ticker.loc[worst_tickers] += picp_based_weight
-
-    ## Plot weights for inspection if we are running in a notebook
-    try:
-        display(weight_per_ticker)
-        weight_per_ticker.hist(bins=50)
-        plt.title("Distribution of weights per ticker")
-        plt.show()
-    except:
-        print(weight_per_ticker)
-
-    return weight_per_ticker
-
-
-# %%
-if already_trained:
-    weight_per_ticker = calculate_weight_per_ticker()
-
-# %%
+# 5) Train model
 # Train until validation loss stops decreasing
-increases_since_best = 0
-best_model_weights = lstm_mdn_model.get_weights()
-best_val_loss = val_loss
-while True:
-    early_stop = EarlyStopping(
-        monitor="val_loss",
-        patience=PATIENCE,  # number of epochs with no improvement to wait
-        restore_best_weights=True,
-    )
-
-    print("Aligning ticker weights...")
-    ticker_weights = weight_per_ticker.loc[data.train.tickers].values
-    print("Compiling model...", flush=True)
-    lstm_mdn_model.compile(
-        optimizer=Adam(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
-        loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
-    )
-    print("Fitting model...", flush=True)
-    history = lstm_mdn_model.fit(
-        [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
-        data.train.y,
-        epochs=50,
-        batch_size=BATCH_SIZE,
-        verbose=1,
-        validation_data=(
-            (
-                [data.validation.X, data.validation_ticker_ids]
-                if INCLUDE_TICKERS
-                else data.validation.X
-            ),
-            data.validation.y,
+early_stop = EarlyStopping(
+    monitor="val_loss",
+    patience=PATIENCE,  # number of epochs with no improvement to wait
+    restore_best_weights=True,
+)
+print("Compiling model...", flush=True)
+lstm_mdn_model.compile(
+    optimizer=Adam(learning_rate=LEARNING_RATE, weight_decay=WEIGHT_DECAY),
+    loss=mdn_nll_tf(N_MIXTURES, PI_PENALTY),
+)
+print("Fitting model...", flush=True)
+history = lstm_mdn_model.fit(
+    [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X,
+    data.train.y,
+    epochs=50,
+    batch_size=BATCH_SIZE,
+    verbose=1,
+    validation_data=(
+        (
+            [data.validation.X, data.validation_ticker_ids]
+            if INCLUDE_TICKERS
+            else data.validation.X
         ),
-        callbacks=[early_stop],
-        sample_weight=ticker_weights,
-    )
-    val_loss = np.array(history.history["val_loss"]).min()
-    if not REWEIGHT_WORST_PERFORMERS:
-        break
-    if val_loss >= best_val_loss:
-        increases_since_best += 1
-        if increases_since_best >= REWEIGHT_WORST_PERFORMERS_EPOCHS:
-            print(
-                f"Validation loss has not decreased for {REWEIGHT_WORST_PERFORMERS_EPOCHS} iterations. "
-                "Stopping training. \n"
-                # "If you want to restore the best model, type:\n"
-                # "lstm_mdn_model.set_weights(best_model_weights)"
-            )
-            lstm_mdn_model.set_weights(best_model_weights)
-            break
-    else:
-        best_model_weights = lstm_mdn_model.get_weights()
-        best_val_loss = val_loss
-        increases_since_best = 0
-    histories.append(history)
-    weight_per_ticker = calculate_weight_per_ticker()
-
+        data.validation.y,
+    ),
+    callbacks=[early_stop],
+)
+val_loss = np.array(history.history["val_loss"]).min()
 # %%
-# # Train one epoch with CRPS loss
-# print("Training one epoch with CRPS loss...")
-# lstm_mdn_model.compile(
-#     optimizer=Adam(learning_rate=1e-7, weight_decay=1e-7),
-#     loss=mdn_crps_tf(N_MIXTURES, PI_PENALTY, MU_PENALTY, SIGMA_PENALTY, npts=64),
-# )
-# history = lstm_mdn_model.fit(
-#     [data.train.X, data.train_ticker_ids],
-#     data.train.y,
-#     epochs=1,
-#     batch_size=32,
-#     verbose=1,
-#     validation_data=(
-#         [data.validation.X, data.validation_ticker_ids],
-#         data.validation.y,
-#     ),
-# )
-# histories.append(history)
-
-# %%
-# 6) Save both current model and the model with the best validation loss
+# 6) Save model
 lstm_mdn_model.save(model_fname)
-# best_model = build_lstm_mdn(
-#     lookback_days=LOOKBACK_DAYS,
-#     num_features=data.train.X.shape[2],
-#     dropout=DROPOUT,
-#     n_mixtures=N_MIXTURES,
-#     hidden_units=HIDDEN_UNITS,
-#     embed_dim=EMBEDDING_DIMENSIONS,
-#     ticker_ids_dim=data.ticker_ids_dim,
-# )
-# best_model.set_weights(best_model_weights)
-# best_model.save(f"models/{MODEL_NAME}_best_val_loss.keras")
 
 # %%
 # 7) Commit and push
@@ -446,9 +265,7 @@ try:
     subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
     commit_header = f"Train LSTM MDN {VERSION}"
-    commit_body = f"Training history:\n" + "\n".join(
-        [str(h.history) for h in histories]
-    )
+    commit_body = f"Training history:\n{history.history}"
 
     subprocess.run(
         ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
