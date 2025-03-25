@@ -70,7 +70,7 @@ def get_mdn_bias_initializer(n_mixtures, logvar_bias=-9):
 def parse_mdn_output(mdn_out, n_mixtures):
     """
     Given y_pred from the model with shape (batch, 3*n_mixtures),
-    parse out pi, mu, sigma. Returns (pi, mu, sigma) each shape = (batch, n_mixtures).
+    parse out pi, mu, log_var. Returns (pi, mu, sigma) each shape = (batch, n_mixtures).
     """
     logits_pi = mdn_out[:, :n_mixtures]
     mu = mdn_out[:, n_mixtures : 2 * n_mixtures]

@@ -219,7 +219,7 @@ def build_transformer_mdn(
     mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
     mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
 
-    # Output layer: 3*n_mixtures => [logits_pi, mu, log_sigma]
+    # Output layer: 3*n_mixtures => [logits_pi, mu, log_var]
     mdn_output = Dense(
         3 * N_MIXTURES,
         activation=None,

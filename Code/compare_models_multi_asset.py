@@ -411,6 +411,8 @@ for version in [
     "rv-only",
     "rv-5-only",
     "rv-and-ivol",
+    # Ensemble models
+    "ivol-only_ensemble",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -1371,8 +1373,8 @@ for model in results_df.index:
         continue
     # if "Benchmark" in model:
     #     continue
-    if "HAR" in model:
-        continue
+    # if "HAR" in model:
+    #     continue
     # if "VAE MDN" in model:
     #     continue
     passes = 0
