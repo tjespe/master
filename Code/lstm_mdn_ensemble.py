@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 import multiprocessing as mp
 
-VERSION = "rv-only"
+VERSION = "rv-and-ivol"
 
 # %%
 # Feature selection
@@ -24,8 +24,8 @@ INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
-INCLUDE_10_DAY_IVOL = False
-INCLUDE_30_DAY_IVOL = False
+INCLUDE_10_DAY_IVOL = True
+INCLUDE_30_DAY_IVOL = True
 INCLUDE_1MIN_RV = True
 INCLUDE_5MIN_RV = True
 
@@ -402,9 +402,26 @@ if __name__ == "__main__":
         f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
         f.write(f"N_ENSEMBLE_MEMBERS: {N_ENSEMBLE_MEMBERS}\n")
         f.write(f"\n\nTraining results:\n")
-        f.write(f"Optimal number of epochs: {optimal_epochs}\n")
+        f.write(f"Optimal number of epochs: {[int(n) for n in optimal_epochs]}\n")
         f.write(f"Validation losses: {val_losses}\n")
-        pd.DataFrame(histories).to_csv(f, sep="\t")
+        f.write(f"\n\nTraining loss histories:\n")
+        training_loss_df = pd.DataFrame(
+            [h["loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
+        )
+        training_loss_df.index.name = "Member"
+        training_loss_df.columns = [
+            f"Epoch {i}" for i in range(1, training_loss_df.shape[1] + 1)
+        ]
+        training_loss_df.to_csv(f, sep="\t", mode="a")
+        f.write("\n\nValidation loss histories:\n")
+        validation_loss_df = pd.DataFrame(
+            [h["val_loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
+        )
+        validation_loss_df.index.name = "Member"
+        validation_loss_df.columns = [
+            f"Epoch {i}" for i in range(1, validation_loss_df.shape[1] + 1)
+        ]
+        validation_loss_df.to_csv(f, sep="\t", mode="a")
 
     # %%
     # 7) Commit and push

@@ -77,13 +77,24 @@ class MDNEnsemble(tf.keras.Model):
 
     @classmethod
     def from_config(cls, config, custom_objects=None):
-        # You'd have to rebuild submodels from their configs here.
-        # In practice, for a full reconstruction, you typically rely on
-        # SavedModel format or handle submodels explicitly.
+        from tensorflow.keras.utils import deserialize_keras_object
+
         n_mixtures = config["n_mixtures"]
-        # For demonstration only:
-        submodels_placeholder = []
-        return cls(submodels_placeholder, n_mixtures)
+        submodel_configs = config["submodels"]
+
+        # Rebuild each submodel from its config
+        submodels = [
+            deserialize_keras_object(
+                {
+                    "class_name": "Model",
+                    "config": sub_cfg,
+                },
+                custom_objects={**(custom_objects or {}), "Model": tf.keras.Model},
+            )
+            for sub_cfg in submodel_configs
+        ]
+
+        return cls(submodels=submodels, n_mixtures=n_mixtures)
 
 
 class ParallelProgressCallback(tf.keras.callbacks.Callback):
@@ -91,12 +102,15 @@ class ParallelProgressCallback(tf.keras.callbacks.Callback):
     Prints a concise summary after each epoch in a parallel-safe manner.
     Note: lines from different workers may interleave in the console.
     """
+
     def __init__(self, worker_id):
         super().__init__()
         self.worker_id = worker_id
 
     def on_epoch_end(self, epoch, logs=None):
         # logs is a dict with keys like 'loss', 'val_loss', etc.
-        loss_str = f"{logs['loss']:.4f}" if 'loss' in logs else "?"
-        val_loss_str = f"{logs['val_loss']:.4f}" if 'val_loss' in logs else "?"
-        print(f"[Worker {self.worker_id}] epoch {epoch+1} end: loss={loss_str}, val_loss={val_loss_str}")
+        loss_str = f"{logs['loss']:.4f}" if "loss" in logs else "?"
+        val_loss_str = f"{logs['val_loss']:.4f}" if "val_loss" in logs else "?"
+        print(
+            f"[Worker {self.worker_id}] epoch {epoch+1} end: loss={loss_str}, val_loss={val_loss_str}"
+        )
