@@ -52,6 +52,7 @@ from shared.mdn import (
     univariate_mixture_mean_and_var_approx,
 )
 from shared.loss import (
+    ece_mdn,
     mdn_crps_tf,
     mdn_nll_numpy,
     mean_mdn_loss_numpy,
@@ -105,6 +106,10 @@ data = get_lstm_train_test_new(
     include_garch=INCLUDE_GARCH,
     include_industry=INCLUDE_INDUSTRY,
     include_fred_md=INCLDUE_FRED_MD,
+    include_1min_rv=INCLUDE_1MIN_RV,
+    include_5min_rv=INCLUDE_5MIN_RV,
+    include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
+    + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
 )
 
 # %%
@@ -424,6 +429,12 @@ df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES)(data.validation.y, y_pred_mdn)
 # Calculate CRPS
 crps = mdn_crps_tf(N_MIXTURES)
 df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
+
+# %%
+# Calculate ECE
+ece = ece_mdn(N_MIXTURES, data.validation.y, y_pred_mdn)
+df_validation["ECE"] = ece
+ece
 
 # %%
 # Add confidence intervals
