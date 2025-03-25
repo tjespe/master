@@ -1373,10 +1373,12 @@ for model in results_df.index:
     # if "VAE MDN" in model:
     #     continue
     passes = 0
+    fails = 0
     for cl in CONFIDENCE_LEVELS:
-        if results_df.loc[model, f"[{format_cl(cl)}] Pooled CC p-value"] > 0.05:
-            passes += 1
-    if passes == 0:
+        passes += results_df.loc[model, f"[{format_cl(cl)}] CC passes"]
+        fails += results_df.loc[model, f"[{format_cl(cl)}] CC fails"]
+    if fails / (passes + fails) > 0.2:
+        print(f"Removing {model} due to CC fails")
         results_df.drop(model, inplace=True)
 
 # Identify winners
