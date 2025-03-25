@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "rv-only"
+VERSION = "rv-5-only"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -21,7 +21,7 @@ INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = False
 INCLUDE_30_DAY_IVOL = False
-INCLUDE_1MIN_RV = True
+INCLUDE_1MIN_RV = False
 INCLUDE_5MIN_RV = True
 HIDDEN_UNITS = 61
 N_MIXTURES = 26
