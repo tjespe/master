@@ -5,8 +5,9 @@ from typing import Optional
 from shared.ensemble import MDNEnsemble
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
+import multiprocessing as mp
 
-VERSION = "ivol-only"
+VERSION = "ivol-only-2"
 
 # %%
 # Feature selection
@@ -31,7 +32,7 @@ INCLUDE_5MIN_RV = False
 # %%
 # Model settings
 HIDDEN_UNITS = 60
-N_MIXTURES = 26
+N_MIXTURES = 10
 DROPOUT = 0.0
 L2_REG = 1e-4
 NUM_HIDDEN_LAYERS = 0
