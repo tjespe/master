@@ -50,7 +50,7 @@ df
 # 1. Augmented Dickey Fuller test - for stationarity (test on each stock)
 def adf_test(series):
     result = adfuller(series)
-    return result[1] < 0.05
+    return result[1] < 0.01
 
 # apply the test on each stock
 adf_results = df.groupby("Symbol")["LogReturn"].apply(adf_test)
@@ -175,7 +175,7 @@ def ljung_box_test(series, symbol, column_name, lags=10):
         'Lags': lags,
         'LB Stat': lb_stat,
         'p-value': p_value,
-        'Autocorrelation?': 'Yes' if p_value < 0.05 else 'No'
+        'Autocorrelation?': 'Yes' if p_value < 0.01 else 'No'
     }
 
 
@@ -205,7 +205,7 @@ ljungbox_results_df
 def arch_lm_test(series):
     result = het_arch(series, nlags=20)
     p_value = result[1]
-    return p_value < 0.05
+    return p_value < 0.01
 
 # apply the test on each stock
 arch_lm_results = df.groupby("Symbol")["LogReturn"].apply(arch_lm_test)
@@ -228,5 +228,45 @@ jarque_bera_results = df.groupby("Symbol")["LogReturn"].apply(jarque_bera_test)
 jarque_bera_results = pd.DataFrame(jarque_bera_results)
 jarque_bera_results.columns = ["Normality"]
 jarque_bera_results
+
+# %% - alternative implementation
+
+from statsmodels.stats.stattools import jarque_bera
+
+def jb_test(df, symbol):
+    stock_data = df[df['Symbol'] == symbol]
+    returns_series = stock_data['LogReturn'].dropna()
+
+    if len(returns_series) < 10:
+        return {
+            'Symbol': symbol,
+            'JB Statistic': None,
+            'p-value': None,
+            'Skewness': None,
+            'Kurtosis': None,
+            'Normality?': 'Insufficient data'
+        }
+
+    jb_stat, jb_pvalue, skew, kurt = jarque_bera(returns_series)
+
+    return {
+        'Symbol': symbol,
+        'JB Statistic': jb_stat,
+        'p-value': jb_pvalue,
+        'Skewness': skew,
+        'Kurtosis': kurt,
+        'Normality?': 'No' if jb_pvalue < 0.01 else 'Yes'
+    }
+# Run the test for all symbols
+jb_results = []
+# get all unique symbols, Symbol is not an index
+for symbol in df_returns['Symbol'].unique():
+    result = jb_test(df_returns, symbol)
+    jb_results.append(result)
+
+# Create a results DataFrame
+jb_results_df = pd.DataFrame(jb_results)
+
+jb_results_df
 
 # %%
