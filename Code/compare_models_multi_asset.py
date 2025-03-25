@@ -413,6 +413,7 @@ for version in [
     "rv-and-ivol",
     # Ensemble models
     "ivol-only_ensemble",
+    "ivol-only-2_ensemble",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
