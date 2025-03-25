@@ -1738,6 +1738,7 @@ include_models = {
     "Transformer MDN tuned",
     "Transformer MDN time",
     "LSTM MDN ivol-only_ensemble",
+    "LSTM MDN ivol-only-2_ensemble",
 }
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
