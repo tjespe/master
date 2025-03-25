@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned-w-fred"
+VERSION = "ivol-only"
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
 PI_PENALTY = False
 MU_PENALTY = False
@@ -17,22 +17,26 @@ INCLUDE_INDUSTRY = False
 INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
-INCLUDE_TICKERS = True
-INCLDUE_FRED_MD = True
-HIDDEN_UNITS = 69
+INCLUDE_TICKERS = False
+INCLDUE_FRED_MD = False
+INCLUDE_10_DAY_IVOL = True
+INCLUDE_30_DAY_IVOL = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
+HIDDEN_UNITS = 61
 N_MIXTURES = 26
 DROPOUT = 0.0
-L2_REG = 1.2e-6
-NUM_HIDDEN_LAYERS = 4
-EMBEDDING_DIMENSIONS = 17
+L2_REG = 0.00015
+NUM_HIDDEN_LAYERS = 0
+EMBEDDING_DIMENSIONS = None
 MODEL_NAME = f"lstm_mdn_{LOOKBACK_DAYS}_days{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
 PATIENCE = 3  # Early stopping patience
-WEIGHT_DECAY = 0.01459  # from optuna
-LEARNING_RATE = 0.00015956356887196678  # from optuna
-BATCH_SIZE = 59
+WEIGHT_DECAY = 0.05  # from optuna
+LEARNING_RATE = 0.00015  # from optuna
+BATCH_SIZE = 39
 
 # %%
 # Imports from code shared across models
