@@ -408,6 +408,7 @@ for version in [
     # "tuned",
     # "tuned-w-fred",
     "ivol-only",
+    "rv-only",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
