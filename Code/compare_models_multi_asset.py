@@ -224,7 +224,9 @@ for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t"]:
             (ar_garch_dates >= TRAIN_VALIDATION_SPLIT)
             & (ar_garch_dates < VALIDATION_TEST_SPLIT)
         ]
-        combined_df = df_validation.join(ar_garch_preds, how="left", rsuffix="_AR_GARCH")
+        combined_df = df_validation.join(
+            ar_garch_preds, how="left", rsuffix="_AR_GARCH"
+        )
         ar_garch_vol_pred = combined_df["AR_GARCH_Vol"].values
         y_true = combined_df["LogReturn"].values
         mus = combined_df["AR_GARCH_Mean"].values
@@ -232,25 +234,33 @@ for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t"]:
         model_dist = version.split("-")[-1]
         if model_dist == "t":
             nus = combined_df["AR_GARCH_Nu"].values
-        
+
         entry = {
             "name": version,
             "mean_pred": mus,
             "volatility_pred": ar_garch_vol_pred,
             "symbols": combined_df.index.get_level_values("Symbol"),
             "dates": combined_df.index.get_level_values("Date"),
-            "nll": student_t_nll(
-                y_true,
-                mus,
-                ar_garch_vol_pred,
-                nus,
-            ) if model_dist == "t" else nll_loss_mean_and_vol(
-                y_true,
-                mus,
-                ar_garch_vol_pred,
+            "nll": (
+                student_t_nll(
+                    y_true,
+                    mus,
+                    ar_garch_vol_pred,
+                    nus,
+                )
+                if model_dist == "t"
+                else nll_loss_mean_and_vol(
+                    y_true,
+                    mus,
+                    ar_garch_vol_pred,
+                )
             ),
             "crps": crps,
-            "ece": ece_student_t(y_true, mus, ar_garch_vol_pred, nus) if model_dist == "t" else ece_gaussian(y_true, mus, np.log(ar_garch_vol_pred**2)),
+            "ece": (
+                ece_student_t(y_true, mus, ar_garch_vol_pred, nus)
+                if model_dist == "t"
+                else ece_gaussian(y_true, mus, np.log(ar_garch_vol_pred**2))
+            ),
             "LB_67": combined_df["LB_67"].values,
             "UB_67": combined_df["UB_67"].values,
             "LB_90": combined_df["LB_90"].values,
@@ -264,7 +274,7 @@ for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t"]:
             "ES_97.5": combined_df["ES_97.5"].values,
             "ES_99": combined_df["ES_99"].values,
         }
-    
+
         preds_per_model.append(entry)
         nans = np.isnan(ar_garch_vol_pred).sum()
         if nans > 0:
@@ -469,8 +479,12 @@ for version in [
     "rv-only",
     "rv-5-only",
     "rv-and-ivol",
-    # Ensemble models
+    ###################
+    # Ensemble models #
+    ###################
     "ivol-only_ensemble",
+    "rv-only_ensemble",
+    "ivol-only-2_ensemble",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
@@ -1795,6 +1809,7 @@ include_models = {
     "Transformer MDN tuned",
     "Transformer MDN time",
     "LSTM MDN ivol-only_ensemble",
+    "LSTM MDN ivol-only-2_ensemble",
 }
 for cl in CONFIDENCE_LEVELS:
     existing_tickers = sorted(
