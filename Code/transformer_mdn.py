@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "ivol-only"
+VERSION = "rv-and-ivol"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -23,8 +23,8 @@ INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = False
-INCLUDE_5MIN_RV = False
+INCLUDE_1MIN_RV = True
+INCLUDE_5MIN_RV = True
 INCLUDE_TICKERS = False
 
 # Model architecture
