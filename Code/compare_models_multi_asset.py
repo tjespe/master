@@ -549,6 +549,8 @@ for version in [
     "tuned-8-mixtures",
     "tuned-calibration",
     "ivol-only",
+    "rv-only",
+    "rv-and-ivol",
 ]:
     try:
         transformer_df = pd.read_csv(
@@ -745,9 +747,7 @@ for version in ["v1"]:
 #############################################
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        catboost_preds = pd.read_csv(
-            f"predictions/CatBoost_{version}.csv"
-        )
+        catboost_preds = pd.read_csv(f"predictions/CatBoost_{version}.csv")
         catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
         catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
         catboost_dates = catboost_preds.index.get_level_values("Date")
@@ -755,7 +755,9 @@ for version in ["RV", "IV", "RV_IV"]:
             (catboost_dates >= TRAIN_VALIDATION_SPLIT)
             & (catboost_dates < VALIDATION_TEST_SPLIT)
         ]
-        combined_df = df_validation.join(catboost_preds, how="left", rsuffix="_Catboost")
+        combined_df = df_validation.join(
+            catboost_preds, how="left", rsuffix="_Catboost"
+        )
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
         # same for Vol_SP
@@ -794,9 +796,7 @@ for version in ["RV", "IV", "RV_IV"]:
 
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        lightGBMpreds = pd.read_csv(
-            f"predictions/LightGBM_{version}.csv"
-        )
+        lightGBMpreds = pd.read_csv(f"predictions/LightGBM_{version}.csv")
         lightGBMpreds["Date"] = pd.to_datetime(lightGBMpreds["Date"])
         lightGBMpreds = lightGBMpreds.set_index(["Date", "Symbol"])
         lightGBM_dates = lightGBMpreds.index.get_level_values("Date")
@@ -843,9 +843,7 @@ for version in ["RV", "IV", "RV_IV"]:
 
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        xg_boost_preds = pd.read_csv(
-            f"predictions/XGBoost_{version}.csv"
-        )
+        xg_boost_preds = pd.read_csv(f"predictions/XGBoost_{version}.csv")
         xg_boost_preds["Date"] = pd.to_datetime(xg_boost_preds["Date"])
         xg_boost_preds = xg_boost_preds.set_index(["Date", "Symbol"])
         xg_boost_dates = xg_boost_preds.index.get_level_values("Date")
