@@ -215,7 +215,7 @@ except FileNotFoundError:
 
 # AR GARCH Model
 for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t"]:
-    try: 
+    try:
         ar_garch_preds = pd.read_csv(f"predictions/predictions_{version}.csv")
         ar_garch_preds["Date"] = pd.to_datetime(ar_garch_preds["Date"])
         ar_garch_preds = ar_garch_preds.set_index(["Date", "Symbol"])
@@ -1880,6 +1880,8 @@ for cl in CONFIDENCE_LEVELS:
 # Define the most important loss functions
 loss_fns = [
     "nll",
+    "ece",
+    "crps",
     "FZ0_95",
     "AL_95",
     "FZ0_97.5",
@@ -1990,6 +1992,11 @@ for metric in loss_fns:
 
     # Ensure no NaNs or infs
     assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
+
+    # Skip if no models remain
+    if loss_matrix.shape[1] == 0:
+        print(f"No models remain for {metric}, skipping MCS")
+        continue
 
     # Perform the MCS procedure at 5% significance (95% confidence)
     # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
