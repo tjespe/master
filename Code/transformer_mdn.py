@@ -5,7 +5,7 @@ from typing import Optional
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 
-VERSION = "tuned-calibration"
+VERSION = "ivol-only"
 
 # Features
 MULTIPLY_MARKET_FEATURES_BY_BETA = False
@@ -21,16 +21,18 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
-INCLUDE_1MIN_RV = True
-INCLUDE_5MIN_RV = True
+INCLUDE_10_DAY_IVOL = True
+INCLUDE_30_DAY_IVOL = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
 INCLUDE_TICKERS = False
 
 # Model architecture
 D_MODEL = 32
-HIDDEN_UNITS_FF = 336
-N_MIXTURES = 15
+HIDDEN_UNITS_FF = 300
+N_MIXTURES = 10
 DROPOUT = 0
-L2_REGULARIZATION = 4.4e-7
+L2_REGULARIZATION = 1e-6
 NUM_ENCODERS = 1
 NUM_HEADS = 2
 D_TICKER_EMBEDDING = None
@@ -43,7 +45,7 @@ REDUCE_LR_PATIENCE = 3  # Patience before halving learning rate
 PATIENCE = 10  # Early stopping patience
 REWEIGHT_WORST_PERFORMERS = False
 REWEIGHT_WORST_PERFORMERS_EPOCHS = None
-BATCH_SIZE = 24
+BATCH_SIZE = 40
 ENSEMBLE_MODELS = None
 
 # %%
@@ -116,6 +118,8 @@ if "data" not in dir() or input("Reload data? (y/N): ") == "y":
         include_fred_md=INCLUDE_FRED_MD,
         include_1min_rv=INCLUDE_1MIN_RV,
         include_5min_rv=INCLUDE_5MIN_RV,
+        include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
+        + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
     )
 
 # %%
@@ -632,7 +636,7 @@ df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
 # Calculate ECE
 ece = ece_mdn(N_MIXTURES, data.validation.y, y_pred_mdn)
 df_validation["ECE"] = ece
-df_validation["ECE"]
+ece
 
 # %%
 # Add confidence intervals
