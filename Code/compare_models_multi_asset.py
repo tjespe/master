@@ -214,7 +214,7 @@ except FileNotFoundError:
     print("GARCH Student-t predictions not found")
 
 # AR GARCH Model
-for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t"]:
+for version in ["AR(1)-GARCH(1,1)-normal", "AR(1)-GARCH(1,1)-t", "AR(10)-GARCH(1,1)-normal"]:
     try:
         ar_garch_preds = pd.read_csv(f"predictions/predictions_{version}.csv")
         ar_garch_preds["Date"] = pd.to_datetime(ar_garch_preds["Date"])

@@ -1,7 +1,7 @@
 # %%
 # Define version paramaters 
-AR_LAGS = 1
-DIST = "t"
+AR_LAGS = 10
+DIST = "normal"
 
 VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
