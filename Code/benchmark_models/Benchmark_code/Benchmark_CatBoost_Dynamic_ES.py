@@ -2,6 +2,17 @@
 # ========================= CATBOOST MODEL ==============================
 # =============================================================================
 
+
+
+# %%
+# define what version to run
+INCLUDE_RV = True
+INCLUDE_IV = False
+
+# version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
+VERSION = "RV" if INCLUDE_RV and not INCLUDE_IV else "IV" if INCLUDE_IV and not INCLUDE_RV else "RV_IV" if INCLUDE_RV and INCLUDE_IV else "None"
+
+print(f"Running version: {VERSION}")
 # %%
 # =============================================================================
 # 1 Functions
@@ -31,7 +42,7 @@ from processing import get_lstm_train_test_new
 # Define all ES Quantiles and sub-quantiles of interest
 
 # ES quantiles of interest
-ES_quantiles = [0.01, 0.025, 0.05,  0.95, 0.975, 0.99]
+ES_quantiles = [0.835, 0.95, 0.975, 0.99]
 p = 5  # 'p' defined as per requirement
 
 # Create a list to store the quantiles
@@ -86,28 +97,31 @@ def ensure_non_crossing_unified(df: pd.DataFrame) -> pd.DataFrame:
 
 #Function to get a df from the preprocessed data
 def combine_processed_data_into_df(window_size=1500):
-    data = get_lstm_train_test_new(multiply_by_beta=False,
-                                    include_fng=False,
-                                    include_spx_data=False,
-                                    include_returns=False,
-                                    include_industry=False,
-                                    include_garch=False,
-                                    include_beta=False,
-                                    include_others=False)
+    data = get_lstm_train_test_new(
+        include_1min_rv = INCLUDE_RV,
+        include_5min_rv = INCLUDE_RV,
+        include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_IV else [])
+        + (["Historical Call IVOL"] if INCLUDE_IV else [])
+    )
 
     X_train = data.train.X
     y_train = data.train.y
     X_val = data.validation.X
     y_val = data.validation.y
+    X_test = data.test.X
+    y_test = data.test.y
     tickers_train = data.train.tickers
     tickers_val = data.validation.tickers
+    tickers_test = data.test.tickers
     dates_train = data.train.dates
     dates_val = data.validation.dates
+    dates_test = data.test.dates
 
  
     # Changing shape to not take in lags as features
     X_train = X_train[:, -1, : ]
     X_val = X_val[:, -1, : ]
+    X_test = X_test[:, -1, : ]
 
     # make a training set as df
     feat_cols = [f"feat_{i}" for i in range(X_train.shape[1])]
@@ -118,9 +132,26 @@ def combine_processed_data_into_df(window_size=1500):
 
     print("df_train shape: ", df_train.shape)
 
+    # Do the same for the validation set but keep all data
+    feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
+    df_val = pd.DataFrame(X_val, columns=feat_cols)
+    df_val["Date"] = dates_val
+    df_val["Symbol"] = tickers_val
+    df_val["TrueY"] = y_val
+    print("df_val shape: ", df_val.shape)
+
+ 
+    # count how many entries there are per ticker in the data
+    print(df_val["Symbol"].value_counts())
+
+    # merge the training and validation data since we now are going to predict the test set
+    df_train = pd.concat([df_train, df_val], axis=0)
+    print("df_train after merge shape: ", df_train.shape)
+
+
     # remove all elements from the training set except the last window_size dates for each ticker
     df_train = df_train.groupby("Symbol").tail(window_size)
-    print("df_train shape: ", df_train.shape)
+    print("df_train after removing all except tail shape shape: ", df_train.shape)
 
    
     # count how many entries there are per ticker in the data
@@ -135,22 +166,17 @@ def combine_processed_data_into_df(window_size=1500):
     print(f"First date: {df_train['Date'].min()}")
 
 
- 
-    # Do the same for the validation set but keep all data
-    feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
-    df_val = pd.DataFrame(X_val, columns=feat_cols)
-    df_val["Date"] = dates_val
-    df_val["Symbol"] = tickers_val
-    df_val["TrueY"] = y_val
-    print("df_val shape: ", df_val.shape)
+   # do the same for the test set but keep all data
+    feat_cols = [f"feat_{i}" for i in range(X_test.shape[1])]
+    df_test = pd.DataFrame(X_test, columns=feat_cols)
+    df_test["TrueY"] = y_test
+    df_test["Date"] = dates_test
+    df_test["Symbol"] = tickers_test
+    print("df_test shape: ", df_test.shape)
 
- 
-    # count how many entries there are per ticker in the data
-    print(df_val["Symbol"].value_counts())
 
-   
-    # merge the training and validation data
-    df_big = pd.concat([df_train, df_val], axis=0)
+    # merge the training and test data since we now are going to predict the test set
+    df_big = pd.concat([df_train, df_test], axis=0)
     print("df_big shape: ", df_big.shape)
 
     # count how many entries there are per ticker in the data
@@ -159,14 +185,11 @@ def combine_processed_data_into_df(window_size=1500):
     # Sort by date, then ticker
     df_big.sort_values(by=["Date", "Symbol"], inplace=True)
 
-    # Encode Ticker as categorical (LabelEncoder) or leave as string category (MAYBE NOT USE LABELENCODER)
-    le = LabelEncoder()
-    le.fit(df_big["Symbol"])
-    df_big["Ticker_Cat"] = le.transform(df_big["Symbol"])
 
     # Return the big DF plus some info about which columns to use as features
-    feature_cols = feat_cols + ["Ticker_Cat"]  # We'll pass these to CatBoost
-    cat_feature_index = [len(feature_cols) - 1]  # Ticker_Cat is last => cat col
+    feature_cols = feat_cols  # We'll pass these to CatBoost
+    # the categorical feature index is the one with coloumn name "Symbol"
+    cat_feature_index = [df_big.columns.get_loc("Symbol")] # We'll pass this to CatBoost
     return df_big, feature_cols, cat_feature_index
 
 # %%
@@ -339,8 +362,7 @@ final_df
 
 # %%
 # Write the quantile predictions to a csv file for storage
-predictions_copy = final_df.copy()
-final_df.to_csv("Benchmark_Catboost_Dynamic_ES_quantiles.csv", index=False)
+# Not needed anymore because we do this below
 
 # %%
 # =============================================================================
@@ -349,7 +371,7 @@ final_df.to_csv("Benchmark_Catboost_Dynamic_ES_quantiles.csv", index=False)
 
 def estimate_es_from_predictions(
     df_preds: pd.DataFrame,
-    es_alphas=[0.01, 0.025, 0.05,  0.95, 0.975, 0.99],
+    es_alphas=[0.835, 0.95, 0.975, 0.99],
     p=5
 ) -> pd.DataFrame:
     """
@@ -405,10 +427,10 @@ def estimate_es_from_predictions(
 
     return df_out
 
-es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05,  0.95, 0.975, 0.99])
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.835, 0.95, 0.975, 0.99])
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
-es_df.to_csv("../../predictions/Benchmark_Catboost_Dynamic_ES_stocks_RVdata.csv", index=False)
+es_df.to_csv(f"../../predictions/Catboost_{VERSION}.csv", index=False)
 
 # %%
