@@ -6,8 +6,8 @@
 
 # %%
 # define what version to run
-INCLUDE_RV = True
-INCLUDE_IV = False
+INCLUDE_RV = False
+INCLUDE_IV = True
 
 # version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
 VERSION = "RV" if INCLUDE_RV and not INCLUDE_IV else "IV" if INCLUDE_IV and not INCLUDE_RV else "RV_IV" if INCLUDE_RV and INCLUDE_IV else "None"
@@ -187,7 +187,7 @@ def combine_processed_data_into_df(window_size=1500):
 
 
     # Return the big DF plus some info about which columns to use as features
-    feature_cols = feat_cols  # We'll pass these to CatBoost
+    feature_cols = feat_cols  + ["Symbol"] # We'll pass these to CatBoost
     # the categorical feature index is the one with coloumn name "Symbol"
     cat_feature_index = [df_big.columns.get_loc("Symbol")] # We'll pass this to CatBoost
     return df_big, feature_cols, cat_feature_index
