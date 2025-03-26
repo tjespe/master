@@ -431,6 +431,6 @@ es_df = estimate_es_from_predictions(final_df, es_alphas=[0.835, 0.95, 0.975, 0.
 es_df
 # %%
 # Write the ES predictions to a csv file for storage
-es_df.to_csv(f"../../predictions/Catboost_{VERSION}.csv", index=False)
+es_df.to_csv(f"../../predictions/CatBoost_{VERSION}.csv", index=False)
 
 # %%

@@ -381,7 +381,7 @@ es_df
 
 # %%
 # Write to csv
-es_df.to_csv("../../predictions/Benchmark_XGBoost_Dynamic_ES_stocks_RVdata.csv", index=False)
+es_df.to_csv(f"../../predictions/XGBoost_{VERSION}.csv", index=False)
 
 
 # %%
