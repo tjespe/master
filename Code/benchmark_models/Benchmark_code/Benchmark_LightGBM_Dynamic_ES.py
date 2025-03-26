@@ -187,7 +187,7 @@ def combine_processed_data_into_df(window_size=1500):
     df_big["Symbol"] = df_big["Symbol"].astype("category")
 
     # Return the big DF plus some info about which columns to use as features
-    feature_cols = feat_cols
+    feature_cols = feat_cols + ["Symbol"]
     cat_feature_index = [df_big.columns.get_loc("Symbol")] # We'll pass this to LIGHTGBM to indicate that Symbol is a categorical feature
     return df_big, feature_cols, cat_feature_index
 
