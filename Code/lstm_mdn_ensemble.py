@@ -4,10 +4,10 @@ import subprocess
 from typing import Optional
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
-from settings import LOOKBACK_DAYS, SUFFIX
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol"
+VERSION = "rv-and-ivol-final"
 
 # %%
 # Feature selection
@@ -46,6 +46,9 @@ WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
 N_ENSEMBLE_MEMBERS = 10
+OPTIMAL_EPOCHS = 8
+USE_EARLY_STOPPING = TEST_SET == "validation"
+EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
 
 # %%
 # Imports from code shared across models
@@ -221,11 +224,11 @@ def _train_single_member(args):
     history = model.fit(
         X_train,
         y_train,
-        epochs=50,
+        epochs=EPOCHS,
         batch_size=batch_size,
         verbose=0,
         validation_data=(X_val, y_val),
-        callbacks=[early_stop, progress_cb],
+        callbacks=[early_stop, progress_cb] if USE_EARLY_STOPPING else [progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
@@ -261,28 +264,34 @@ if __name__ == "__main__":
     gc.collect()
 
     # %%
+    # Extract correct train and test data based on settings
+    train = data.get_training_set(test_set=TEST_SET)
+    test = data.get_test_set(test_set=TEST_SET)
+
+    # %%
     # 1) Inspect shapes
-    print(f"X_train.shape: {data.train.X.shape}, y_train.shape: {data.train.y.shape}")
-    print(f"Validation set shape: {data.validation.X.shape}, {data.validation.y.shape}")
+    print(f"X_train.shape: {train.X.shape}, y_train.shape: {train.y.shape}")
+    print(f"Training dates: {train.dates.min().date()} to {train.dates.max().date()}")
+    print(f"Test set shape: {test.X.shape}, {test.y.shape}")
+    print(f"Test dates: {test.dates.min().date()} to {test.dates.max().date()}")
 
     # %%
     # 2) Build model
     ensemble_model = MDNEnsemble(
         [
             build_lstm_mdn(
-                num_features=data.train.X.shape[2],
+                num_features=train.X.shape[2],
                 ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
             )
             for _ in range(N_ENSEMBLE_MEMBERS)
         ],
         N_MIXTURES,
     )
+    already_trained = False
 
     # %%
     # 4) Load existing model if it exists
-    load_best_val_loss_model = False
-    best_val_suffix = "_best_val_loss" if load_best_val_loss_model else ""
-    model_fname = f"models/{MODEL_NAME}{best_val_suffix}.keras"
+    model_fname = f"models/{MODEL_NAME}.keras"
     if os.path.exists(model_fname):
         mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
         mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
@@ -296,30 +305,25 @@ if __name__ == "__main__":
             },
         )
         print("Loaded pre-trained model from disk.")
+        already_trained = True
 
     # %%
     # 5) Train model
     # Train each member in parallel until val loss converges
-    X_train = [data.train.X, data.train_ticker_ids] if INCLUDE_TICKERS else data.train.X
-    y_train = data.train.y
-    X_val = (
-        [data.validation.X, data.validation_ticker_ids]
-        if INCLUDE_TICKERS
-        else data.validation.X
-    )
-    y_val = data.validation.y
+    X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
+    y_train = train.y
+    X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
+    y_test = test.y
 
     # Create argument tuples for each submodel
     job_args = []
     for i in range(N_ENSEMBLE_MEMBERS):
         build_kwargs = {
-            "num_features": data.train.X.shape[2],
+            "num_features": train.X.shape[2],
             "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
         }
         pre_trained_weights = (
-            ensemble_model.submodels[i].get_weights()
-            if load_best_val_loss_model
-            else None
+            ensemble_model.submodels[i].get_weights() if already_trained else None
         )
         job_args.append(
             (
@@ -327,8 +331,8 @@ if __name__ == "__main__":
                 build_kwargs,
                 X_train,
                 y_train,
-                X_val,
-                y_val,
+                X_test,
+                y_test,
                 BATCH_SIZE,
                 PATIENCE,
                 LEARNING_RATE,
@@ -444,9 +448,7 @@ if __name__ == "__main__":
     # %%
     # 8) Single-pass predictions
     y_pred_mdn, epistemic_var = ensemble_model.predict(
-        [data.validation.X, data.validation_ticker_ids]
-        if INCLUDE_TICKERS
-        else data.validation.X
+        [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
     )
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
@@ -456,8 +458,8 @@ if __name__ == "__main__":
     # 9) Plot 10 charts with the distributions for 10 random days
     example_tickers = ["AAPL", "WMT", "GS"]
     for ticker in example_tickers:
-        s = data.validation.sets[ticker]
-        from_idx, to_idx = data.validation.get_range(ticker)
+        s = test.sets[ticker]
+        from_idx, to_idx = test.get_range(ticker)
         plot_sample_days(
             s.y_dates,
             s.y,
@@ -479,8 +481,8 @@ if __name__ == "__main__":
     legend_dict = {}
 
     for ax, ticker in zip(axes, example_tickers):
-        s = data.validation.sets[ticker]
-        from_idx, to_idx = data.validation.get_range(ticker)
+        s = test.sets[ticker]
+        from_idx, to_idx = test.get_range(ticker)
         pi_pred_ticker = pi_pred[from_idx:to_idx]
         for j in range(N_MIXTURES * N_ENSEMBLE_MEMBERS):
             mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
@@ -516,12 +518,12 @@ if __name__ == "__main__":
     shift = 1
     mean = (pi_pred * mu_pred).numpy().sum(axis=1)
     for ticker in example_tickers:
-        from_idx, to_idx = data.validation.get_range(ticker)
+        from_idx, to_idx = test.get_range(ticker)
         ticker_mean = mean[from_idx:to_idx]
         filtered_mean = ticker_mean[-days - shift : -shift]
         ticker_intervals = intervals[from_idx:to_idx]
         filtered_intervals = ticker_intervals[-days - shift : -shift]
-        s = data.validation.sets[ticker]
+        s = test.sets[ticker]
         dates = s.y_dates[-days - shift : -shift]
         actual_return = s.y[-days - shift : -shift]
 
@@ -567,7 +569,7 @@ if __name__ == "__main__":
     # %%
     # 13) Make data frame for signle pass predictions
     df_validation = pd.DataFrame(
-        np.vstack([data.validation.dates, data.validation.tickers]).T,
+        np.vstack([test.dates, test.tickers]).T,
         columns=["Date", "Symbol"],
     )
     # %%
@@ -583,17 +585,17 @@ if __name__ == "__main__":
     # %%
     # Calculate loss
     df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES * N_ENSEMBLE_MEMBERS)(
-        data.validation.y, y_pred_mdn
+        test.y, y_pred_mdn
     )
 
     # %%
     # Calculate CRPS
     crps = mdn_crps_tf(N_MIXTURES * N_ENSEMBLE_MEMBERS)
-    df_validation["CRPS"] = crps(data.validation.y, y_pred_mdn)
+    df_validation["CRPS"] = crps(test.y, y_pred_mdn)
 
     # %%
     # Calculate ECE
-    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, data.validation.y, y_pred_mdn)
+    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, test.y, y_pred_mdn)
     df_validation["ECE"] = ece
     ece
 

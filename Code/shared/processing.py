@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from functools import cached_property
 from collections import OrderedDict
-from typing import Iterable, Union
+from typing import Iterable, Literal, Union
 import os
 import tensorflow as tf
 from settings import (
@@ -67,6 +67,43 @@ class LabelledDataSet:
     def __repr__(self):
         return str(self)
 
+    def merge(self, other: "LabelledDataSet") -> "LabelledDataSet":
+        return LabelledDataSet(
+            ticker=self.ticker,
+            X=np.concatenate([self.X, other.X]),
+            col_names=self.col_names,
+            y=np.concatenate([self.y, other.y]),
+            y_dates=self.y_dates + other.y_dates,
+        )
+
+    def filter_by_dates(
+        self, from_date: pd.Timestamp | None, to_date: pd.Timestamp | None
+    ) -> "LabelledDataSet":
+        """
+        Filter the dataset by dates.
+
+        Args:
+            from_date: The start date (inclusive), or None to not filter
+            to_date: The end date (inclusive), or None to not filter
+
+        Returns:
+            A new LabelledDataSet with the filtered data
+        """
+        mask = np.ones(len(self.y_dates), dtype=bool)
+        # Convert y_dates to dates (without time)
+        y_dates = pd.to_datetime(self.y_dates).date
+        if from_date is not None:
+            mask &= y_dates >= from_date.date()
+        if to_date is not None:
+            mask &= y_dates <= to_date.date()
+        return LabelledDataSet(
+            ticker=self.ticker,
+            X=self.X[mask],
+            col_names=self.col_names,
+            y=self.y[mask],
+            y_dates=[d for d, m in zip(self.y_dates, mask) if m],
+        )
+
 
 @dataclass
 class DataSetCollection:
@@ -104,9 +141,43 @@ class DataSetCollection:
             OrderedDict((k, v) for k, v in self.sets.items() if k in tickers)
         )
 
+    def filter_by_dates(
+        self, from_date: pd.Timestamp | None, to_date: pd.Timestamp | None
+    ) -> "DataSetCollection":
+        """
+        Filter the dataset by dates.
+
+        Args:
+            from_date: The start date (inclusive), or None to not filter
+            to_date: The end date (inclusive), or None to not filter
+        """
+        return DataSetCollection(
+            OrderedDict(
+                (ticker, set.filter_by_dates(from_date, to_date))
+                for ticker, set in self.sets.items()
+            )
+        )
+
     @cached_property
     def df(self) -> pd.DataFrame:
         return pd.concat([s.df for s in self.sets.values()])
+
+    def merge(self, other: "DataSetCollection") -> "DataSetCollection":
+        """
+        Merge two DataSetCollections together.
+        If tickers overlap, the underlying datasets will be merged.
+        """
+        merged_sets = OrderedDict()
+        for ticker, set1 in self.sets.items():
+            if ticker in other.sets:
+                set2 = other.sets[ticker]
+                merged_sets[ticker] = set1.merge(set2)
+            else:
+                merged_sets[ticker] = set1
+        for ticker, set2 in other.sets.items():
+            if ticker not in merged_sets:
+                merged_sets[ticker] = set2
+        return DataSetCollection(merged_sets)
 
 
 @dataclass
@@ -153,6 +224,32 @@ class ProcessedData:
         test_df = self.test.df.copy()
         test_df["Set"] = "Test"
         return pd.concat([train_df, validation_df, test_df])
+
+    def get_training_set(
+        self, test_set: Literal["test", "validation"]
+    ) -> DataSetCollection:
+        if test_set == "test":
+            return self.train.merge(self.validation)
+        return self.train
+
+    def get_test_set(
+        self, test_set: Literal["test", "validation"]
+    ) -> DataSetCollection:
+        if test_set == "test":
+            return self.test
+        return self.validation
+
+    @cached_property
+    def all(self) -> DataSetCollection:
+        return self.train.merge(self.validation).merge(self.test)
+
+    def get_training_set_for_date(
+        self, prediction_date: pd.Timestamp
+    ) -> DataSetCollection:
+        return self.all.filter_by_dates(None, prediction_date - pd.Timedelta(days=1))
+
+    def get_test_set_for_date(self, prediction_date: pd.Timestamp) -> DataSetCollection:
+        return self.all.filter_by_dates(prediction_date)
 
 
 def get_lstm_train_test_new(
