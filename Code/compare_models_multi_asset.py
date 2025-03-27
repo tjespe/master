@@ -17,6 +17,7 @@ from settings import (
     SUFFIX,
     TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
+    TEST_SET,
 )
 from data.tickers import IMPORTANT_TICKERS
 from scipy.stats import ttest_rel
@@ -100,7 +101,11 @@ df
 # %%
 # Get validation part of df
 dates = df.index.get_level_values("Date")
-df_validation = df[(dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)]
+df_validation = (
+    df[(dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)]
+    if TEST_SET == "validation"
+    else df[(dates >= VALIDATION_TEST_SPLIT)]
+)
 df_validation
 
 # %%
@@ -490,6 +495,12 @@ for version in [
     "ivol-only-2_ensemble",
     "rv-only_ensemble",
     "rv-and-ivol_ensemble",
+    ####################
+    # Test data models #
+    ####################
+    "ivol-final_ensemble",
+    "rv-final_ensemble",
+    "rv-and-ivol-final_ensemble",
 ]:
     try:
         lstm_mdn_df = pd.read_csv(

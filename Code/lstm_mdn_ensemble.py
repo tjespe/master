@@ -41,6 +41,7 @@ MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}"
 
 # %%
 # Settings for training
+TRAIN = False
 PATIENCE = 3  # Early stopping patience
 WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
@@ -49,7 +50,7 @@ N_ENSEMBLE_MEMBERS = 10
 OPTIMAL_EPOCHS = 8
 USE_EARLY_STOPPING = TEST_SET == "validation"
 EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
-PARALLELLIZE = False
+PARALLELLIZE = True
 
 # %%
 # Imports from code shared across models
@@ -221,19 +222,19 @@ def _train_single_member(args):
     # custom callback
     progress_cb = ParallelProgressCallback(worker_id=i)
 
-    print(f"[Parallel] Fitting model {i}...")
+    print(f"[Worker {i}] Fitting model {i}...")
     history = model.fit(
         X_train,
         y_train,
         epochs=EPOCHS,
         batch_size=batch_size,
-        verbose=0,
+        verbose=not PARALLELLIZE,
         validation_data=(X_val, y_val),
         callbacks=[early_stop, progress_cb] if USE_EARLY_STOPPING else [progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
-    print(f"[Parallel] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
+    print(f"[Worker {i}] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
     return i, model.get_weights(), history.history, val_loss, best_epoch
 
 
@@ -241,6 +242,7 @@ def _train_single_member(args):
 # Begin script
 if __name__ == "__main__":
     print(f"Training LSTM MDN Ensemble v{VERSION}")
+    mp.set_start_method("spawn", force=True)
 
     # %%
     # Load preprocessed data
@@ -348,108 +350,107 @@ if __name__ == "__main__":
     val_losses = [None] * N_ENSEMBLE_MEMBERS
     optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
 
-    if PARALLELLIZE:
-        with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
-            results = pool.map(_train_single_member, job_args)
-    else:
-        results = [
-            _train_single_member(args) for args in job_args
-        ]
+    if TRAIN:
+      if PARALLELLIZE:
+          with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
+              results = pool.map(_train_single_member, job_args)
+      else:
+          results = [_train_single_member(args) for args in job_args]
 
-    # results is a list of (i, trained_model, history_dict, val_loss).
-    # Sort by i so we can store them in order:
-    results.sort(key=lambda x: x[0])
+      # results is a list of (i, trained_model, history_dict, val_loss).
+      # Sort by i so we can store them in order:
+      results.sort(key=lambda x: x[0])
 
-    # Store trained submodels back into the ensemble, plus record histories/losses
-    for i, weights, hist_dict, best_loss, best_epoch in results:
-        ensemble_model.submodels[i].set_weights(weights)
-        histories[i] = hist_dict
-        val_losses[i] = best_loss
-        optimal_epochs[i] = best_epoch
-        print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
+      # Store trained submodels back into the ensemble, plus record histories/losses
+      for i, weights, hist_dict, best_loss, best_epoch in results:
+          ensemble_model.submodels[i].set_weights(weights)
+          histories[i] = hist_dict
+          val_losses[i] = best_loss
+          optimal_epochs[i] = best_epoch
+          print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
 
-    # %%
-    # 6) Save model
-    ensemble_model.save(model_fname)
+      # %%
+      # 6) Save model
+      ensemble_model.save(model_fname)
 
-    # Store details from training
-    with open(f"models/{MODEL_NAME}_training_details.txt", "w") as f:
-        f.write(f"Training details for {MODEL_NAME}\n")
-        f.write(f"VERSION: {VERSION}\n")
-        f.write(f"LOOKBACK_DAYS: {LOOKBACK_DAYS}\n")
-        f.write(f"SUFFIX: {SUFFIX}\n")
-        f.write(f"\n\nFeatures:\n")
-        f.write(
-            f"MULTIPLY_MARKET_FEATURES_BY_BETA: {MULTIPLY_MARKET_FEATURES_BY_BETA}\n"
-        )
-        f.write(f"PI_PENALTY: {PI_PENALTY}\n")
-        f.write(f"MU_PENALTY: {MU_PENALTY}\n")
-        f.write(f"SIGMA_PENALTY: {SIGMA_PENALTY}\n")
-        f.write(f"INCLUDE_MARKET_FEATURES: {INCLUDE_MARKET_FEATURES}\n")
-        f.write(f"INCLUDE_FNG: {INCLUDE_FNG}\n")
-        f.write(f"INCLUDE_RETURNS: {INCLUDE_RETURNS}\n")
-        f.write(f"INCLUDE_INDUSTRY: {INCLUDE_INDUSTRY}\n")
-        f.write(f"INCLUDE_GARCH: {INCLUDE_GARCH}\n")
-        f.write(f"INCLUDE_BETA: {INCLUDE_BETA}\n")
-        f.write(f"INCLUDE_OTHERS: {INCLUDE_OTHERS}\n")
-        f.write(f"INCLUDE_TICKERS: {INCLUDE_TICKERS}\n")
-        f.write(f"INCLDUE_FRED_MD: {INCLDUE_FRED_MD}\n")
-        f.write(f"INCLUDE_10_DAY_IVOL: {INCLUDE_10_DAY_IVOL}\n")
-        f.write(f"INCLUDE_30_DAY_IVOL: {INCLUDE_30_DAY_IVOL}\n")
-        f.write(f"INCLUDE_1MIN_RV: {INCLUDE_1MIN_RV}\n")
-        f.write(f"INCLUDE_5MIN_RV: {INCLUDE_5MIN_RV}\n")
-        f.write(f"\n\nModel settings:\n")
-        f.write(f"HIDDEN_UNITS: {HIDDEN_UNITS}\n")
-        f.write(f"N_MIXTURES: {N_MIXTURES}\n")
-        f.write(f"DROPOUT: {DROPOUT}\n")
-        f.write(f"L2_REG: {L2_REG}\n")
-        f.write(f"NUM_HIDDEN_LAYERS: {NUM_HIDDEN_LAYERS}\n")
-        f.write(f"EMBEDDING_DIMENSIONS: {EMBEDDING_DIMENSIONS}\n")
-        f.write(f"\n\nTraining settings:\n")
-        f.write(f"PATIENCE: {PATIENCE}\n")
-        f.write(f"WEIGHT_DECAY: {WEIGHT_DECAY}\n")
-        f.write(f"LEARNING_RATE: {LEARNING_RATE}\n")
-        f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
-        f.write(f"N_ENSEMBLE_MEMBERS: {N_ENSEMBLE_MEMBERS}\n")
-        f.write(f"\n\nTraining results:\n")
-        f.write(f"Optimal number of epochs: {[int(n) for n in optimal_epochs]}\n")
-        f.write(f"Validation losses: {val_losses}\n")
-        f.write(f"\n\nTraining loss histories:\n")
-        training_loss_df = pd.DataFrame(
-            [h["loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-        )
-        training_loss_df.index.name = "Member"
-        training_loss_df.columns = [
-            f"Epoch {i}" for i in range(1, training_loss_df.shape[1] + 1)
-        ]
-        training_loss_df.to_csv(f, sep="\t", mode="a")
-        f.write("\n\nValidation loss histories:\n")
-        validation_loss_df = pd.DataFrame(
-            [h["val_loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-        )
-        validation_loss_df.index.name = "Member"
-        validation_loss_df.columns = [
-            f"Epoch {i}" for i in range(1, validation_loss_df.shape[1] + 1)
-        ]
-        validation_loss_df.to_csv(f, sep="\t", mode="a")
+      # Store details from training
+      with open(f"models/{MODEL_NAME}_training_details.txt", "w") as f:
+          f.write(f"Training details for {MODEL_NAME}\n")
+          f.write(f"VERSION: {VERSION}\n")
+          f.write(f"LOOKBACK_DAYS: {LOOKBACK_DAYS}\n")
+          f.write(f"SUFFIX: {SUFFIX}\n")
+          f.write(f"\n\nFeatures:\n")
+          f.write(
+              f"MULTIPLY_MARKET_FEATURES_BY_BETA: {MULTIPLY_MARKET_FEATURES_BY_BETA}\n"
+          )
+          f.write(f"PI_PENALTY: {PI_PENALTY}\n")
+          f.write(f"MU_PENALTY: {MU_PENALTY}\n")
+          f.write(f"SIGMA_PENALTY: {SIGMA_PENALTY}\n")
+          f.write(f"INCLUDE_MARKET_FEATURES: {INCLUDE_MARKET_FEATURES}\n")
+          f.write(f"INCLUDE_FNG: {INCLUDE_FNG}\n")
+          f.write(f"INCLUDE_RETURNS: {INCLUDE_RETURNS}\n")
+          f.write(f"INCLUDE_INDUSTRY: {INCLUDE_INDUSTRY}\n")
+          f.write(f"INCLUDE_GARCH: {INCLUDE_GARCH}\n")
+          f.write(f"INCLUDE_BETA: {INCLUDE_BETA}\n")
+          f.write(f"INCLUDE_OTHERS: {INCLUDE_OTHERS}\n")
+          f.write(f"INCLUDE_TICKERS: {INCLUDE_TICKERS}\n")
+          f.write(f"INCLDUE_FRED_MD: {INCLDUE_FRED_MD}\n")
+          f.write(f"INCLUDE_10_DAY_IVOL: {INCLUDE_10_DAY_IVOL}\n")
+          f.write(f"INCLUDE_30_DAY_IVOL: {INCLUDE_30_DAY_IVOL}\n")
+          f.write(f"INCLUDE_1MIN_RV: {INCLUDE_1MIN_RV}\n")
+          f.write(f"INCLUDE_5MIN_RV: {INCLUDE_5MIN_RV}\n")
+          f.write(f"\n\nModel settings:\n")
+          f.write(f"HIDDEN_UNITS: {HIDDEN_UNITS}\n")
+          f.write(f"N_MIXTURES: {N_MIXTURES}\n")
+          f.write(f"DROPOUT: {DROPOUT}\n")
+          f.write(f"L2_REG: {L2_REG}\n")
+          f.write(f"NUM_HIDDEN_LAYERS: {NUM_HIDDEN_LAYERS}\n")
+          f.write(f"EMBEDDING_DIMENSIONS: {EMBEDDING_DIMENSIONS}\n")
+          f.write(f"\n\nTraining settings:\n")
+          f.write(f"PATIENCE: {PATIENCE}\n")
+          f.write(f"WEIGHT_DECAY: {WEIGHT_DECAY}\n")
+          f.write(f"LEARNING_RATE: {LEARNING_RATE}\n")
+          f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
+          f.write(f"N_ENSEMBLE_MEMBERS: {N_ENSEMBLE_MEMBERS}\n")
+          f.write(f"\n\nTraining results:\n")
+          f.write(f"Optimal number of epochs: {[int(n) for n in optimal_epochs]}\n")
+          f.write(f"Validation losses: {val_losses}\n")
+          f.write(f"\n\nTraining loss histories:\n")
+          training_loss_df = pd.DataFrame(
+              [h["loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
+          )
+          training_loss_df.index.name = "Member"
+          training_loss_df.columns = [
+              f"Epoch {i}" for i in range(1, training_loss_df.shape[1] + 1)
+          ]
+          training_loss_df.to_csv(f, sep="\t", mode="a")
+          f.write("\n\nValidation loss histories:\n")
+          validation_loss_df = pd.DataFrame(
+              [h["val_loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
+          )
+          validation_loss_df.index.name = "Member"
+          validation_loss_df.columns = [
+              f"Epoch {i}" for i in range(1, validation_loss_df.shape[1] + 1)
+          ]
+          validation_loss_df.to_csv(f, sep="\t", mode="a")
 
-    # %%
-    # 7) Commit and push
-    try:
-        subprocess.run(["git", "pull"], check=True)
-        subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
+      # %%
+      # 7) Commit and push
+      try:
+          subprocess.run(["git", "pull"], check=True)
+          subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
-        commit_header = f"Train LSTM MDN Ensemble {VERSION}"
-        commit_body = f"Training history:\n" + "\n".join(
-            [str(h.history) for h in histories]
-        )
+          commit_header = f"Train LSTM MDN Ensemble {VERSION}"
+          commit_body = f"Training history:\n" + "\n".join(
+              [str(h.history) for h in histories]
+          )
 
-        subprocess.run(
-            ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
-        )
-        subprocess.run(["git", "push"], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Git command failed: {e}")
+          subprocess.run(
+              ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
+          )
+          subprocess.run(["git", "push"], check=True)
+      except subprocess.CalledProcessError as e:
+          print(f"Git command failed: {e}")
 
     # %%
     # 8) Single-pass predictions
@@ -509,7 +510,6 @@ if __name__ == "__main__":
     fig.legend(handles, labels, loc="center left")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(f"results/lstm_mdn_v{VERSION}_ensemble_mixture_weights.svg")
-    plt.show()
 
     # %%
     # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
@@ -570,7 +570,6 @@ if __name__ == "__main__":
         plt.ylabel("LogReturn")
         plt.legend()
         plt.savefig(f"results/time_series/{ticker}_lstm_mdn_v{VERSION}_ensemble.svg")
-        plt.show()
 
     # %%
     # 13) Make data frame for signle pass predictions
@@ -655,7 +654,7 @@ if __name__ == "__main__":
         subprocess.run(["git", "pull"], check=True)
         subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
         commit_header = f"Add predictions for LSTM MDN Ensemble {VERSION}"
-        commit_body = f"Validation loss: {df_validation['NLL'].mean()}"
+        commit_body = f"Loss ({TEST_SET}): {df_validation['NLL'].mean()}"
         subprocess.run(
             ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
         )

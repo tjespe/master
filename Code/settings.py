@@ -14,7 +14,7 @@ VALIDATION_TEST_SPLIT = "2022-12-31"
 TEST_ASSET = "AAPL"
 
 # Define which test set to use (either "test" or "validation")
-TEST_SET: Literal["test", "validation"] = "test"
+TEST_SET: Literal["test", "validation"] = "validation"
 
 # Other
 # Not necessary anymore after we stopped using Git LFS
