@@ -221,19 +221,19 @@ def _train_single_member(args):
     # custom callback
     progress_cb = ParallelProgressCallback(worker_id=i)
 
-    print(f"[Parallel] Fitting model {i}...")
+    print(f"[Worker {i}] Fitting model {i}...")
     history = model.fit(
         X_train,
         y_train,
         epochs=EPOCHS,
         batch_size=batch_size,
-        verbose=0,
+        verbose=not PARALLELLIZE,
         validation_data=(X_val, y_val),
         callbacks=[early_stop, progress_cb] if USE_EARLY_STOPPING else [progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
-    print(f"[Parallel] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
+    print(f"[Worker {i}] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
     return i, model.get_weights(), history.history, val_loss, best_epoch
 
 
@@ -352,9 +352,7 @@ if __name__ == "__main__":
         with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
             results = pool.map(_train_single_member, job_args)
     else:
-        results = [
-            _train_single_member(args) for args in job_args
-        ]
+        results = [_train_single_member(args) for args in job_args]
 
     # results is a list of (i, trained_model, history_dict, val_loss).
     # Sort by i so we can store them in order:
