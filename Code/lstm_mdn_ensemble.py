@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final"
+VERSION = "ivol-final"
 
 # %%
 # Feature selection
@@ -26,8 +26,8 @@ INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = True
-INCLUDE_5MIN_RV = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
 
 # %%
 # Model settings
@@ -49,6 +49,7 @@ N_ENSEMBLE_MEMBERS = 10
 OPTIMAL_EPOCHS = 8
 USE_EARLY_STOPPING = TEST_SET == "validation"
 EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
+PARALLELLIZE = True
 
 # %%
 # Imports from code shared across models
@@ -220,19 +221,19 @@ def _train_single_member(args):
     # custom callback
     progress_cb = ParallelProgressCallback(worker_id=i)
 
-    print(f"[Parallel] Fitting model {i}...")
+    print(f"[Worker {i}] Fitting model {i}...")
     history = model.fit(
         X_train,
         y_train,
         epochs=EPOCHS,
         batch_size=batch_size,
-        verbose=0,
+        verbose=not PARALLELLIZE,
         validation_data=(X_val, y_val),
         callbacks=[early_stop, progress_cb] if USE_EARLY_STOPPING else [progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
-    print(f"[Parallel] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
+    print(f"[Worker {i}] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
     return i, model.get_weights(), history.history, val_loss, best_epoch
 
 
@@ -240,6 +241,7 @@ def _train_single_member(args):
 # Begin script
 if __name__ == "__main__":
     print(f"Training LSTM MDN Ensemble v{VERSION}")
+    mp.set_start_method("spawn", force=True)
 
     # %%
     # Load preprocessed data
@@ -347,8 +349,11 @@ if __name__ == "__main__":
     val_losses = [None] * N_ENSEMBLE_MEMBERS
     optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
 
-    with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
-        results = pool.map(_train_single_member, job_args)
+    if PARALLELLIZE:
+        with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
+            results = pool.map(_train_single_member, job_args)
+    else:
+        results = [_train_single_member(args) for args in job_args]
 
     # results is a list of (i, trained_model, history_dict, val_loss).
     # Sort by i so we can store them in order:
