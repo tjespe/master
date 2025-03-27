@@ -1,4 +1,5 @@
 import os
+from typing import Literal
 
 BASEDIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -11,6 +12,9 @@ VALIDATION_TEST_SPLIT = "2022-12-31"
 
 # Only used in old single stock model comparison
 TEST_ASSET = "AAPL"
+
+# Define which test set to use (either "test" or "validation")
+TEST_SET: Literal["test", "validation"] = "test"
 
 # Other
 # Not necessary anymore after we stopped using Git LFS
