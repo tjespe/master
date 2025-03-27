@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final"
+VERSION = "ivol-final"
 
 # %%
 # Feature selection
@@ -26,8 +26,8 @@ INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = True
-INCLUDE_5MIN_RV = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
 
 # %%
 # Model settings
@@ -49,7 +49,7 @@ N_ENSEMBLE_MEMBERS = 10
 OPTIMAL_EPOCHS = 8
 USE_EARLY_STOPPING = TEST_SET == "validation"
 EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
-PARALLELLIZE = False
+PARALLELLIZE = True
 
 # %%
 # Imports from code shared across models
@@ -241,6 +241,7 @@ def _train_single_member(args):
 # Begin script
 if __name__ == "__main__":
     print(f"Training LSTM MDN Ensemble v{VERSION}")
+    mp.set_start_method("spawn", force=True)
 
     # %%
     # Load preprocessed data
