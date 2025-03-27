@@ -49,6 +49,7 @@ N_ENSEMBLE_MEMBERS = 10
 OPTIMAL_EPOCHS = 8
 USE_EARLY_STOPPING = TEST_SET == "validation"
 EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
+PARALLELLIZE = False
 
 # %%
 # Imports from code shared across models
@@ -347,8 +348,13 @@ if __name__ == "__main__":
     val_losses = [None] * N_ENSEMBLE_MEMBERS
     optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
 
-    with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
-        results = pool.map(_train_single_member, job_args)
+    if PARALLELLIZE:
+        with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
+            results = pool.map(_train_single_member, job_args)
+    else:
+        results = [
+            _train_single_member(*args) for args in job_args
+        ]
 
     # results is a list of (i, trained_model, history_dict, val_loss).
     # Sort by i so we can store them in order:
