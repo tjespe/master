@@ -187,9 +187,9 @@ def combine_processed_data_into_df(window_size=1500):
 
 
     # Return the big DF plus some info about which columns to use as features
-    feature_cols = feat_cols  + ["Symbol"] # We'll pass these to CatBoost
-    # the categorical feature index is the one with coloumn name "Symbol"
-    cat_feature_index = [df_big.columns.get_loc("Symbol")] # We'll pass this to CatBoost
+    feature_cols = feat_cols + ["Symbol"] # We'll pass these to CatBoost
+    # the categorical feature is the last col
+    cat_feature_index = [feature_cols.index("Symbol")]
     return df_big, feature_cols, cat_feature_index
 
 # %%
