@@ -353,7 +353,7 @@ if __name__ == "__main__":
             results = pool.map(_train_single_member, job_args)
     else:
         results = [
-            _train_single_member(*args) for args in job_args
+            _train_single_member(args) for args in job_args
         ]
 
     # results is a list of (i, trained_model, history_dict, val_loss).
