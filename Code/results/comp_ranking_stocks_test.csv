@@ -1,4 +1,4 @@
-,GARCH,EGARCH,Realized GARCH,LSTM MDN ffnn,LSTM MDN rv-and-ivol-final_ensemble,VAE MDN 4 simple_regressor_on_means,VAE v1,Benchmark Catboost RV,Benchmark Catboost IV,Benchmark Catboost RV_IV,Benchmark LightGBM RV,Benchmark LightGBM IV,Benchmark LightGBM RV_IV,Benchmark XGBoost RV,Benchmark XGBoost IV,Benchmark XGBoost RV_IV,Benchmark DB RV_IV
+,GARCH,EGARCH,Realized GARCH,LSTM MDN ffnn,LSTM MDN ivol-final_ensemble,VAE MDN 4 simple_regressor_on_means,VAE v1,Benchmark Catboost RV,Benchmark Catboost IV,Benchmark Catboost RV_IV,Benchmark LightGBM RV,Benchmark LightGBM IV,Benchmark LightGBM RV_IV,Benchmark XGBoost RV,Benchmark XGBoost IV,Benchmark XGBoost RV_IV,Benchmark DB RV_IV
 NLL,0.97,0.91,1.0,0.25,0.0,0.27,0.96,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
 ECE,0.32,0.31,1.0,1.0,0.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
 RMSE,0.1,0.1,0.46,0.58,0.0,0.39,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,0.1
