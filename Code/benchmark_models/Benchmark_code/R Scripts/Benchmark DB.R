@@ -1,3 +1,4 @@
+# define what variables we are working with
 
 
 datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB.csv" # change filename

@@ -4,7 +4,7 @@
 
 # %%
 # Define what to include, RV and/or IV
-INCLUDE_RV = True
+INCLUDE_RV = False
 INCLUDE_IV = True
 
 # version name is "RV" if only RV is included, "IV" if only IV is included, and "RV_IV" if both are included
@@ -73,7 +73,7 @@ feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
 df_val = pd.DataFrame(X_val, columns=feat_cols)
 df_val["Date"] = dates_val
 df_val["Symbol"] = tickers_val
-df_val["TrueY"] = y_val
+df_val["Return"] = y_val
 print("df_val shape: ", df_val.shape)
 
 
@@ -104,7 +104,7 @@ print(f"First date: {df_train['Date'].min()}")
 # do the same for the test set but keep all data
 feat_cols = [f"feat_{i}" for i in range(X_test.shape[1])]
 df_test = pd.DataFrame(X_test, columns=feat_cols)
-df_test["TrueY"] = y_test
+df_test["Return"] = y_test
 df_test["Date"] = dates_test
 df_test["Symbol"] = tickers_test
 print("df_test shape: ", df_test.shape)
