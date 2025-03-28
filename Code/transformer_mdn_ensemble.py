@@ -237,7 +237,7 @@ class FixedLearningRateSchedule(tf.keras.callbacks.Callback):
         else:
             lr = 5e-6  # 0.5e-5
 
-        tf.keras.backend.set_value(self.model.optimizer.learning_rate, lr)
+        self.model.optimizer.learning_rate.assign(lr)
         print(f"Epoch {epoch + 1} - Setting learning rate to {lr:.6g}")
 
 
