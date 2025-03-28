@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "ivol-final"
+VERSION = "rv-and-ivol-final"
 
 # %%
 # Feature selection
@@ -26,8 +26,8 @@ INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = False
-INCLUDE_5MIN_RV = False
+INCLUDE_1MIN_RV = True
+INCLUDE_5MIN_RV = True
 
 # %%
 # Model settings
@@ -51,6 +51,25 @@ OPTIMAL_EPOCHS = 15
 USE_EARLY_STOPPING = TEST_SET == "validation"
 EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
 PARALLELLIZE = True
+
+# %%
+# Print clear message about which set we are using
+msg = [
+    f"LSTM MDN Ensemble v{VERSION} on **{TEST_SET}** data",
+    (
+        (
+            "Training up to {EPOCHS} epochs with early stopping"
+            if USE_EARLY_STOPPING
+            else f"Training without early stopping (using epochs = {OPTIMAL_EPOCHS})"
+        )
+        if TRAIN
+        else "No training"
+    ),
+]
+max_len = max(len(m) for m in msg)
+print("@" * (max_len + 4))
+print("\n".join([f"@ {m.ljust(max_len)} @" for m in msg]))
+print("@" * (max_len + 4))
 
 # %%
 # Imports from code shared across models
