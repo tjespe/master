@@ -1532,7 +1532,7 @@ for entry in preds_per_model:
                 entry[f"bayer_dim_indeterminate_{es_str}"]
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
-                passes / (passes + fails)
+                passes / (passes + fails) if passes or fails else np.nan
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
                 entry[f"bayer_dim_mean_violation_{es_str}"]
