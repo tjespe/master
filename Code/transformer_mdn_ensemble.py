@@ -299,7 +299,7 @@ def _train_single_member(args):
         y_train,
         epochs=n_epochs,
         batch_size=batch_size,
-        verbose=0,
+        verbose=not PARALLELLIZE,
         validation_data=(X_val, y_val),
         callbacks=callbacks,
     )
