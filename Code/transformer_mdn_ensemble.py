@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX
 import multiprocessing as mp
 
-VERSION = "ivol-only"
+VERSION = "rv-and-ivol"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}"
 
 # %%
@@ -27,8 +27,8 @@ INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = False
-INCLUDE_5MIN_RV = False
+INCLUDE_1MIN_RV = True
+INCLUDE_5MIN_RV = True
 INCLUDE_TICKERS = False
 
 # %%
@@ -493,7 +493,7 @@ if __name__ == "__main__":
 
         commit_header = f"Train Transformer MDN Ensemble {VERSION}"
         commit_body = f"Training history:\n" + "\n".join(
-            [str(h.history) for h in histories]
+            [str(h) for h in histories]
         )
 
         subprocess.run(
@@ -718,3 +718,5 @@ if __name__ == "__main__":
         subprocess.run(["git", "push"], check=True)
     except subprocess.CalledProcessError as e:
         print(f"Git command failed: {e}")
+
+# %%
