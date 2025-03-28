@@ -2,7 +2,7 @@ library(data.table)
 
 # define what variables we are working with
 include_rv = TRUE
-include_IV = TRUE
+include_IV = FALSE
 
 # version is "RV" if we include_rv and "IV" if we include_IV and "RV_IV" if we include both
 version = ifelse(include_rv & include_IV, "RV_IV", ifelse(include_rv, "RV", "IV"))
@@ -52,7 +52,7 @@ if (include_rv & include_IV) {
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
-ES <- c(0.01, 0.025, 0.05, 0.95, 0.975, 0.99)
+ES <- c(0.835, 0.95, 0.975, 0.99)
 
 
 # Dimitriadis and Bayer model 
@@ -331,14 +331,14 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
 all_results <- list()
 
 # Get unique assets
-tickers <- unique(D$Ticker)
+tickers <- unique(D$Symbol)
 
 # Loop through each asset (Ticker)
 for (ticker in tickers) {
   file_name <- paste0("~/Copy of data/DB_", ticker, ".csv")
   print(ticker)
   # Filter dataset for the current asset
-  D_ticker <- D[Ticker == ticker]
+  D_ticker <- D[Symbol == ticker]
   
   # Run the DB model on the subset
   results <- DB(dt = D_ticker, 
@@ -349,7 +349,7 @@ for (ticker in tickers) {
                 writefile=file_name) 
   
   # Add the Ticker column to the results
-  results[, Ticker := ticker]
+  results[, Symbol := ticker]
   
   # Store results in the list
   all_results[[ticker]] <- results
