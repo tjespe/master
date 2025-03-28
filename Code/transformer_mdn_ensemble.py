@@ -4,7 +4,7 @@ import subprocess
 from typing import Optional
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
-from settings import LOOKBACK_DAYS, SUFFIX
+from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
 VERSION = "rv-and-ivol"
@@ -387,14 +387,11 @@ if __name__ == "__main__":
     val_losses = [None] * N_ENSEMBLE_MEMBERS
     optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
 
-
     if PARALLELLIZE:
         with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
             results = pool.map(_train_single_member, job_args)
     else:
-        results = [
-            _train_single_member(args) for args in job_args
-        ]
+        results = [_train_single_member(args) for args in job_args]
 
     # results is a list of (i, trained_model, history_dict, val_loss).
     # Sort by i so we can store them in order:
@@ -492,9 +489,7 @@ if __name__ == "__main__":
         subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
 
         commit_header = f"Train Transformer MDN Ensemble {VERSION}"
-        commit_body = f"Training history:\n" + "\n".join(
-            [str(h) for h in histories]
-        )
+        commit_body = f"Training history:\n" + "\n".join([str(h) for h in histories])
 
         subprocess.run(
             ["git", "commit", "-m", commit_header, "-m", commit_body], check=True

@@ -1444,7 +1444,6 @@ es_metric_keys = [
     "Bayer-Dimitriadis fails",
     "Bayer-Dimitriadis indeterminate",
     "Bayer-Dimitriadis pass rate",
-    "Bayer-Dimitriadis mean bias",
     "FZ Loss",
     "AL Loss",
 ]
@@ -1539,9 +1538,6 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 np.nan
             )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
-                np.nan
-            )
             results[
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis mean violation"
             ].append(np.nan)
@@ -1575,9 +1571,6 @@ for entry in preds_per_model:
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 passes / (passes + fails) if passes or fails else np.nan
-            )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
-                entry[f"bayer_dim_mean_violation_{es_str}"]
             )
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
                 np.mean(entry[f"FZ0_{es_str}"])
@@ -1664,9 +1657,6 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis fails"] = results_df[
         f"[{es_str}] Bayer-Dimitriadis fails"
     ].idxmin()
-    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean bias"] = (
-        results_df[f"[{es_str}] Bayer-Dimitriadis mean bias"].abs().idxmin()
-    )
     results_df.loc["Winner", f"[{es_str}] FZ Loss"] = results_df[
         f"[{es_str}] FZ Loss"
     ].idxmin()
