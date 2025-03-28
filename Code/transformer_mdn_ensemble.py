@@ -315,6 +315,7 @@ def _train_single_member(args):
 # Begin script
 if __name__ == "__main__":
     print(f"Training Transformer MDN Ensemble v{VERSION}")
+    mp.set_start_method("spawn", force=True)
 
     # %%
     # Load preprocessed data
