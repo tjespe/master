@@ -1,19 +1,54 @@
+library(data.table)
+
 # define what variables we are working with
+include_rv = TRUE
+include_IV = TRUE
 
+# version is "RV" if we include_rv and "IV" if we include_IV and "RV_IV" if we include both
+version = ifelse(include_rv & include_IV, "RV_IV", ifelse(include_rv, "RV", "IV"))
+print(version)
 
-datapath <- "~/Masterv3/master/Code/data/processed_data_RV_only_for_DB.csv" # change filename
+# filename based on version
+datapath <- paste0("~/Copy of data/processed_data_DB_", version, ".csv") # change datapath
+print(datapath)
+# Load necessary libraries
 D <- read.csv(datapath)
 setDT(D)
 
 depentant_var= 'Return'
 
-independant_var_sets <- list(
-  set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'  
-)
+# the independand var set has to change based on the version we are using
+if (include_rv & include_IV) {
+  # if we include both RV and IV, we need to change the independent variable set
+  independant_var_sets <- list(
+    set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9 + feat_10 + feat_11'
+  )
+} else if (include_rv) {
+  # if we only include RV, we need to change the independent variable set
+  independant_var_sets <- list(
+    set1 = 'feat_0 + feat_1 + feat_2 + feat_3 + feat_4 + feat_5 + feat_6 + feat_7 + feat_8 + feat_9'
+  )
+} else if (include_IV) {
+  # if we only include IV, we need to change the independent variable set
+  independant_var_sets <- list(
+    set1 = 'feat_0 + feat_1'
+  )
+}
 
-independant_var_names_set <- list(
-  set1 = 'RV_set'
-)
+# change name on set based on the version we are using
+if (include_rv & include_IV) {
+  independant_var_names_set <- list(
+    set1 = 'RV_set + IV_set'
+  )
+} else if (include_rv) {
+  independant_var_names_set <- list(
+    set1 = 'RV_set'
+  )
+} else if (include_IV) {
+  independant_var_names_set <- list(
+    set1 = 'IV_set'
+  )
+}
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
@@ -300,7 +335,7 @@ tickers <- unique(D$Ticker)
 
 # Loop through each asset (Ticker)
 for (ticker in tickers) {
-  file_name <- paste0("~/Masterv3/master/Code/benchmark_models/Predictions/val_predictions_DB_", ticker, ".csv")
+  file_name <- paste0("~/Copy of data/DB_", ticker, ".csv")
   print(ticker)
   # Filter dataset for the current asset
   D_ticker <- D[Ticker == ticker]
@@ -324,4 +359,5 @@ for (ticker in tickers) {
 final_results <- rbindlist(all_results)
 
 # write the final results to a csv file:
-write.csv(final_results, "~/Masterv3/master/Code/predictions/val_predictions_DB_all_tickers.csv")
+final_file_path = paste0("~/Copy of data/DB_", version, ".csv")
+write.csv(final_results, final_file_path)
