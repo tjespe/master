@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "ivol-final"
+VERSION = "rv-and-ivol-final"
 
 # %%
 # Feature selection
@@ -37,12 +37,12 @@ DROPOUT = 0.0
 L2_REG = 1e-4
 NUM_HIDDEN_LAYERS = 0
 EMBEDDING_DIMENSIONS = None
-MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}"
+MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_{TEST_SET}"
 
 # %%
 # Settings for training
 TRAIN = True
-PATIENCE = 3  # Early stopping patience
+PATIENCE = 5  # Early stopping patience
 WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
