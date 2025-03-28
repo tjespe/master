@@ -535,7 +535,7 @@ for version in [
 ]:
     try:
         lstm_mdn_df = pd.read_csv(
-            f"predictions/lstm_mdn_predictions{SUFFIX}_{TEST_SET}_v{version}.csv"
+            f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
         )
         lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
@@ -602,7 +602,7 @@ for version in [
 ]:
     try:
         transformer_df = pd.read_csv(
-            f"predictions/transformer_mdn_predictions{SUFFIX}_{TEST_SET}_v{version}.csv"
+            f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
         )
         transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
         transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
@@ -667,7 +667,7 @@ for version in [4]:
     ]:
         try:
             pred_df = pd.read_csv(
-                f"predictions/vae_lstm_mdm_{LOOKBACK_DAYS}_days{SUFFIX}_{TEST_SET}_v{version}_{predictor}.csv"
+                f"predictions/vae_lstm_mdm_{LOOKBACK_DAYS}_days{SUFFIX}_v{version}_{predictor}.csv"
             )
             pred_df["Symbol"] = pred_df["Symbol"].str.replace(".O", "")
             pred_df["Date"] = pd.to_datetime(pred_df["Date"])
@@ -724,9 +724,7 @@ for version in [4]:
 # LSTM MAF
 for version in []:  # ["v2", "v3", "v4"]:
     try:
-        lstm_maf_preds = pd.read_csv(
-            f"predictions/lstm_MAF_{version}{SUFFIX}_{TEST_SET}.csv"
-        )
+        lstm_maf_preds = pd.read_csv(f"predictions/lstm_MAF_{version}{SUFFIX}.csv")
         lstm_maf_preds["Date"] = pd.to_datetime(lstm_maf_preds["Date"])
         lstm_maf_preds = lstm_maf_preds.set_index(["Date", "Symbol"])
         lstm_maf_dates = lstm_maf_preds.index.get_level_values("Date")
@@ -774,7 +772,7 @@ for version in []:  # ["v2", "v3", "v4"]:
 
 for version in ["v1"]:
     try:
-        vae = pd.read_csv(f"predictions/vae_lstm_{version}{SUFFIX}_{TEST_SET}.csv")
+        vae = pd.read_csv(f"predictions/vae_lstm_{version}{SUFFIX}.csv")
         vae["Date"] = pd.to_datetime(vae["Date"])
         vae = vae.set_index(["Date", "Symbol"])
         vae_dates = vae.index.get_level_values("Date")
