@@ -5,7 +5,7 @@
 # %%
 # Define what to include, RV and/or IV
 INCLUDE_RV = True
-INCLUDE_IV = False
+INCLUDE_IV = True
 
 # version name is "RV" if only RV is included, "IV" if only IV is included, and "RV_IV" if both are included
 VERSION = "RV" if INCLUDE_RV and not INCLUDE_IV else "IV" if not INCLUDE_RV and INCLUDE_IV else "RV_IV"
@@ -119,3 +119,4 @@ print(df_big["Symbol"].value_counts())
 # %%
 # save to csv
 df_big.to_csv(f"../data/processed_data_DB_{VERSION}.csv")
+# %%
