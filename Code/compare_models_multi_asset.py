@@ -173,9 +173,15 @@ try:
     garch_t_vol_pred = garch_t_vol_pred.set_index(["Date", "Symbol"])
     garch_t_dates = garch_t_vol_pred.index.get_level_values("Date")
     garch_t_vol_pred = garch_t_vol_pred[
-        (garch_t_dates >= TRAIN_VALIDATION_SPLIT)
-        & (garch_t_dates < VALIDATION_TEST_SPLIT)
+        (
+            (garch_t_dates >= TRAIN_VALIDATION_SPLIT)
+            & (garch_t_dates < VALIDATION_TEST_SPLIT)
+            if TEST_SET == "validation"
+            else (garch_t_dates >= VALIDATION_TEST_SPLIT)
+        )
     ]
+    if np.isnan(garch_t_vol_pred).all().all():
+        raise FileNotFoundError("All GARCH Student-t predictions are NaN")
     combined_df = df_validation.join(garch_t_vol_pred, how="left", rsuffix="_GARCH_t")
     garch_t_vol_pred = combined_df["GARCH_t_Vol"].values
     y_true = combined_df["LogReturn"].values
@@ -230,9 +236,15 @@ for version in [
         ar_garch_preds = ar_garch_preds.set_index(["Date", "Symbol"])
         ar_garch_dates = ar_garch_preds.index.get_level_values("Date")
         ar_garch_preds = ar_garch_preds[
-            (ar_garch_dates >= TRAIN_VALIDATION_SPLIT)
-            & (ar_garch_dates < VALIDATION_TEST_SPLIT)
+            (
+                (ar_garch_dates >= TRAIN_VALIDATION_SPLIT)
+                & (ar_garch_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (ar_garch_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(ar_garch_preds["AR_GARCH_Vol"]).all():
+            raise FileNotFoundError(f"All {version} predictions are NaN")
         combined_df = df_validation.join(
             ar_garch_preds, how="left", rsuffix="_AR_GARCH"
         )
@@ -302,8 +314,15 @@ for version in [
         har_preds = har_preds.set_index(["Date", "Symbol"])
         har_dates = har_preds.index.get_level_values("Date")
         har_preds = har_preds[
-            (har_dates >= TRAIN_VALIDATION_SPLIT) & (har_dates < VALIDATION_TEST_SPLIT)
+            (
+                (har_dates >= TRAIN_VALIDATION_SPLIT)
+                & (har_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (har_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(har_preds[f"HAR_vol_{version}"]).all():
+            raise FileNotFoundError(f"All HAR_{version} predictions are NaN")
         combined_df = df_validation.join(har_preds, how="left", rsuffix="_HAR")
         har_vol_pred = combined_df[f"HAR_vol_{version}"].values
         y_true = combined_df["Total Return Test"].values
@@ -354,9 +373,15 @@ for version in ["python", "R"]:
         harq_preds = harq_preds.set_index(["Date", "Symbol"])
         harq_dates = harq_preds.index.get_level_values("Date")
         harq_preds = harq_preds[
-            (harq_dates >= TRAIN_VALIDATION_SPLIT)
-            & (harq_dates < VALIDATION_TEST_SPLIT)
+            (
+                (harq_dates >= TRAIN_VALIDATION_SPLIT)
+                & (harq_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (harq_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(harq_preds[f"HARQ_vol_{version}"]).all():
+            raise FileNotFoundError(f"All HARQ_{version} predictions are NaN")
         combined_df = df_validation.join(harq_preds, how="left", rsuffix="_HARQ")
         harq_vol_pred = combined_df[f"HARQ_vol_{version}"].values
         y_true = combined_df["Total Return Test"].values
@@ -411,9 +436,15 @@ for version in ["norm", "std"]:
         realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
         realized_garch_dates = realized_garch_preds.index.get_level_values("Date")
         realized_garch_preds = realized_garch_preds[
-            (realized_garch_dates >= TRAIN_VALIDATION_SPLIT)
-            & (realized_garch_dates < VALIDATION_TEST_SPLIT)
+            (
+                (realized_garch_dates >= TRAIN_VALIDATION_SPLIT)
+                & (realized_garch_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (realized_garch_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(realized_garch_preds["Forecast_Volatility"]).all():
+            raise FileNotFoundError("All Realized GARCH predictions are NaN")
         combined_df = df_validation.join(
             realized_garch_preds, how="left", rsuffix="_Realized_GARCH"
         )
@@ -511,9 +542,15 @@ for version in [
         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
         lstm_mdn_df = lstm_mdn_df[
-            (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
-            & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+            (
+                (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
+                & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(lstm_mdn_df["Mean_SP"]).all():
+            raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
         ece_col = combined_df.get("ECE")
         entry = {
@@ -572,9 +609,17 @@ for version in [
         transformer_df = transformer_df.set_index(["Date", "Symbol"])
         transformer_dates = transformer_df.index.get_level_values("Date")
         transformer_df = transformer_df[
-            (transformer_dates >= TRAIN_VALIDATION_SPLIT)
-            & (transformer_dates < VALIDATION_TEST_SPLIT)
+            (
+                (transformer_dates >= TRAIN_VALIDATION_SPLIT)
+                & (transformer_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (transformer_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(transformer_df["Mean_SP"]).all():
+            raise FileNotFoundError(
+                f"All Transformer MDN {version} predictions are NaN"
+            )
         combined_df = df_validation.join(
             transformer_df, how="left", rsuffix="_Transformer_MDN"
         )
@@ -629,8 +674,14 @@ for version in [4]:
             pred_df = pred_df.set_index(["Date", "Symbol"])
             dates = pred_df.index.get_level_values("Date")
             pred_df = pred_df[
-                (dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)
+                (
+                    (dates >= TRAIN_VALIDATION_SPLIT) & (dates < VALIDATION_TEST_SPLIT)
+                    if TEST_SET == "validation"
+                    else (dates >= VALIDATION_TEST_SPLIT)
+                )
             ]
+            if np.isnan(pred_df["Pred_Mean"]).all():
+                raise FileNotFoundError(f"All VAE MDN {version} predictions are NaN")
             combined_df = df_validation.join(
                 pred_df, how="left", rsuffix="_Transformer_MDN"
             )
@@ -678,9 +729,15 @@ for version in []:  # ["v2", "v3", "v4"]:
         lstm_maf_preds = lstm_maf_preds.set_index(["Date", "Symbol"])
         lstm_maf_dates = lstm_maf_preds.index.get_level_values("Date")
         lstm_maf_preds = lstm_maf_preds[
-            (lstm_maf_dates >= TRAIN_VALIDATION_SPLIT)
-            & (lstm_maf_dates < VALIDATION_TEST_SPLIT)
+            (
+                (lstm_maf_dates >= TRAIN_VALIDATION_SPLIT)
+                & (lstm_maf_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (lstm_maf_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(lstm_maf_preds["Mean_SP"]).all():
+            raise FileNotFoundError(f"All LSTM MAF {version} predictions are NaN")
         combined_df = df_validation.join(lstm_maf_preds, how="left", rsuffix="_MAF")
         ece_col = combined_df.get("ECE")
         preds_per_model.append(
@@ -720,8 +777,15 @@ for version in ["v1"]:
         vae = vae.set_index(["Date", "Symbol"])
         vae_dates = vae.index.get_level_values("Date")
         vae = vae[
-            (vae_dates >= TRAIN_VALIDATION_SPLIT) & (vae_dates < VALIDATION_TEST_SPLIT)
+            (
+                (vae_dates >= TRAIN_VALIDATION_SPLIT)
+                & (vae_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (vae_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(vae["Mean_SP"]).all():
+            raise FileNotFoundError(f"All VAE {version} predictions are NaN")
         combined_df = df_validation.join(vae, how="left", rsuffix="_VAE")
         ece_col = combined_df.get("ECE")
         preds_per_model.append(
@@ -763,9 +827,15 @@ for version in ["RV", "IV", "RV_IV"]:
         catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
         catboost_dates = catboost_preds.index.get_level_values("Date")
         catboost_preds = catboost_preds[
-            (catboost_dates >= TRAIN_VALIDATION_SPLIT)
-            & (catboost_dates < VALIDATION_TEST_SPLIT)
+            (
+                (catboost_dates >= TRAIN_VALIDATION_SPLIT)
+                & (catboost_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (catboost_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(catboost_preds).all().all():
+            raise FileNotFoundError(f"All Catboost {version} predictions are NaN")
         combined_df = df_validation.join(
             catboost_preds, how="left", rsuffix="_Catboost"
         )
@@ -778,24 +848,24 @@ for version in ["RV", "IV", "RV_IV"]:
 
         preds_per_model.append(
             {
-                "name": "Benchmark Catboost",
+                "name": f"Benchmark Catboost {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "nll": combined_df["nll"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
-                "LB_98": combined_df["Quantile_0.010"].values,
-                "UB_98": combined_df["Quantile_0.990"].values,
-                "LB_95": combined_df["Quantile_0.025"].values,
-                "UB_95": combined_df["Quantile_0.975"].values,
-                "LB_90": combined_df["Quantile_0.050"].values,
-                "UB_90": combined_df["Quantile_0.950"].values,
-                "ES_99": combined_df["ES_0.010"].values,
-                "ES_97.5": combined_df["ES_0.025"].values,
-                "ES_95": combined_df["ES_0.050"].values,
-                "ES_0.05": combined_df["ES_0.950"].values,
-                "ES_0.025": combined_df["ES_0.975"].values,
-                "ES_0.01": combined_df["ES_0.990"].values,
+                "LB_98": combined_df.get("Quantile_0.010"),
+                "UB_98": combined_df.get("Quantile_0.990"),
+                "LB_95": combined_df.get("Quantile_0.025"),
+                "UB_95": combined_df.get("Quantile_0.975"),
+                "LB_90": combined_df.get("Quantile_0.050"),
+                "UB_90": combined_df.get("Quantile_0.950"),
+                "ES_99": combined_df.get("ES_0.010"),
+                "ES_97.5": combined_df.get("ES_0.025"),
+                "ES_95": combined_df.get("ES_0.050"),
+                "ES_0.05": combined_df.get("ES_0.950"),
+                "ES_0.025": combined_df.get("ES_0.975"),
+                "ES_0.01": combined_df.get("ES_0.990"),
             }
         )
         # nans = combined_df["Mean_SP"].isnull().sum()
@@ -812,9 +882,15 @@ for version in ["RV", "IV", "RV_IV"]:
         lightGBMpreds = lightGBMpreds.set_index(["Date", "Symbol"])
         lightGBM_dates = lightGBMpreds.index.get_level_values("Date")
         lightGBMpreds = lightGBMpreds[
-            (lightGBM_dates >= TRAIN_VALIDATION_SPLIT)
-            & (lightGBM_dates < VALIDATION_TEST_SPLIT)
+            (
+                (lightGBM_dates >= TRAIN_VALIDATION_SPLIT)
+                & (lightGBM_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (lightGBM_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(lightGBMpreds).all().all():
+            raise FileNotFoundError(f"All LightGBM {version} predictions are NaN")
         combined_df = df_validation.join(lightGBMpreds, how="left", rsuffix="_LIGHTGBM")
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
@@ -825,24 +901,24 @@ for version in ["RV", "IV", "RV_IV"]:
 
         preds_per_model.append(
             {
-                "name": "Benchmark LightGBM RV_only",
+                "name": f"Benchmark LightGBM {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "nll": combined_df["nll"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
-                "LB_98": combined_df["Quantile_0.010"].values,
-                "UB_98": combined_df["Quantile_0.990"].values,
-                "LB_95": combined_df["Quantile_0.025"].values,
-                "UB_95": combined_df["Quantile_0.975"].values,
-                "LB_90": combined_df["Quantile_0.050"].values,
-                "UB_90": combined_df["Quantile_0.950"].values,
-                "ES_99": combined_df["ES_0.010"].values,
-                "ES_97.5": combined_df["ES_0.025"].values,
-                "ES_95": combined_df["ES_0.050"].values,
-                "ES_0.05": combined_df["ES_0.950"].values,
-                "ES_0.025": combined_df["ES_0.975"].values,
-                "ES_0.01": combined_df["ES_0.990"].values,
+                "LB_98": combined_df.get("Quantile_0.010"),
+                "UB_98": combined_df.get("Quantile_0.990"),
+                "LB_95": combined_df.get("Quantile_0.025"),
+                "UB_95": combined_df.get("Quantile_0.975"),
+                "LB_90": combined_df.get("Quantile_0.050"),
+                "UB_90": combined_df.get("Quantile_0.950"),
+                "ES_99": combined_df.get("ES_0.010"),
+                "ES_97.5": combined_df.get("ES_0.025"),
+                "ES_95": combined_df.get("ES_0.050"),
+                "ES_0.05": combined_df.get("ES_0.950"),
+                "ES_0.025": combined_df.get("ES_0.975"),
+                "ES_0.01": combined_df.get("ES_0.990"),
             }
         )
         # nans = combined_df["Mean_SP"].isnull().sum()
@@ -859,9 +935,15 @@ for version in ["RV", "IV", "RV_IV"]:
         xg_boost_preds = xg_boost_preds.set_index(["Date", "Symbol"])
         xg_boost_dates = xg_boost_preds.index.get_level_values("Date")
         xg_boost_preds = xg_boost_preds[
-            (xg_boost_dates >= TRAIN_VALIDATION_SPLIT)
-            & (xg_boost_dates < VALIDATION_TEST_SPLIT)
+            (
+                (xg_boost_dates >= TRAIN_VALIDATION_SPLIT)
+                & (xg_boost_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (xg_boost_dates >= VALIDATION_TEST_SPLIT)
+            )
         ]
+        if np.isnan(xg_boost_preds).all().all():
+            raise FileNotFoundError(f"All XGBoost {version} predictions are NaN")
         combined_df = df_validation.join(xg_boost_preds, how="left", rsuffix="_XGBoost")
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
@@ -872,24 +954,24 @@ for version in ["RV", "IV", "RV_IV"]:
 
         preds_per_model.append(
             {
-                "name": "Benchmark XGBoost RV_only",
+                "name": f"Benchmark XGBoost {version}",
                 "mean_pred": combined_df["Mean_SP"].values,
                 "volatility_pred": combined_df["Vol_SP"].values,
                 "nll": combined_df["nll"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
-                "LB_98": combined_df["Quantile_0.010"].values,
-                "UB_98": combined_df["Quantile_0.990"].values,
-                "LB_95": combined_df["Quantile_0.025"].values,
-                "UB_95": combined_df["Quantile_0.975"].values,
-                "LB_90": combined_df["Quantile_0.050"].values,
-                "UB_90": combined_df["Quantile_0.950"].values,
-                "ES_99": combined_df["ES_0.010"].values,
-                "ES_97.5": combined_df["ES_0.025"].values,
-                "ES_95": combined_df["ES_0.050"].values,
-                "ES_0.05": combined_df["ES_0.950"].values,
-                "ES_0.025": combined_df["ES_0.975"].values,
-                "ES_0.01": combined_df["ES_0.990"].values,
+                "LB_98": combined_df.get("Quantile_0.010"),
+                "UB_98": combined_df.get("Quantile_0.990"),
+                "LB_95": combined_df.get("Quantile_0.025"),
+                "UB_95": combined_df.get("Quantile_0.975"),
+                "LB_90": combined_df.get("Quantile_0.050"),
+                "UB_90": combined_df.get("Quantile_0.950"),
+                "ES_99": combined_df.get("ES_0.010"),
+                "ES_97.5": combined_df.get("ES_0.025"),
+                "ES_95": combined_df.get("ES_0.050"),
+                "ES_0.05": combined_df.get("ES_0.950"),
+                "ES_0.025": combined_df.get("ES_0.975"),
+                "ES_0.01": combined_df.get("ES_0.990"),
             }
         )
         # nans = combined_df["Mean_SP"].isnull().sum()
@@ -905,8 +987,14 @@ try:
     DB_preds = DB_preds.set_index(["Date", "Symbol"])
     DB_dates = DB_preds.index.get_level_values("Date")
     DB_preds = DB_preds[
-        (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
+        (
+            (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
+            if TEST_SET == "validation"
+            else (DB_dates >= VALIDATION_TEST_SPLIT)
+        )
     ]
+    if np.isnan(DB_preds).all().all():
+        raise FileNotFoundError(f"All DB RV_only predictions are NaN")
     combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
     # make a Mean_SP column full of 0s for now
     combined_df["Mean_SP"] = 0
@@ -917,7 +1005,7 @@ try:
 
     preds_per_model.append(
         {
-            "name": "Benchmark DB RV_only",
+            "name": f"Benchmark DB {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
             "nll": combined_df["nll"].values,
@@ -1094,6 +1182,9 @@ for entry in preds_per_model:
             }
         )
         exceedance_df = exceedance_df.dropna(subset=["Within Bounds"])
+        if len(exceedance_df) == 0:
+            print(f"No valid data for {entry['name']}")
+            continue
 
         pooled_exceedances_list = []
         reset_indices = []
@@ -1541,7 +1632,7 @@ for cl in CONFIDENCE_LEVELS:
         f"[{es_str}] AL Loss"
     ].idxmin()
 results_df = results_df.T
-results_df.to_csv(f"results/comp_results{SUFFIX}.csv")
+results_df.to_csv(f"results/comp_results{SUFFIX}_{TEST_SET}.csv")
 
 
 def underline_winner(row):
@@ -1668,7 +1759,7 @@ print("Lowest mean quantile:", rankings_df.loc["Mean quantile"].idxmin())
 
 # %%
 # Save rankings to CSV
-rankings_df.to_csv(f"results/comp_ranking{SUFFIX}.csv")
+rankings_df.to_csv(f"results/comp_ranking{SUFFIX}_{TEST_SET}.csv")
 
 # %%
 # Analyze which sectors each model passes/fails for
