@@ -1,5 +1,9 @@
 # %%
-from shared.adequacy import bayer_dimitriadis_test, christoffersen_test
+from shared.adequacy import (
+    auxiliary_esr_test,
+    christoffersen_test,
+    pooled_bayer_dimitriadis_test,
+)
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import (
@@ -1041,6 +1045,25 @@ preds_per_model = [
 
 
 # %%
+# Create function for inspecting entries
+m = None
+
+
+def inspect_entry():
+    global m, v
+    for i, entry in enumerate(preds_per_model):
+        print(i, entry["name"])
+    i = int(input("Enter index: "))
+    m = preds_per_model[i]
+    print("=========================")
+    print("Selected", m["name"])
+    print("It is available in scope as 'm'")
+    print("=========================")
+    print("Keys in entry:")
+    print(list(m.keys()))
+
+
+# %%
 def calculate_picp(y_true, lower_bounds, upper_bounds):
     invalid = np.isnan(lower_bounds) | np.isnan(upper_bounds)
     # Mark entries with any NaN bounds as NaN so they don't contribute to the average.
@@ -1284,8 +1307,21 @@ for entry in preds_per_model:
         es_pred = entry.get(f"ES_{es_str}")
         if es_pred is not None:
             # Code left in for now, but we have not found academic support for this approach.
-            pooled_bayer_dimitriadis_result = bayer_dimitriadis_test(
-                y_test_actual, entry[f"LB_{cl_str}"], es_pred, cl
+            pool_df = pd.DataFrame(
+                {
+                    "Symbol": entry["symbols"],
+                    "Date": entry["dates"],
+                    "Actual": y_test_actual,
+                    "VaR": np.array(entry[f"LB_{cl_str}"]),
+                    "ES": np.array(es_pred),
+                }
+            )
+            pool_df.dropna(subset=["ES"], inplace=True)
+            pooled_bayer_dimitriadis_result = pooled_bayer_dimitriadis_test(
+                pool_df.pivot_table("Actual", "Symbol", "Date"),
+                pool_df.pivot_table("VaR", "Symbol", "Date"),
+                pool_df.pivot_table("ES", "Symbol", "Date"),
+                cl,
             )
             entry[f"pooled_bayer_dimitriadis_{es_str}"] = (
                 pooled_bayer_dimitriadis_result
@@ -1300,7 +1336,7 @@ for entry in preds_per_model:
             es_df = pd.DataFrame(
                 {
                     "Symbol": entry["symbols"],
-                    "Date": y_test_actual,
+                    "Actual": y_test_actual,
                     "LB": np.array(entry[f"LB_{cl_str}"]),
                     "ES": np.array(es_pred),
                 }
@@ -1310,13 +1346,11 @@ for entry in preds_per_model:
             indeterminate = 0
             # We should use both 0.05 (since it's the default) and 0.10 (which is stricter) to show that GARCH underestimates risk
             pass_threshold = 0.05
-            mean_violations = []
+            bd_results = {}
             for symbol, group in es_df.groupby("Symbol"):
-                result = bayer_dimitriadis_test(
-                    group["Date"].values, group["LB"].values, group["ES"].values, cl
+                test_stat, p = auxiliary_esr_test(
+                    group["Actual"].values, group["LB"].values, group["ES"].values, cl
                 )
-                mean_violations.append(result["mean_z"])
-                p = result["p_value"]
                 if not np.isfinite(p):
                     print(
                         "WARNING: nan p-value in Bayer-Dimitriadis test for ",
@@ -1329,10 +1363,18 @@ for entry in preds_per_model:
                     fails += 1
                 else:
                     passes += 1
+                result = {
+                    "p_value": p,
+                    "test_stat": test_stat,
+                }
+                bd_results[symbol] = result
+                result["n_violations"] = np.sum(group["Actual"] < group["LB"])
             entry[f"bayer_dim_passes_{es_str}"] = passes
             entry[f"bayer_dim_fails_{es_str}"] = fails
             entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
-            entry[f"bayer_dim_mean_violation_{es_str}"] = np.mean(mean_violations)
+            bd_results_df = pd.DataFrame(bd_results).T
+            bd_results_df["Pass"] = bd_results_df["p_value"] > pass_threshold
+            entry[f"bayer_dim_results_{es_str}"] = bd_results_df
 
             quantile = 1 - es_alpha
             entry[f"FZ0_{es_str}"] = fz_loss(
@@ -1402,7 +1444,6 @@ es_metric_keys = [
     "Bayer-Dimitriadis fails",
     "Bayer-Dimitriadis indeterminate",
     "Bayer-Dimitriadis pass rate",
-    "Bayer-Dimitriadis mean bias",
     "FZ Loss",
     "AL Loss",
 ]
@@ -1497,9 +1538,6 @@ for entry in preds_per_model:
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 np.nan
             )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
-                np.nan
-            )
             results[
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis mean violation"
             ].append(np.nan)
@@ -1533,9 +1571,6 @@ for entry in preds_per_model:
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 passes / (passes + fails) if passes or fails else np.nan
-            )
-            results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis mean bias"].append(
-                entry[f"bayer_dim_mean_violation_{es_str}"]
             )
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
                 np.mean(entry[f"FZ0_{es_str}"])
@@ -1622,9 +1657,6 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis fails"] = results_df[
         f"[{es_str}] Bayer-Dimitriadis fails"
     ].idxmin()
-    results_df.loc["Winner", f"[{es_str}] Bayer-Dimitriadis mean bias"] = (
-        results_df[f"[{es_str}] Bayer-Dimitriadis mean bias"].abs().idxmin()
-    )
     results_df.loc["Winner", f"[{es_str}] FZ Loss"] = results_df[
         f"[{es_str}] FZ Loss"
     ].idxmin()

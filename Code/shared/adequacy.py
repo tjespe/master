@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.stats import chi2, norm
+import pandas as pd
+from scipy.optimize import minimize
 
 
 def christoffersen_test(exceedances, alpha, reset_indices=None):
@@ -106,24 +108,64 @@ def christoffersen_test(exceedances, alpha, reset_indices=None):
     }
 
 
-def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
+def joint_esr_loss(params, y, var_forecast, es_forecast, alpha):
+    """
+    Joint loss function for quantile (VaR) and ES regression, from Fissler & Ziegel (2016).
+    """
+    b1, b2, c1, c2 = params
+    q = b1 + b2 * var_forecast
+    e = c1 + c2 * es_forecast
+    indicator = (y <= q).astype(float)
+    loss = (1 / alpha) * ((indicator * (q - y)) - (q - e)) + np.log(e)
+    return np.mean(loss)
+
+
+def estimate_joint_esr(y, var_forecast, es_forecast, alpha):
+    # Initial guess for [b1, b2, c1, c2]
+    init_params = np.array([0.0, 1.0, 0.0, 1.0])
+    result = minimize(
+        joint_esr_loss,
+        init_params,
+        args=(y, var_forecast, es_forecast, alpha),
+        method="BFGS",
+    )
+    return result.x, result.hess_inv
+
+
+def auxiliary_esr_test(y, var_forecast, es_forecast, alpha):
+    T = len(y)
+    params, cov = estimate_joint_esr(y, var_forecast, es_forecast, alpha)
+    c1, c2 = params[2], params[3]
+    cov_c = cov[2:, 2:]
+    test_stat = T * np.dot(np.dot([c1, c2 - 1], np.linalg.inv(cov_c)), [c1, c2 - 1])
+    p_value = 1 - chi2.cdf(test_stat, df=2)
+    return test_stat, p_value
+
+
+def pooled_bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
     """
     Test that the expected value of VaR exceedances matches the expected shortfall,
     i.e. that
     E[ I(y_t > VaR_t^alpha) * (y_t - ES_t^alpha) ] = 0
     where I is the indicator function.
 
-    Returns:
-      dict with:
-        test_statistic : the standardized test statistic
-        p_value        : two-sided p-value from the standard normal distribution
-        mean_z         : average of the test variable (should be ~ 0 if well-calibrated)
-        std_z          : standard deviation of the test variable
+    This version pools the test variable z_t across all assets before computing the test statistic.
+
+    Parameters:
+        y_true   : (N, T) array-like of actual losses where N = # of assets and T = # of observations
+        var_pred : (N, T) array-like of VaR predictions where N = # of assets and T = # of observations
+        es_pred  : (N, T) array-like of ES predictions where N = # of assets and T = # of observations
+        alpha    : VaR level
     """
     # Convert inputs to np.array for safety
     y_true = np.asarray(y_true)
     var_pred = np.asarray(var_pred)
     es_pred = np.asarray(es_pred)
+
+    # Print shapes
+    print("y_true.shape", y_true.shape)
+    print("var_pred.shape", var_pred.shape)
+    print("es_pred.shape", es_pred.shape)
 
     n = len(y_true)
     if any(len(arr) != n for arr in [var_pred, es_pred]):
@@ -134,7 +176,7 @@ def bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
 
     # Define the test variable z_t
     # z_t = I(X_t > VaR_t^alpha) * [ (X_t - ES_t^alpha) / alpha ]
-    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0)
+    z = np.where(exceedances, (y_true - es_pred) / alpha, 0.0).mean(axis=0)
 
     mean_z = np.nanmean(z)
     std_z = np.nanstd(z, ddof=1)
