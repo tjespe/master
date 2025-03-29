@@ -2,7 +2,7 @@ library(data.table)
 
 # define what variables we are working with
 include_rv = TRUE
-include_IV = FALSE
+include_IV = TRUE
 
 # version is "RV" if we include_rv and "IV" if we include_IV and "RV_IV" if we include both
 version = ifelse(include_rv & include_IV, "RV_IV", ifelse(include_rv, "RV", "IV"))
