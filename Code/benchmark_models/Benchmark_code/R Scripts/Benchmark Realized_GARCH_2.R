@@ -49,8 +49,8 @@ data <- data[complete.cases(data),]
 
 
 # define training and validation data
-training_data <- data[data$Date < as.Date("2021-12-31"),]
-validation_data <- data[data$Date >= as.Date("2021-12-31") & data$Date <= as.Date("2023-12-31"),]
+training_data <- data[data$Date < as.Date("2022-12-31"),]
+test_data <- data[data$Date >= as.Date("2022-12-31"),]
 
 
 ############################################
@@ -74,10 +74,10 @@ fit_symbol_garch <- function(symbol) {
   
   symbol_data <- data[data$Symbol == symbol,]
   symbol_training_data <- training_data[training_data$Symbol == symbol,]
-  symbol_validation_data <- validation_data[validation_data$Symbol == symbol,]
+  symbol_test_data <- test_data[test_data$Symbol == symbol,]
 
   window_size <- length(symbol_training_data$Date)
-  symbol_data <- rbind(symbol_training_data, symbol_validation_data)
+  symbol_data <- rbind(symbol_training_data, symbol_test_data)
 
   returns <- as.numeric(symbol_data$LogReturn)
   rv <- as.numeric(symbol_data$RV_5)
