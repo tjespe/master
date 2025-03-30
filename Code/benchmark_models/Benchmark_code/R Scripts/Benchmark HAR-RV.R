@@ -114,12 +114,12 @@ for (symbol in symbols) {
       forecast_df <- data.frame(
           Date = forecast_dates,
           Symbol = symbol,
-          HAR_vol_R = forecast_values)
+          HARQ_vol_R = forecast_values)
     } else {
     forecast_df <- data.frame(
         Date = forecast_dates,
         Symbol = symbol,
-        HARQ_vol_R = forecast_values
+        HAR_vol_R = forecast_values
     )
     }
     
