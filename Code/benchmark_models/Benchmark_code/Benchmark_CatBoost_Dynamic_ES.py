@@ -7,7 +7,7 @@
 # %%
 # define what version to run
 INCLUDE_RV = True
-INCLUDE_IV = True
+INCLUDE_IV = False
 
 # version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
 VERSION = "RV" if INCLUDE_RV and not INCLUDE_IV else "IV" if INCLUDE_IV and not INCLUDE_RV else "RV_IV" if INCLUDE_RV and INCLUDE_IV else "None"
@@ -35,14 +35,14 @@ from tqdm import tqdm
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'shared')))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 
-from processing import get_lstm_train_test_new
+from shared.processing import get_lstm_train_test_new
 
 
 # %%
 # Define all ES Quantiles and sub-quantiles of interest
 
 # ES quantiles of interest
-ES_quantiles = [0.835, 0.95, 0.975, 0.99]
+ES_quantiles = [0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99]
 p = 5  # 'p' defined as per requirement
 
 # Create a list to store the quantiles
@@ -371,7 +371,7 @@ final_df
 
 def estimate_es_from_predictions(
     df_preds: pd.DataFrame,
-    es_alphas=[0.835, 0.95, 0.975, 0.99],
+    es_alphas=[0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99],
     p=5
 ) -> pd.DataFrame:
     """
@@ -427,7 +427,7 @@ def estimate_es_from_predictions(
 
     return df_out
 
-es_df = estimate_es_from_predictions(final_df, es_alphas=[0.835, 0.95, 0.975, 0.99])
+es_df = estimate_es_from_predictions(final_df, es_alphas=[0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99])
 es_df
 # %%
 # Write the ES predictions to a csv file for storage

@@ -52,7 +52,7 @@ if (include_rv & include_IV) {
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
-ES <- c(0.835, 0.95, 0.975, 0.99)
+ES <- c(0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99)
 
 
 # Dimitriadis and Bayer model 
