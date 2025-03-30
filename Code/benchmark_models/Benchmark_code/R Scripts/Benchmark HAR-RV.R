@@ -11,7 +11,7 @@ capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/pr
 return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # Define wether to use HAR or HARQ, include_RQ = TRUE for HARQ
-include_RQ <- FALSE
+include_RQ <- TRUE
 
 # Clean data #
 
@@ -44,9 +44,9 @@ data <- data[order(data$Symbol, data$Date),]
 # remove rows with NA values
 data <- data[complete.cases(data),]
 
-# define training and validation data
-training_data <- data[data$Date < as.Date("2021-12-31"),]
-validation_data <- data[data$Date >= as.Date("2021-12-31") & data$Date <= as.Date("2023-12-31"),]
+# define training and test data
+training_data <- data[data$Date < as.Date("2022-12-31"),]
+test_data <- data[data$Date >= as.Date("2022-12-31"),]
 
 
 ############################################
@@ -60,13 +60,13 @@ for (symbol in symbols) {
 
     symbol_data <- data[data$Symbol == symbol,]
     symbol_training_data <- training_data[training_data$Symbol == symbol,]
-    symbol_validation_data <- validation_data[validation_data$Symbol == symbol,]
+    symbol_test_data <- test_data [test_data $Symbol == symbol,]
 
     # define initial window size
     window_size <- length(symbol_training_data$Date)
 
     # concatenate training and validation data
-    symbol_data <- rbind(symbol_training_data, symbol_validation_data)
+    symbol_data <- rbind(symbol_training_data, symbol_test_data)
 
     # create features
     symbol_data$RV_lag1 <- dplyr::lag(symbol_data$RV_5, 1)
