@@ -61,14 +61,13 @@ for symbol in symbols:
     df_filtered = df.xs(symbol, level="Symbol")
 
     # Training data
-    returns_train = df_filtered["LogReturn"].loc[:TRAIN_VALIDATION_SPLIT]
+    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT]
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
-    returns_validation = df_filtered["LogReturn"].loc[
-        TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
-    ]
-    scaled_returns_test = returns_validation * 100  # Scale to percentages
+    returns_test = df_filtered["LogReturn"].loc[
+        VALIDATION_TEST_SPLIT:]
+    scaled_returns_test = returns_test * 100  # Scale to percentages
 
     # Initialize an empty list to store forecasts
 
@@ -105,17 +104,16 @@ nu_values = np.array(nu_values)
 
 # %%
 # Save GARCH predictions to file
-df_validation = df[df.index.get_level_values("Date") >= TRAIN_VALIDATION_SPLIT]
-df_validation = df_validation[df_validation.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
-df_validation.reset_index(inplace=True)
+df_test = df[df.index.get_level_values("Date") >= VALIDATION_TEST_SPLIT]
+df_test.reset_index(inplace=True)
 # remove all coloumns except Symbol, Date, LogReturn, SquaredReturn
-df_validation = df_validation[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
-df_validation
+df_test = df_test[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
+df_test
 # %%
-df_validation["GARCH_t_Vol"] = garch_vol_pred
-df_validation["GARCH_t_Nu"] = nu_values
-df_validation["GARCH_t_Mean"] = 0
-df_validation
+df_test["GARCH_t_Vol"] = garch_vol_pred
+df_test["GARCH_t_Nu"] = nu_values
+df_test["GARCH_t_Mean"] = 0
+df_test
 
 # %%
 # # Calculate CRPS
@@ -136,18 +134,18 @@ crps_values = [
     crps_student_t(x, mu, sigma, nu)
     for x, mu, sigma, nu in tqdm(
         zip(
-            df_validation["LogReturn"],
-            df_validation["GARCH_t_Mean"],
-            df_validation["GARCH_t_Vol"],
-            df_validation["GARCH_t_Nu"],
+            df_test["LogReturn"],
+            df_test["GARCH_t_Mean"],
+            df_test["GARCH_t_Vol"],
+            df_test["GARCH_t_Nu"],
         ),
-        total=len(df_validation),
+        total=len(df_test),
         desc="Computing CRPS"
     )
 ]
 
-df_validation["GARCH_t_CRPS"] = crps_values
-df_validation
+df_test["GARCH_t_CRPS"] = crps_values
+df_test
 
 # %%
 # calculate upper and lower bounds for given quantiles
@@ -158,23 +156,23 @@ confidence_levels = [0.67, 0.90, 0.95, 0.98]
 for cl in confidence_levels:
     alpha = 1 - cl
     # Calculate the lower and upper quantiles based on Student-t
-    lb = df_validation["GARCH_t_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
-    ub = df_validation["GARCH_t_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
-    df_validation[f"LB_{format_cl(cl)}"] = lb
-    df_validation[f"UB_{format_cl(cl)}"] = ub
+    lb = df_test["GARCH_t_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
+    ub = df_test["GARCH_t_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+    df_test[f"LB_{format_cl(cl)}"] = lb
+    df_test[f"UB_{format_cl(cl)}"] = ub
 
     es_alpha = alpha / 2
     # Compute Expected Shortfall (ES) for the lower tail using the closed-form formula:
     # ES = mu - sigma * [ (nu + z^2)/(nu-1) ] * [ t.pdf(z) / p ], where z = t.ppf(p, df=nu)
     z_p = t.ppf(es_alpha, df=nu_values)
     t_pdf_z = t.pdf(z_p, df=nu_values)
-    es = df_validation["GARCH_t_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
-    df_validation[f"ES_{format_cl(1 - es_alpha)}"] = es
+    es = df_test["GARCH_t_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
+    df_test[f"ES_{format_cl(1 - es_alpha)}"] = es
 
 
-df_validation
+df_test
 # %%
-df_validation.to_csv("predictions/garch_predictions_student_t.csv")
+df_test.to_csv("predictions/garch_predictions_student_t.csv")
 
 
 # %%
