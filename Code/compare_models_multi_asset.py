@@ -370,7 +370,8 @@ for version in [
         print(f"HAR_{version} predictions not found")
 
 # HARQ Model
-for version in ["python", "R"]:
+for version in [#"python",
+                 "R"]:
     try:
         harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])

@@ -14,7 +14,7 @@ capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/pr
 return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # define what distribution assumption we would like to use
-dist_assumption <- "norm"  # set "norm" for normal and "std" for student-t
+dist_assumption <- "std"  # set "norm" for normal and "std" for student-t
 
 
 # Clean data #
