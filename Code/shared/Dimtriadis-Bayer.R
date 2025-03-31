@@ -40,8 +40,8 @@ egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv
 garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
 garch_t <- garch_t[garch_t$Date >= "2023-01-03" & garch_t$Date <= "2024-03-28", ]
 rv_garch <- rv_garch[rv_garch$Date >= "2023-01-03" & rv_garch$Date <= "2024-03-28", ]
-ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
-ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
+#ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
+#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
 egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
 
 ######### HAR ##############
