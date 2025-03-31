@@ -29,16 +29,16 @@ lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predic
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 
 ########## GARCH MODELS ###########
-garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-rv_garch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-egarch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#rv_garch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#egarch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
 ######### HAR ##############
-har <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-harq <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#har <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+#harq <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
 ########### BOOSTERS ###########
 # catboost_RV <- read.csv("~/Masterv4/master/Code/predictions/CatBoost_RV.csv")
@@ -58,6 +58,34 @@ lightgbm_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/LightGBM_RV_IV.cs
 # DB_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 # DB_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
+
+# remove ticker "DOW" from all models if it exists
+transformer_RV_ensemble <- transformer_RV_ensemble[transformer_RV_ensemble$Symbol != "DOW", ]
+transformer_IV_ensemble <- transformer_IV_ensemble[transformer_IV_ensemble$Symbol != "DOW", ]
+transformer_RV_IV_ensemble <- transformer_RV_IV_ensemble[transformer_RV_IV_ensemble$Symbol != "DOW", ]
+lstm_RV_ensemble <- lstm_RV_ensemble[lstm_RV_ensemble$Symbol != "DOW", ]
+lstm_IV_ensemble <- lstm_IV_ensemble[lstm_IV_ensemble$Symbol != "DOW", ]
+lstm_RV_IV_ensemble <- lstm_RV_IV_ensemble[lstm_RV_IV_ensemble$Symbol != "DOW", ]
+#catboost_RV <- catboost_RV[catboost_RV$Symbol != "DOW", ]
+catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
+catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
+xgboost_RV <- xgboost_RV[xgboost_RV$Symbol != "DOW", ]
+# xgboost_IV <- xgboost_IV[xgboost_IV$Symbol != "DOW", ]
+xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
+lightgbm_RV <- lightgbm_RV[lightgbm_RV$Symbol != "DOW", ]
+lightgbm_IV <- lightgbm_IV[lightgbm_IV$Symbol != "DOW", ]
+lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
+# DB_RV <- DB_RV[DB_RV$Symbol != "DOW", ]
+# DB_IV <- DB_IV[DB_IV$Symbol != "DOW", ]
+# DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
+# har <- har[har$Symbol != "DOW", ]
+# harq <- harq[harq$Symbol != "DOW", ]
+# garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
+# garch_t <- garch_t[garch_t$Symbol != "DOW", ]
+# rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
+# ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
+# ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
+# egarch <- egarch[egarch$Symbol != "DOW", ]
 #######################################################################################################
  # TEST MODELS
 #######################################################################################################
@@ -588,12 +616,13 @@ esr_results <- run_esr_backtests(
   return_data = return_data
 )
 
+library(knitr)
+library(kableExtra)
 
 # Displaying each version, significance combination
 for (key in names(esr_results)) {
   cat("\n### Results for", key, "\n")
   df <- esr_results[[key]]
   df$Alpha <- factor(df$Alpha, levels = c(0.01, 0.025, 0.05), labels = c("1%", "2.5%", "5%"))
-  print(kable(df, format = "pipe", digits = 2, align = 'c') %>%
-          kable_styling("striped", full_width = FALSE))
+  print(kable(df, format = "pipe", digits = 2, align = 'c'))
 }
