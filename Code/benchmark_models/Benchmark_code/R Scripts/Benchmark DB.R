@@ -2,7 +2,7 @@ library(data.table)
 
 # define what variables we are working with
 include_rv = TRUE
-include_IV = FALSE
+include_IV = TRUE
 
 # version is "RV" if we include_rv and "IV" if we include_IV and "RV_IV" if we include both
 version = ifelse(include_rv & include_IV, "RV_IV", ifelse(include_rv, "RV", "IV"))
@@ -52,7 +52,7 @@ if (include_rv & include_IV) {
 
 independant_var_names <- unname(unlist(independant_var_names_set))
 
-ES <- c(0.835, 0.95, 0.975, 0.99)
+ES <- c(0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99)
 
 
 # Dimitriadis and Bayer model 

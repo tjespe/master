@@ -370,7 +370,8 @@ for version in [
         print(f"HAR_{version} predictions not found")
 
 # HARQ Model
-for version in ["python", "R"]:
+for version in [#"python",
+                 "R"]:
     try:
         harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
@@ -864,6 +865,10 @@ for version in ["RV", "IV", "RV_IV"]:
                 "UB_95": combined_df.get("Quantile_0.975"),
                 "LB_90": combined_df.get("Quantile_0.050"),
                 "UB_90": combined_df.get("Quantile_0.950"),
+                "LB_67": combined_df.get("Quantile_0.165"),
+                "UB_67": combined_df.get("Quantile_0.835"),
+                "ES_83.5": combined_df.get("ES_0.165"),
+                "ES_16.5": combined_df.get("ES_0.835"),
                 "ES_99": combined_df.get("ES_0.010"),
                 "ES_97.5": combined_df.get("ES_0.025"),
                 "ES_95": combined_df.get("ES_0.050"),
@@ -917,6 +922,10 @@ for version in ["RV", "IV", "RV_IV"]:
                 "UB_95": combined_df.get("Quantile_0.975"),
                 "LB_90": combined_df.get("Quantile_0.050"),
                 "UB_90": combined_df.get("Quantile_0.950"),
+                "LB_67": combined_df.get("Quantile_0.165"),
+                "UB_67": combined_df.get("Quantile_0.835"),
+                "ES_83.5": combined_df.get("ES_0.165"),
+                "ES_16.5": combined_df.get("ES_0.835"),
                 "ES_99": combined_df.get("ES_0.010"),
                 "ES_97.5": combined_df.get("ES_0.025"),
                 "ES_95": combined_df.get("ES_0.050"),
@@ -970,6 +979,10 @@ for version in ["RV", "IV", "RV_IV"]:
                 "UB_95": combined_df.get("Quantile_0.975"),
                 "LB_90": combined_df.get("Quantile_0.050"),
                 "UB_90": combined_df.get("Quantile_0.950"),
+                "LB_67": combined_df.get("Quantile_0.165"),
+                "UB_67": combined_df.get("Quantile_0.835"),
+                "ES_83.5": combined_df.get("ES_0.165"),
+                "ES_16.5": combined_df.get("ES_0.835"),
                 "ES_99": combined_df.get("ES_0.010"),
                 "ES_97.5": combined_df.get("ES_0.025"),
                 "ES_95": combined_df.get("ES_0.050"),
@@ -984,57 +997,66 @@ for version in ["RV", "IV", "RV_IV"]:
             print(f"XGBoost has {nans} NaN predictions")
     except FileNotFoundError:
         print("XGBoost predictions not found")
+        
+for version in [
+    #"RV", 
+    #"IV", 
+    #"RV_IV"
+    ]:
+    try:
+        DB_preds = pd.read_csv(f"predictions/DB_{version}.csv")
+        DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
+        DB_preds = DB_preds.set_index(["Date", "Symbol"])
+        DB_dates = DB_preds.index.get_level_values("Date")
+        DB_preds = DB_preds[
+            (
+                (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (DB_dates >= VALIDATION_TEST_SPLIT)
+            )
+        ]
+        if np.isnan(DB_preds).all().all():
+            raise FileNotFoundError(f"All DB RV_only predictions are NaN")
+        combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
+        # make a Mean_SP column full of 0s for now
+        combined_df["Mean_SP"] = 0
+        # same for Vol_SP
+        combined_df["Vol_SP"] = 0
+        # same for NLL
+        combined_df["nll"] = np.nan
 
-try:
-    DB_preds = pd.read_csv(f"predictions/val_predictions_DB_all_tickers.csv")
-    DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
-    DB_preds = DB_preds.set_index(["Date", "Symbol"])
-    DB_dates = DB_preds.index.get_level_values("Date")
-    DB_preds = DB_preds[
-        (
-            (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
-            if TEST_SET == "validation"
-            else (DB_dates >= VALIDATION_TEST_SPLIT)
+        preds_per_model.append(
+            {
+                "name": f"Benchmark DB {version}",
+                "mean_pred": combined_df["Mean_SP"].values,
+                "volatility_pred": combined_df["Vol_SP"].values,
+                "nll": combined_df["nll"].values,
+                "symbols": combined_df.index.get_level_values("Symbol"),
+                "dates": combined_df.index.get_level_values("Date"),
+                "LB_98": combined_df["DB_RV_set_0.01"].values,
+                "UB_98": combined_df["DB_RV_set_0.99"].values,
+                "LB_95": combined_df["DB_RV_set_0.025"].values,
+                "UB_95": combined_df["DB_RV_set_0.975"].values,
+                "LB_90": combined_df["DB_RV_set_0.05"].values,
+                "UB_90": combined_df["DB_RV_set_0.95"].values,
+                "LB_67": combined_df["DB_RV_set_0.165"].values,
+                "UB_67": combined_df["DB_RV_set_0.835"].values,
+                "ES_99": combined_df["DB_RV_set_ES_0.01"].values,
+                "ES_97.5": combined_df["DB_RV_set_ES_0.025"].values,
+                "ES_95": combined_df["DB_RV_set_ES_0.05"].values,
+                "ES_83.5": combined_df["DB_RV_set_ES_0.165"].values,
+                "ES_16.5": combined_df["DB_RV_set_ES_0.835"].values,
+                "ES_0.05": combined_df["DB_RV_set_ES_0.95"].values,
+                "ES_0.025": combined_df["DB_RV_set_ES_0.975"].values,
+                "ES_0.01": combined_df["DB_RV_set_ES_0.99"].values,
+            }
         )
-    ]
-    if np.isnan(DB_preds).all().all():
-        raise FileNotFoundError(f"All DB RV_only predictions are NaN")
-    combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
-    # make a Mean_SP column full of 0s for now
-    combined_df["Mean_SP"] = 0
-    # same for Vol_SP
-    combined_df["Vol_SP"] = 0
-    # same for NLL
-    combined_df["nll"] = np.nan
-
-    preds_per_model.append(
-        {
-            "name": f"Benchmark DB {version}",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "nll": combined_df["nll"].values,
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            "dates": combined_df.index.get_level_values("Date"),
-            "LB_98": combined_df["DB_RV_set_0.01"].values,
-            "UB_98": combined_df["DB_RV_set_0.99"].values,
-            "LB_95": combined_df["DB_RV_set_0.025"].values,
-            "UB_95": combined_df["DB_RV_set_0.975"].values,
-            "LB_90": combined_df["DB_RV_set_0.05"].values,
-            "UB_90": combined_df["DB_RV_set_0.95"].values,
-            "ES_99": combined_df["DB_RV_set_ES_0.01"].values,
-            "ES_97.5": combined_df["DB_RV_set_ES_0.025"].values,
-            "ES_95": combined_df["DB_RV_set_ES_0.05"].values,
-            "ES_0.05": combined_df["DB_RV_set_ES_0.95"].values,
-            "ES_0.025": combined_df["DB_RV_set_ES_0.975"].values,
-            "ES_0.01": combined_df["DB_RV_set_ES_0.99"].values,
-        }
-    )
-    # nans = combined_df["Mean_SP"].isnull().sum()
-    nans = 0
-    if nans > 0:
-        print(f"DB has {nans} NaN predictions")
-except FileNotFoundError:
-    print("DB predictions not found")
+        # nans = combined_df["Mean_SP"].isnull().sum()
+        nans = 0
+        if nans > 0:
+            print(f"DB has {nans} NaN predictions")
+    except FileNotFoundError:
+        print("DB predictions not found")
 ###########################################
 
 # %%
@@ -1587,10 +1609,12 @@ results_df = results_df.set_index("Model")
 for model in results_df.index:
     if "GARCH" in model:
         continue
-    # if "Benchmark" in model:
-    #     continue
-    # if "HAR" in model:
-    #     continue
+    if "Benchmark" in model:
+        continue
+    if "HAR" in model:
+        continue
+    if "DB" in model:
+        continue
     # if "VAE MDN" in model:
     #     continue
     passes = 0
