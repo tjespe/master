@@ -24,7 +24,7 @@ transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv")
 
 ############ LSTM ###################
-lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-final_ensemble.csv")
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 
@@ -68,7 +68,7 @@ DB_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
 # Model list
 model_list <- list(
- # "LSTM_RV" = lstm_RV_ensemble,
+ "LSTM_RV" = lstm_RV_ensemble,
  "LSTM_IV" = lstm_IV_ensemble,
  "LSTM_RV_IV" = lstm_RV_IV_ensemble,
  # "LSTM_temp" = lstm_enire_set
@@ -466,6 +466,8 @@ all_results$FailRate <- round(all_results$FailRate * 100, 2)  # Convert to perce
 
 # Display the final results table
 print(all_results)
+
+kable(all_results, format = "pipe", digits = 2, align = 'c')
 
 # display it as a nice table
 library(knitr)
