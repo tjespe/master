@@ -73,7 +73,7 @@ for symbol in symbols:
     df_filtered = df.xs(symbol, level="Symbol")
 
     # Training data
-    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT]
+    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT].iloc[:-1]
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
