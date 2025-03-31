@@ -376,6 +376,7 @@ if __name__ == "__main__":
                 "mdn_kernel_initializer": mdn_kernel_initializer,
                 "mdn_bias_initializer": mdn_bias_initializer,
                 "MDNEnsemble": MDNEnsemble,
+                "add_day_indices": add_day_indices,
             },
         )
         already_trained = True
