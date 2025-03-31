@@ -1369,35 +1369,35 @@ for entry in preds_per_model:
             indeterminate = 0
             # We should use both 0.05 (since it's the default) and 0.10 (which is stricter) to show that GARCH underestimates risk
             pass_threshold = 0.05
-            bd_results = {}
-            for symbol, group in es_df.groupby("Symbol"):
-                test_stat, p = auxiliary_esr_test(
-                    group["Actual"].values, group["LB"].values, group["ES"].values, cl
-                )
-                if not np.isfinite(p):
-                    print(
-                        "WARNING: nan p-value in Bayer-Dimitriadis test for ",
-                        symbol,
-                        "at",
-                        cl_str,
-                    )
-                    indeterminate += 1
-                elif p < pass_threshold:
-                    fails += 1
-                else:
-                    passes += 1
-                result = {
-                    "p_value": p,
-                    "test_stat": test_stat,
-                }
-                bd_results[symbol] = result
-                result["n_violations"] = np.sum(group["Actual"] < group["LB"])
-            entry[f"bayer_dim_passes_{es_str}"] = passes
-            entry[f"bayer_dim_fails_{es_str}"] = fails
-            entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
-            bd_results_df = pd.DataFrame(bd_results).T
-            bd_results_df["Pass"] = bd_results_df["p_value"] > pass_threshold
-            entry[f"bayer_dim_results_{es_str}"] = bd_results_df
+            # bd_results = {}
+            # for symbol, group in es_df.groupby("Symbol"):
+            #     test_stat, p = auxiliary_esr_test(
+            #         group["Actual"].values, group["LB"].values, group["ES"].values, cl
+            #     )
+            #     if not np.isfinite(p):
+            #         print(
+            #             "WARNING: nan p-value in Bayer-Dimitriadis test for ",
+            #             symbol,
+            #             "at",
+            #             cl_str,
+            #         )
+            #         indeterminate += 1
+            #     elif p < pass_threshold:
+            #         fails += 1
+            #     else:
+            #         passes += 1
+            #     result = {
+            #         "p_value": p,
+            #         "test_stat": test_stat,
+            #     }
+            #     bd_results[symbol] = result
+            #     result["n_violations"] = np.sum(group["Actual"] < group["LB"])
+            # entry[f"bayer_dim_passes_{es_str}"] = passes
+            # entry[f"bayer_dim_fails_{es_str}"] = fails
+            # entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
+            # bd_results_df = pd.DataFrame(bd_results).T
+            # bd_results_df["Pass"] = bd_results_df["p_value"] > pass_threshold
+            # entry[f"bayer_dim_results_{es_str}"] = bd_results_df
 
             quantile = 1 - es_alpha
             entry[f"FZ0_{es_str}"] = fz_loss(
@@ -1584,13 +1584,13 @@ for entry in preds_per_model:
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
             ].append(pooled_bd_test_result["std_z"])
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis passes"].append(
-                passes := entry[f"bayer_dim_passes_{es_str}"]
+                passes := entry.get(f"bayer_dim_passes_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis fails"].append(
-                fails := entry[f"bayer_dim_fails_{es_str}"]
+                fails := entry.get(f"bayer_dim_fails_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
-                entry[f"bayer_dim_indeterminate_{es_str}"]
+                entry.get(f"bayer_dim_indeterminate_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 passes / (passes + fails) if passes or fails else np.nan
