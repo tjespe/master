@@ -2,6 +2,8 @@
 library(esback)
 library(dplyr)
 
+test_version <- 1 # 1 = strict, 2 = auxillary, 3 = strict intercept
+significance <- 0.05 # significance level for the test
 
 # get return data for the test set
 return_data <- read.csv("~/Masterv4/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
@@ -119,7 +121,7 @@ for (model_name in names(model_list)) {
           q = q,
           e = e,
           alpha = alpha,
-          version = 1,  # Strict ESR
+          version = test_version,  # Strict ESR
           cov_config = list(sparsity = "nid", sigma_est = "scl_sp", misspec = TRUE)
         )
       }, error = function(e) {
@@ -132,7 +134,7 @@ for (model_name in names(model_list)) {
         pval <- result$pvalue_twosided_asymptotic
         if (!is.null(pval)) {
           cat("Symbol:", sym, " | Alpha:", alpha, " | p-value:", pval, "\n")
-          if (pval >= 0.05) {
+          if (pval >= significance) {
             pass_count <- pass_count + 1
           } else {
             fail_count <- fail_count + 1
@@ -221,7 +223,7 @@ for (model_name in names(model_list)) {
           q = q,
           e = e,
           alpha = alpha,
-          version = 1,  # Strict ESR
+          version = test_version,  # Strict ESR
           cov_config = list(sparsity = "nid", sigma_est = "scl_sp", misspec = TRUE)
         )
       }, error = function(e) {
@@ -234,7 +236,7 @@ for (model_name in names(model_list)) {
         pval <- result$pvalue_twosided_asymptotic
         if (!is.null(pval)) {
           cat("Symbol:", sym, " | Alpha:", alpha, " | p-value:", pval, "\n")
-          if (pval >= 0.05) {
+          if (pval >= significance) {
             pass_count <- pass_count + 1
           } else {
             fail_count <- fail_count + 1
@@ -316,7 +318,7 @@ for (model_name in names(model_list)) {
           q = q,
           e = e,
           alpha = alpha,
-          version = 1,  # Strict ESR
+          version = test_version,  # Strict ESR
           cov_config = list(sparsity = "nid", sigma_est = "scl_sp", misspec = TRUE)
         )
       }, error = function(e) {
@@ -329,7 +331,7 @@ for (model_name in names(model_list)) {
         pval <- result$pvalue_twosided_asymptotic
         if (!is.null(pval)) {
           cat("Symbol:", sym, " | Alpha:", alpha, " | p-value:", pval, "\n")
-          if (pval >= 0.05) {
+          if (pval >= significance) {
             pass_count <- pass_count + 1
           } else {
             fail_count <- fail_count + 1
@@ -409,7 +411,7 @@ for (model_name in names(model_list)) {
           q = q,
           e = e,
           alpha = alpha,
-          version = 1,  # Strict ESR
+          version = test_version,  # Strict ESR
           cov_config = list(sparsity = "nid", sigma_est = "scl_sp", misspec = TRUE)
         )
       }, error = function(e) {
@@ -422,7 +424,7 @@ for (model_name in names(model_list)) {
         pval <- result$pvalue_twosided_asymptotic
         if (!is.null(pval)) {
           cat("Symbol:", sym, " | Alpha:", alpha, " | p-value:", pval, "\n")
-          if (pval >= 0.05) {
+          if (pval >= significance) {
             pass_count <- pass_count + 1
           } else {
             fail_count <- fail_count + 1
