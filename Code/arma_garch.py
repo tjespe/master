@@ -77,7 +77,7 @@ for symbol in symbols:
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
-    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:].iloc[1:] #(skip first row)
+    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:] #(skip first row)
 
     scaled_returns_test = returns_validation * 100  # Scale to percentages
 
