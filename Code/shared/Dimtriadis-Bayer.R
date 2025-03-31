@@ -2,6 +2,7 @@
 library(esback)
 library(dplyr)
 
+# SET THIS PARAMETERS
 test_version <- 1 # 1 = strict, 2 = auxillary, 3 = strict intercept
 significance <- 0.05 # significance level for the test
 
@@ -27,6 +28,7 @@ lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 lstm_enire_set <- read.csv("~/Masterv4/master/Code/predictions/temporary_test_lstm_mdn.csv")
+
 ########## GARCH MODELS ###########
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
@@ -452,9 +454,9 @@ for (model_name in names(model_list)) {
 print(results_HAR)
 
 
-###########################
+#####################################################
 # Combine all results into one table and display
-###########################
+#####################################################
 # all_results <- rbind(results_lstm_transformers, results_boosters, results_DB, results_HAR)
 all_results <- rbind(results_lstm_transformers, results_boosters) 
 all_results <- all_results %>% arrange(Model, Alpha)
