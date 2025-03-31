@@ -370,8 +370,7 @@ for version in [
         print(f"HAR_{version} predictions not found")
 
 # HARQ Model
-for version in [#"python",
-                 "R"]:
+for version in ["R"]:  # "python",
     try:
         harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
@@ -604,6 +603,7 @@ for version in [
     "ivol-only",
     "rv-only",
     "rv-and-ivol",
+    "rv-and-ivol_ensemble",
 ]:
     try:
         transformer_df = pd.read_csv(
@@ -997,12 +997,12 @@ for version in ["RV", "IV", "RV_IV"]:
             print(f"XGBoost has {nans} NaN predictions")
     except FileNotFoundError:
         print("XGBoost predictions not found")
-        
+
 for version in [
-    #"RV", 
-    #"IV", 
-    #"RV_IV"
-    ]:
+    # "RV",
+    # "IV",
+    # "RV_IV"
+]:
     try:
         DB_preds = pd.read_csv(f"predictions/DB_{version}.csv")
         DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
@@ -1010,7 +1010,8 @@ for version in [
         DB_dates = DB_preds.index.get_level_values("Date")
         DB_preds = DB_preds[
             (
-                (DB_dates >= TRAIN_VALIDATION_SPLIT) & (DB_dates < VALIDATION_TEST_SPLIT)
+                (DB_dates >= TRAIN_VALIDATION_SPLIT)
+                & (DB_dates < VALIDATION_TEST_SPLIT)
                 if TEST_SET == "validation"
                 else (DB_dates >= VALIDATION_TEST_SPLIT)
             )

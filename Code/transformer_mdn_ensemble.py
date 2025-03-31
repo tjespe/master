@@ -315,6 +315,7 @@ def _train_single_member(args):
 # Begin script
 if __name__ == "__main__":
     print(f"Training Transformer MDN Ensemble v{VERSION}")
+    mp.set_start_method("spawn", force=True)
 
     # %%
     # Load preprocessed data
@@ -375,6 +376,7 @@ if __name__ == "__main__":
                 "mdn_kernel_initializer": mdn_kernel_initializer,
                 "mdn_bias_initializer": mdn_bias_initializer,
                 "MDNEnsemble": MDNEnsemble,
+                "add_day_indices": add_day_indices,
             },
         )
         already_trained = True
@@ -599,18 +601,16 @@ if __name__ == "__main__":
 
     # %%
     # 12) Plot time series with mean, volatility and actual returns for last X days
-    days = 150
-    shift = 1
     mean = (pi_pred * mu_pred).numpy().sum(axis=1)
     for ticker in example_tickers:
         from_idx, to_idx = test.get_range(ticker)
         ticker_mean = mean[from_idx:to_idx]
-        filtered_mean = ticker_mean[-days - shift : -shift]
+        filtered_mean = ticker_mean
         ticker_intervals = intervals[from_idx:to_idx]
-        filtered_intervals = ticker_intervals[-days - shift : -shift]
+        filtered_intervals = ticker_intervals
         s = test.sets[ticker]
-        dates = s.y_dates[-days - shift : -shift]
-        actual_return = s.y[-days - shift : -shift]
+        dates = s.y_dates
+        actual_return = s.y
 
         plt.figure(figsize=(12, 6))
         plt.plot(
@@ -634,6 +634,17 @@ if __name__ == "__main__":
                 alpha=0.7 - i * 0.07,
                 label=f"{100*cl:.1f}% Interval",
             )
+            # Mark violations
+            violations = np.logical_or(
+                actual_return < filtered_intervals[:, i, 0],
+                actual_return > filtered_intervals[:, i, 1],
+            )
+            plt.scatter(
+                np.array(dates)[violations],
+                actual_return[violations],
+                marker="x",
+                label=f"Violations ({100*cl:.1f}%)",
+            )
         plt.axhline(
             actual_return.mean(),
             color="red",
@@ -644,12 +655,85 @@ if __name__ == "__main__":
         plt.gca().set_yticklabels(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
         )
-        plt.title(f"Transformer MDN predictions for {ticker}, {days} days")
+        plt.title(f"Transformer MDN predictions for {ticker}, {TEST_SET} data")
         plt.xlabel("Date")
         plt.ylabel("LogReturn")
         plt.legend()
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.savefig(
             f"results/time_series/{ticker}_transformer_mdn_v{VERSION}_ensemble.svg"
+        )
+
+    # %%
+    # 13) Plot predicted means with epistemic uncertainty for example tickers
+    for ticker in example_tickers:
+        from_idx, to_idx = test.get_range(ticker)
+        ticker_mean = mean[from_idx:to_idx]
+        filtered_mean = ticker_mean
+        epistemic_sd = np.sqrt(epistemic_var[from_idx:to_idx])
+        filtered_epistemic_sd = epistemic_sd
+        s = test.sets[ticker]
+
+        dates = s.y_dates
+        actual_return = s.y
+        plt.figure(figsize=(12, 6))
+        plt.plot(
+            dates,
+            actual_return,
+            label="Actual Returns",
+            color="black",
+            alpha=0.5,
+        )
+        plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+        plt.fill_between(
+            dates,
+            filtered_mean - filtered_epistemic_sd,
+            filtered_mean + filtered_epistemic_sd,
+            color="blue",
+            alpha=0.8,
+            label="Epistemic Uncertainty (67%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 2 * filtered_epistemic_sd,
+            filtered_mean + 2 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.5,
+            label="Epistemic Uncertainty (95%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 2.57 * filtered_epistemic_sd,
+            filtered_mean + 2.57 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.3,
+            label="Epistemic Uncertainty (99%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 3.29 * filtered_epistemic_sd,
+            filtered_mean + 3.29 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.1,
+            label="Epistemic Uncertainty (99.9%)",
+        )
+        plt.axhline(
+            actual_return.mean(),
+            color="red",
+            linestyle="--",
+            label="True mean return across time",
+            alpha=0.5,
+        )
+        plt.gca().set_yticklabels(
+            ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
+        )
+        plt.title(f"Transformer MDN predictions for {ticker}, {TEST_SET} data")
+        plt.xlabel("Date")
+        plt.ylabel("LogReturn")
+        plt.legend()
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.savefig(
+            f"results/time_series/{ticker}_transformer_mdn_v{VERSION}_ensemble_epistemic.svg"
         )
 
     # %%
@@ -722,6 +806,10 @@ if __name__ == "__main__":
     df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
         pi_pred, mu_pred, sigma_pred
     )
+
+    # %%
+    # Add epistemic variance
+    df_validation["EpistemicVarMean"] = epistemic_var
 
     # %%
     # Save

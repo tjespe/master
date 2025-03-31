@@ -51,11 +51,9 @@ class MDNEnsemble(tf.keras.Model):
 
         # 5) Compute epistemic variance = variance of submodel means
         # submodel i's mixture mean => sum_j pi[i,j]*mu[i,j], shape: (batch_size,)
-        mixture_means = tf.reduce_sum(
-            pi * mu, axis=-1
-        )  # shape => (ensemble_size, batch_size)
+        mixture_means = pi*mu  # shape => (batch_size, n_models*n_mixtures)
         # variance across ensemble_size dimension => shape: (batch_size,)
-        epistemic_var = tf.math.reduce_variance(mixture_means, axis=0)
+        epistemic_var = tf.math.reduce_variance(mixture_means, axis=1)
 
         return ensemble_mdn_output, epistemic_var
 
