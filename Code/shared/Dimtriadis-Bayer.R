@@ -6,7 +6,8 @@ library(dplyr)
 # get return data for the test set
 return_data <- read.csv("~/Masterv4/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 # filter only for test set, from 2023-01-03 to 2024-03-28
-return_data <- return_data[return_data$Date >= "2023-01-03" & return_data$Date <= "2024-03-28", ]
+return_data <- return_data[return_data$Date >= "2023-01-03" & return_data$Date <= "2024-03-28", ] 
+# return_data <- return_data[return_data$Date >= "2005-02-15" & return_data$Date <= "2024-03-28", ]
 # remove .O at the end of the Symbol for the return data
 return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 
@@ -15,15 +16,15 @@ return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 # comment out the ones we dont have predictions for yet
 
 ############# Transformer #############
-#transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv")
 
 ############ LSTM ###################
 lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
-
+lstm_enire_set <- read.csv("~/Masterv4/master/Code/predictions/temporary_test_lstm_mdn.csv")
 ########## GARCH MODELS ###########
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
@@ -64,12 +65,13 @@ DB_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
 # Model list
 model_list <- list(
- "LSTM_RV" = lstm_RV_ensemble,
-  "LSTM_IV" = lstm_IV_ensemble,
+ # "LSTM_RV" = lstm_RV_ensemble,
+ "LSTM_IV" = lstm_IV_ensemble,
  "LSTM_RV_IV" = lstm_RV_IV_ensemble,
-  "Transformer_RV" = transformer_RV_ensemble,
-  "Transformer_IV" = transformer_IV_ensemble,
-  "Transformer_RV_IV" = transformer_RV_IV_ensemble
+ # "LSTM_temp" = lstm_enire_set
+ # "Transformer_RV" = transformer_RV_ensemble,
+  #"Transformer_IV" = transformer_IV_ensemble,
+ "Transformer_RV_IV" = transformer_RV_IV_ensemble
 )
 
 # Alpha levels
@@ -451,7 +453,8 @@ print(results_HAR)
 ###########################
 # Combine all results into one table and display
 ###########################
-all_results <- rbind(results_lstm_transformers, results_boosters, results_DB, results_HAR)
+# all_results <- rbind(results_lstm_transformers, results_boosters, results_DB, results_HAR)
+all_results <- rbind(results_lstm_transformers, results_boosters) 
 all_results <- all_results %>% arrange(Model, Alpha)
 all_results$Model <- factor(all_results$Model, levels = unique(all_results$Model))
 all_results$Alpha <- factor(all_results$Alpha, levels = c(0.01, 0.025, 0.05), labels = c("1%", "2.5%", "5%"))
