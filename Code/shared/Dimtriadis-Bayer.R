@@ -8,7 +8,7 @@ library(esback)
 
 ############ LSTM ###################
 
-lstm_IV_ensemble <- mydata <- read.csv("../predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
+lstm_IV_ensemble <- read.csv("../predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 ########## GARCH ###########
 
 
