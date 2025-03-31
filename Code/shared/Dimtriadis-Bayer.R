@@ -467,20 +467,9 @@ all_results$FailRate <- round(all_results$FailRate * 100, 2)  # Convert to perce
 # Display the final results table
 print(all_results)
 
-kable(all_results, format = "pipe", digits = 2, align = 'c')
-
 # display it as a nice table
 library(knitr)
 library(kableExtra)
 
-all_results %>%
-  kable("html", escape = F, col.names = c("Model", "Alpha", "Symbols Tested", "Passed", "Failed", "Fail Rate (%)")) %>%
-  kable_styling(full_width = F, position = "left") %>%
-  column_spec(1, bold = T) %>%
-  column_spec(2, bold = T) %>%
-  column_spec(3, bold = T) %>%
-  column_spec(4, bold = T) %>%
-  column_spec(5, bold = T) %>%
-  column_spec(6, bold = T)
 
-
+kable(all_results, format = "pipe", digits = 2, align = 'c')
