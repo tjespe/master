@@ -34,7 +34,7 @@ garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_studen
 rv_garch <- read.csv("~/Masterv4/master/Code/predictions/realized_garch_forecast_norm.csv")
 #ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 #ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv.csv")
+egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv")
 
 ######### HAR ##############
 har <- read.csv("~/Masterv4/master/Code/predictions/HAR_R.csv")
@@ -71,7 +71,7 @@ catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
 catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
 xgboost_RV <- xgboost_RV[xgboost_RV$Symbol != "DOW", ]
 # xgboost_IV <- xgboost_IV[xgboost_IV$Symbol != "DOW", ]
-xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
+# xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
 lightgbm_RV <- lightgbm_RV[lightgbm_RV$Symbol != "DOW", ]
 lightgbm_IV <- lightgbm_IV[lightgbm_IV$Symbol != "DOW", ]
 lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
@@ -205,7 +205,7 @@ es_config_garch <- list(
 )
 
 # Model list
-model_list_lstm_transformer <- list(
+model_list_garch <- list(
   "GARCH" = garch_norm,
   "EGARCH" = egarch,
   "RV_GARCH" = rv_garch,
@@ -427,7 +427,7 @@ alpha_config_har <- list(
   levels = c(0.01, 0.025, 0.05),
   columns = list("0.01" = "LB_98", "0.025" = "LB_95", "0.05" = "LB_90")
 )
-es_config_lstm_har <- list(
+es_config_har <- list(
   columns = list("0.01" = "ES_99", "0.025" = "ES_97.5", "0.05" = "ES_95")
 )
 
