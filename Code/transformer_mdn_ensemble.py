@@ -785,21 +785,28 @@ if __name__ == "__main__":
 
     # %%
     # Example plot of ES
-    df_validation.set_index(["Date", "Symbol"]).xs("AAPL", level="Symbol").sort_index()[
-        ["LB_90", "ES_95", "LB_98", "ES_99"]
-    ].rename(
-        columns={
-            "LB_90": "95% VaR",
-            "ES_95": "95% ES",
-            "LB_98": "99% VaR",
-            "ES_99": "99% ES",
-        }
-    ).plot(
-        title="99% VaR and ES for AAPL",
-        # Color appropriately
-        color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
-        figsize=(12, 6),
-    )
+    for ticker in example_tickers:
+        df_validation.set_index(["Date", "Symbol"]).xs(
+            ticker, level="Symbol"
+        ).sort_index()[["LB_90", "ES_95", "LB_98", "ES_99"]].rename(
+            columns={
+                "LB_90": "95% VaR",
+                "ES_95": "95% ES",
+                "LB_98": "99% VaR",
+                "ES_99": "99% ES",
+            }
+        ).plot(
+            title=f"99% VaR and ES for {ticker}",
+            # Color appropriately
+            color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
+            figsize=(12, 6),
+        )
+        plt.plot(
+            test.sets[ticker].df.reset_index().set_index("Date")["ActualReturn"],
+            label="Actual Returns",
+            color="black",
+        )
+        plt.legend()
 
     # %%
     # Calculate probability of price increase
