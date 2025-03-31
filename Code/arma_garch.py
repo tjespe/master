@@ -77,8 +77,9 @@ for symbol in symbols:
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
-    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:].iloc[1:] #(skip first row because it is not i test set)
-
+    returns_validation = df_filtered["LogReturn"].loc[
+        VALIDATION_TEST_SPLIT:
+    ]
     scaled_returns_test = returns_validation * 100  # Scale to percentages
 
     # Initialize an empty list to store forecasts
