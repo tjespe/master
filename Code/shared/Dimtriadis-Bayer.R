@@ -3,7 +3,7 @@ library(esback)
 library(dplyr)
 
 # SET THIS PARAMETERS
-test_version <- 1 # 1 = strict, 2 = auxillary, 3 = strict intercept
+test_version <-2 # 1 = strict, 2 = auxillary, 3 = strict intercept
 significance <- 0.05 # significance level for the test
 
 # get return data for the test set
@@ -19,8 +19,8 @@ return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 # comment out the ones we dont have predictions for yet
 
 ############# Transformer #############
-transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv_ensemble.csv")
+transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vivol_ensemble.csv")
 transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv")
 
 ############ LSTM ###################
