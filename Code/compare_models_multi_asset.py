@@ -663,7 +663,7 @@ for version in [
 # VAE based models
 for version in [4]:
     for predictor in [
-        "simple_regressor_on_means",
+        # "simple_regressor_on_means",
         # "simple_regressor_on_samples",
         # "simple_regressor_on_means_and_std",
         # "ffnn_on_latent_means",
@@ -1369,35 +1369,35 @@ for entry in preds_per_model:
             indeterminate = 0
             # We should use both 0.05 (since it's the default) and 0.10 (which is stricter) to show that GARCH underestimates risk
             pass_threshold = 0.05
-            bd_results = {}
-            for symbol, group in es_df.groupby("Symbol"):
-                test_stat, p = auxiliary_esr_test(
-                    group["Actual"].values, group["LB"].values, group["ES"].values, cl
-                )
-                if not np.isfinite(p):
-                    print(
-                        "WARNING: nan p-value in Bayer-Dimitriadis test for ",
-                        symbol,
-                        "at",
-                        cl_str,
-                    )
-                    indeterminate += 1
-                elif p < pass_threshold:
-                    fails += 1
-                else:
-                    passes += 1
-                result = {
-                    "p_value": p,
-                    "test_stat": test_stat,
-                }
-                bd_results[symbol] = result
-                result["n_violations"] = np.sum(group["Actual"] < group["LB"])
-            entry[f"bayer_dim_passes_{es_str}"] = passes
-            entry[f"bayer_dim_fails_{es_str}"] = fails
-            entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
-            bd_results_df = pd.DataFrame(bd_results).T
-            bd_results_df["Pass"] = bd_results_df["p_value"] > pass_threshold
-            entry[f"bayer_dim_results_{es_str}"] = bd_results_df
+            # bd_results = {}
+            # for symbol, group in es_df.groupby("Symbol"):
+            #     test_stat, p = auxiliary_esr_test(
+            #         group["Actual"].values, group["LB"].values, group["ES"].values, cl
+            #     )
+            #     if not np.isfinite(p):
+            #         print(
+            #             "WARNING: nan p-value in Bayer-Dimitriadis test for ",
+            #             symbol,
+            #             "at",
+            #             cl_str,
+            #         )
+            #         indeterminate += 1
+            #     elif p < pass_threshold:
+            #         fails += 1
+            #     else:
+            #         passes += 1
+            #     result = {
+            #         "p_value": p,
+            #         "test_stat": test_stat,
+            #     }
+            #     bd_results[symbol] = result
+            #     result["n_violations"] = np.sum(group["Actual"] < group["LB"])
+            # entry[f"bayer_dim_passes_{es_str}"] = passes
+            # entry[f"bayer_dim_fails_{es_str}"] = fails
+            # entry[f"bayer_dim_indeterminate_{es_str}"] = indeterminate
+            # bd_results_df = pd.DataFrame(bd_results).T
+            # bd_results_df["Pass"] = bd_results_df["p_value"] > pass_threshold
+            # entry[f"bayer_dim_results_{es_str}"] = bd_results_df
 
             quantile = 1 - es_alpha
             entry[f"FZ0_{es_str}"] = fz_loss(
@@ -1584,13 +1584,13 @@ for entry in preds_per_model:
                 f"[{format_cl(es_alpha)}] Pooled Bayer-Dimitriadis violation SD"
             ].append(pooled_bd_test_result["std_z"])
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis passes"].append(
-                passes := entry[f"bayer_dim_passes_{es_str}"]
+                passes := entry.get(f"bayer_dim_passes_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis fails"].append(
-                fails := entry[f"bayer_dim_fails_{es_str}"]
+                fails := entry.get(f"bayer_dim_fails_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis indeterminate"].append(
-                entry[f"bayer_dim_indeterminate_{es_str}"]
+                entry.get(f"bayer_dim_indeterminate_{es_str}")
             )
             results[f"[{format_cl(es_alpha)}] Bayer-Dimitriadis pass rate"].append(
                 passes / (passes + fails) if passes or fails else np.nan
@@ -1628,6 +1628,10 @@ for model in results_df.index:
         results_df.drop(model, inplace=True)
 
 # Identify winners
+inadequate_models = {"HAR_R", "HARQ_R"}
+# For some metrics, it is very important that we only compare adequate models.
+# For others, we want to see how the inadequate models perform.
+adequate_df = results_df.drop(index=inadequate_models, errors="ignore")
 results_df.loc["Winner", "NLL"] = results_df["NLL"].idxmin()
 results_df.loc["Winner", "ECE"] = results_df["ECE"].idxmin()
 results_df.loc["Winner", "CRPS"] = results_df["CRPS"].idxmin()
@@ -1645,10 +1649,10 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] PICP Miss"] = (
         results_df[f"[{cl_str}] PICP Miss"].abs().idxmin()
     )
-    results_df.loc["Winner", f"[{cl_str}] Mean width (MPIW)"] = results_df[
+    results_df.loc["Winner", f"[{cl_str}] Mean width (MPIW)"] = adequate_df[
         f"[{cl_str}] Mean width (MPIW)"
     ].idxmin()
-    results_df.loc["Winner", f"[{cl_str}] Interval Score"] = results_df[
+    results_df.loc["Winner", f"[{cl_str}] Interval Score"] = adequate_df[
         f"[{cl_str}] Interval Score"
     ].idxmin()
     results_df.loc["Winner", f"[{cl_str}] QL"] = results_df[f"[{cl_str}] QL"].idxmax()
@@ -2121,80 +2125,85 @@ for loss_fn in loss_fns:
 # |  of overall performance... This is appropriate when no single asset is of primary
 # |  interest and we wish to evaluate models on their generalizability.
 #
-all_results = pd.DataFrame(index=passing_model_names, columns=loss_fns)
-for metric in loss_fns:
-    # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
-    df_losses = pd.DataFrame(index=df_validation.index)
-    for entry in passing_models:
-        entry_df = pd.DataFrame(
-            index=[entry["symbols"], entry["dates"]],
-            columns=[entry["name"]],
+mcs_results = {0.05: None, 0.25: None}
+all_models = [e["name"] for e in preds_per_model]
+for alpha in mcs_results.keys():
+    all_results = pd.DataFrame(index=all_models, columns=loss_fns)
+    for metric in loss_fns:
+        # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
+        df_losses = pd.DataFrame(index=df_validation.index)
+        for entry in preds_per_model:
+            entry_df = pd.DataFrame(
+                index=[entry["symbols"], entry["dates"]],
+                columns=[entry["name"]],
+            )
+            loss_vals = entry.get(metric)
+            if loss_vals is None:
+                continue
+            if not isinstance(loss_vals, np.ndarray):
+                loss_vals = np.array(loss_vals)
+            if np.isnan(loss_vals).any():
+                print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
+                continue
+            entry_df[entry["name"]] = loss_vals
+            df_losses = df_losses.join(entry_df, how="left")
+
+        # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
+        # We take the mean across symbols at each time index for each model
+        avg_losses_by_time = df_losses.groupby(
+            df_losses.index.get_level_values("Date")
+        ).mean(numeric_only=True)
+
+        # Remove degenenerate columns (no variation in losses)
+        avg_losses_by_time = avg_losses_by_time.loc[:, avg_losses_by_time.nunique() > 1]
+        # print(f"Competitors for {metric}:", list(avg_losses_by_time.columns))
+
+        # Convert the DataFrame of average losses to a numpy array for MCS (T x M)
+        loss_matrix = avg_losses_by_time.to_numpy()  # shape: [T, num_models]
+
+        # Ensure no NaNs or infs
+        assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
+
+        # Skip if no models remain
+        if loss_matrix.shape[1] == 0:
+            print(f"No models remain for {metric}, skipping MCS")
+            continue
+
+        # Perform the MCS procedure at 5% significance (95% confidence)
+        # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
+        T = loss_matrix.shape[0]
+        block_len = int(
+            T**0.5
+        )  # using sqrt(T) as a rule of thumb&#8203;:contentReference[oaicite:13]{index=13}
+        mcs = MCS(
+            loss_matrix,
+            size=alpha,
+            reps=1000,
+            block_size=block_len,
+            bootstrap="stationary",
+            method="max",
         )
-        loss_vals = entry.get(metric)
-        if loss_vals is None:
-            continue
-        if not isinstance(loss_vals, np.ndarray):
-            loss_vals = np.array(loss_vals)
-        if np.isnan(loss_vals).any():
-            print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
-            continue
-        entry_df[entry["name"]] = loss_vals
-        df_losses = df_losses.join(entry_df, how="left")
+        mcs.compute()  # run the bootstrap elimination procedure
 
-    # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
-    # We take the mean across symbols at each time index for each model
-    avg_losses_by_time = df_losses.groupby(
-        df_losses.index.get_level_values("Date")
-    ).mean(numeric_only=True)
+        # Get indices of models included in the MCS and their p-values
+        included_indices = mcs.included  # list of column indices that remain
+        pvals = mcs.pvalues.values  # array of p-values for each model
+        included_models = [avg_losses_by_time.columns[i] for i in included_indices]
 
-    # Remove degenenerate columns (no variation in losses)
-    avg_losses_by_time = avg_losses_by_time.loc[:, avg_losses_by_time.nunique() > 1]
-    # print(f"Competitors for {metric}:", list(avg_losses_by_time.columns))
-
-    # Convert the DataFrame of average losses to a numpy array for MCS (T x M)
-    loss_matrix = avg_losses_by_time.to_numpy()  # shape: [T, num_models]
-
-    # Ensure no NaNs or infs
-    assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
-
-    # Skip if no models remain
-    if loss_matrix.shape[1] == 0:
-        print(f"No models remain for {metric}, skipping MCS")
-        continue
-
-    # Perform the MCS procedure at 5% significance (95% confidence)
-    # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
-    T = loss_matrix.shape[0]
-    block_len = int(
-        T**0.5
-    )  # using sqrt(T) as a rule of thumb&#8203;:contentReference[oaicite:13]{index=13}
-    mcs = MCS(
-        loss_matrix,
-        size=0.05,
-        reps=1000,
-        block_size=block_len,
-        bootstrap="stationary",
-        method="max",
-    )
-    mcs.compute()  # run the bootstrap elimination procedure
-
-    # Get indices of models included in the MCS and their p-values
-    included_indices = mcs.included  # list of column indices that remain
-    pvals = mcs.pvalues.values  # array of p-values for each model
-    included_models = [avg_losses_by_time.columns[i] for i in included_indices]
-
-    # print(f"\nMCS results for {metric}:")
-    # print("Included models (95% MCS):", included_models)
-    for model in passing_model_names:
-        if model in list(avg_losses_by_time.columns):
-            all_results.loc[model, metric] = False
-        if model in included_models:
-            all_results.loc[model, metric] = True
-    # Optionally, print p-values for reference
-    # for model_name, pval in zip(avg_losses_by_time.columns, pvals):
-    #     print(f"  p-value for {model_name}: {pval}")
+        # print(f"\nMCS results for {metric}:")
+        # print("Included models (95% MCS):", included_models)
+        for model in all_models:
+            if model in list(avg_losses_by_time.columns):
+                all_results.loc[model, metric] = False
+            if model in included_models:
+                all_results.loc[model, metric] = True
+        # Optionally, print p-values for reference
+        # for model_name, pval in zip(avg_losses_by_time.columns, pvals):
+        #     print(f"  p-value for {model_name}: {pval}")
+    mcs_results[alpha] = all_results
 
 
+# %%
 def color_cells(val):
     if np.isnan(val):
         return "color: gray"
@@ -2204,8 +2213,363 @@ def color_cells(val):
         return ""
 
 
-styled_df = all_results.style.applymap(color_cells)
+# %%
+print("95% MCS results")
+styled_df = mcs_results[0.05].style.applymap(color_cells)
 styled_df
+
+# %%
+print("75% MCS results")
+styled_df = mcs_results[0.25].style.applymap(color_cells)
+styled_df
+
+
+# %%
+# Generate tables for Latex document
+our = [
+    ("LSTM-MDN-RV", "LSTM MDN rv-final_ensemble"),
+    ("LSTM-MDN-IV", "LSTM MDN ivol-final_ensemble"),
+    ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final_ensemble"),
+    ("Transformer-MDN-RV", "Transformer MDN rv_ensemble"),
+    ("Transformer-MDN-IV", "Transformer MDN ivol_ensemble"),
+    ("Transformer-MDN-RV-IV", "Transformer MDN rv-and-ivol_ensemble"),
+]
+traditional = [
+    ("GARCH", "GARCH"),
+    ("GARCH-t", "GARCH Student-t"),
+    ("EGARCH", "EGARCH"),
+    ("RV-GARCH", "Realized GARCH"),
+    ("AR-GARCH", "AR(1)-GARCH(1,1)-normal"),
+    ("AR-GARCH-t", "AR(1)-GARCH(1,1)-t"),
+    ("HAR", "HAR_R"),
+    ("HARQ", "HARQ_R"),
+    ("DB-RV", "DB-RV"),
+    ("DB-IV", "DB-IV"),
+    ("DB-RV-IV", "DB-RV-IV"),
+]
+ml_benchmarks = [
+    ("XgBoost-RV", "Benchmark XGBoost RV"),
+    ("XgBoost-IV", "Benchmark XGBoost IV"),
+    ("XgBoost-RV-IV", "Benchmark XGBoost RV_IV"),
+    ("CatBoost-RV", "Benchmark Catboost RV"),
+    ("CatBoost-IV", "Benchmark Catboost IV"),
+    ("CatBoost-RV-IV", "Benchmark Catboost RV_IV"),
+    ("LigthGBM-RV", "Benchmark LightGBM RV"),
+    ("LigthGBM-IV", "Benchmark LightGBM IV"),
+    ("LigthGBM-RV-IV", "Benchmark LightGBM RV_IV"),
+]
+
+# %%
+# Table 2: Distribution Accuracy and Calibration Metrics
+# Columns:
+# Model,	NLL,	ECE,	CRPS,	PICP 67%,	PICP 90%,	PICP 95%,	PICP 98%
+print("======================================================")
+print("TABLE 2: Distribution Accuracy and Calibration Metrics")
+print("======================================================")
+for model_set in [our, traditional, ml_benchmarks]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
+            continue
+        metrics = [
+            (
+                f"{nll.mean():.4f}"
+                if (nll := entry.get("nll")) is not None and not np.isnan(nll).any()
+                else "-"
+            ),
+            f"{ece:.4f}" if (ece := entry.get("ece")) is not None else "-",
+            f"{np.mean(crps):.4f}" if (crps := entry.get("crps")) is not None else "-",
+            (
+                f"{picp * 100:.2f}\\%"
+                if (picp := entry.get("picp_67")) is not None
+                else "-"
+            ),
+            (
+                f"{picp * 100:.2f}\\%"
+                if (picp := entry.get("picp_90")) is not None
+                else "-"
+            ),
+            (
+                f"{picp * 100:.2f}\\%"
+                if (picp := entry.get("picp_95")) is not None
+                else "-"
+            ),
+            (
+                f"{picp * 100:.2f}\\%"
+                if (picp := entry.get("picp_98")) is not None
+                else "-"
+            ),
+        ]
+        results_df_keys = [
+            "NLL",
+            "ECE",
+            "CRPS",
+            "[67] PICP",
+            "[90] PICP",
+            "[95] PICP",
+            "[98] PICP",
+        ]
+        bolden = []
+        for k, row in results_df.loc[results_df_keys].iterrows():
+            bolden.append(row.get(model_name) == row[row["Winner"]])
+        print(
+            display_name,
+            "&",
+            " & ".join(
+                f"\\textbf{{{val}}}" if bold else val
+                for val, bold in zip(metrics, bolden)
+            ),
+            "\\\\",
+        )
+
+# %%
+# Table 3: Model Confidence Set Analysis
+# Columns:
+# Model,	NLL MCS 95%,	CRPS MCS 95%,	Perf score 95%,	NLL MCS 75%,	CRPS MCS 75%,	Perf score 75%
+print("======================================")
+print("TABLE 3: Model Confidence Set Analysis")
+print("======================================")
+for model_set in [our, traditional]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        mcs_95 = mcs_results[0.05]
+        mcs_75 = mcs_results[0.25]
+        if (
+            entry is None
+            or model_name not in mcs_95.index
+            and model_name not in mcs_75.index
+        ):
+            print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
+            continue
+        vals_95 = mcs_95.loc[model_name].fillna(False).astype(int)
+        vals_75 = mcs_75.loc[model_name].fillna(False).astype(int)
+        metrics = [
+            "\\checkmark" if vals_75["nll"] else " ",
+            "\\checkmark" if vals_75["crps"] else " ",
+            int(100 * (vals_75["nll"] + vals_75["crps"]) / 2),
+            "\\checkmark" if vals_95["nll"] else " ",
+            "\\checkmark" if vals_95["crps"] else " ",
+            int(100 * (vals_95["nll"] + vals_95["crps"]) / 2),
+        ]
+        print(
+            display_name,
+            "&",
+            " & ".join(str(val) for val in metrics),
+            "\\\\",
+        )
+
+
+# %%
+# Table 4: VaR adequacy (Christoffersen test)
+# Columns:
+# Model,	95% passes, 95% fails, 95% inconclusives, 95% fail rate,	97.5% passes, 97.5% fails, 97.5% inconclusives, 97.5% fail rate,	99% passes, 99% fails, 99% inconclusives, 99% fail rate
+print("===========================================")
+print("Table 4: VaR adequacy (Christoffersen test)")
+print("===========================================")
+for model_set in [our, traditional, ml_benchmarks]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(display_name, "&", " & ".join(["-"] * 12), "\\\\")
+            continue
+
+        print(display_name, end=" ")
+
+        # Calculate the number of passes, fails, and inconclusives for each confidence level
+        for cl in [0.90, 0.95, 0.98]:
+            cl_str = format_cl(cl)
+            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            if chr_results_df is None:
+                print("&", " & ".join(["-"] * 4), end="")
+                continue
+            passes = (chr_results_df["cc_pass"] == True).sum()
+            fails = (chr_results_df["cc_pass"] == False).sum()
+            inconclusives = chr_results_df["cc_pass"].isna().sum()
+            total = passes + fails
+            fail_rate = fails / total if total > 0 else 0
+            metrics = [
+                passes,
+                fails,
+                inconclusives,
+                f"{100*fail_rate:.1f}\\%",
+            ]
+            print(
+                "&",
+                " & ".join(str(val) for val in metrics),
+                end=" ",
+            )
+
+        print("\\\\")
+
+
+# %%
+# Table 5: Interval Score and Mean Width
+# Columns:
+# Model,	Interval Score 95%,	Mean Width 95%,	Interval Score 97.5%,	Mean Width 97.5%,	Interval Score 99%,	Mean Width 99%
+print("======================================")
+print("TABLE 5: Interval Score and Mean Width")
+print("======================================")
+
+for model_set in [our, traditional]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        print(display_name + ("*" if model_name in inadequate_models else ""), end=" ")
+
+        if entry is None:
+            print("&", " & ".join(["-"] * 6), "\\\\")
+            continue
+
+        # Calculate the interval score and mean width for each confidence level
+        for cl in [0.90, 0.975, 0.99]:
+            cl_str = format_cl(cl)
+            interval_score = entry.get(f"interval_score_{cl_str}")
+            mean_width = entry.get(f"mpiw_{cl_str}")
+            if interval_score is None or mean_width is None:
+                print("&", " & ".join(["-"] * 2), end="")
+                continue
+            res_df_keys = [
+                f"[{cl_str}] Interval Score",
+                f"[{cl_str}] Mean width (MPIW)",
+            ]
+            bolden = []
+            for k, row in results_df.loc[res_df_keys].iterrows():
+                bolden.append(row.get(model_name) == row[row["Winner"]])
+            metrics = [
+                f"{interval_score:.4f}",
+                f"{mean_width:.4f}",
+            ]
+            print(
+                "&",
+                " & ".join(
+                    f"\\textbf{{{val}}}" if bold else val
+                    for val, bold in zip(metrics, bolden)
+                ),
+                end=" ",
+            )
+
+        print("\\\\")
+
+
+# %%
+# Table 7: Fissler-Ziegel (FZ) and Acerbi-Laeven (AL) Scoring Rules for ES Accuracy
+# Columns:
+# Model,	FZ0 95%,	AL 95%,	FZ0 97.5%,	AL 97.5%,	FZ0 99%,	AL 99%
+print(
+    "================================================================================="
+)
+print(
+    "TABLE 7: Fissler-Ziegel (FZ) and Acerbi-Laeven (AL) Scoring Rules for ES Accuracy"
+)
+print(
+    "================================================================================="
+)
+
+for model_set in [our, traditional, ml_benchmarks]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
+            continue
+
+        print(display_name, end=" ")
+
+        # Calculate the FZ and AL scores for each confidence level
+        for cl in [0.95, 0.975, 0.99]:
+            cl_str = format_cl(cl)
+            fz_score = entry.get(f"FZ0_{cl_str}")
+            al_score = entry.get(f"AL_{cl_str}")
+            if fz_score is None or al_score is None:
+                print("&", " & ".join(["-"] * 2), end="")
+                continue
+            res_df_keys = [
+                f"[{cl_str}] FZ Loss",
+                f"[{cl_str}] AL Loss",
+            ]
+            bolden = []
+            for k, row in results_df.loc[res_df_keys].iterrows():
+                bolden.append(row.get(model_name) == row[row["Winner"]])
+            metrics = [
+                f"{np.mean(fz_score):.4f}",
+                f"{np.mean(al_score):.4f}",
+            ]
+            print(
+                "&",
+                " & ".join(
+                    f"\\textbf{{{val}}}" if bold else val
+                    for val, bold in zip(metrics, bolden)
+                ),
+                end=" ",
+            )
+
+        print("\\\\")
+
+
+# %%
+# Table 8: MCS for FZ and AL
+# Columns:
+# Model,	# of FZ0 wins MCS 95%,	# of AL MCS wins 95%,	# of FZ0 wins MCS 75%,	# of AL wins MCS 75%
+print("=========================================================")
+print("TABLE 8: MCS for FZ and AL Scoring Rules for ES Accuracy")
+print("=========================================================")
+
+for model_set in [our, traditional, ml_benchmarks]:
+    print("")
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(display_name, "&", " & ".join(["-"] * 14), "\\\\")
+            continue
+
+        print(display_name, end=" ")
+
+        # Calculate the number of wins for each scoring rule at each confidence level
+        for alpha in [0.25, 0.05]:
+            mcs = mcs_results[alpha]
+            if model_name not in mcs.index:
+                print("&", " & ".join(["-"] * 2), end="")
+                continue
+            row = mcs.loc[model_name].fillna(False)
+            fz_wins = 0
+            al_wins = 0
+            for cl in [0.95, 0.975, 0.99]:
+                cl_str = format_cl(cl)
+                fz_win = row[f"FZ0_{cl_str}"]
+                al_win = row[f"AL_{cl_str}"]
+                print("& \\checkmark" if fz_win else "&", end=" ")
+                print("& \\checkmark" if al_win else "&", end=" ")
+                fz_wins += fz_win
+                al_wins += al_win
+            perf = int(
+                100
+                * (fz_wins + al_wins)
+                / sum(1 for key in row.keys() if "FZ" in key or "AL" in key)
+            )
+            print(
+                "&",
+                perf,
+                end=" ",
+            )
+
+        print("\\\\")
+
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
