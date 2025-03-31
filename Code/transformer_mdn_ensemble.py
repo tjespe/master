@@ -665,6 +665,78 @@ if __name__ == "__main__":
         )
 
     # %%
+    # 13) Plot predicted means with epistemic uncertainty for example tickers
+    for ticker in example_tickers:
+        from_idx, to_idx = test.get_range(ticker)
+        ticker_mean = mean[from_idx:to_idx]
+        filtered_mean = ticker_mean
+        epistemic_sd = np.sqrt(epistemic_var[from_idx:to_idx])
+        filtered_epistemic_sd = epistemic_sd
+        s = test.sets[ticker]
+
+        dates = s.y_dates
+        actual_return = s.y
+        plt.figure(figsize=(12, 6))
+        plt.plot(
+            dates,
+            actual_return,
+            label="Actual Returns",
+            color="black",
+            alpha=0.5,
+        )
+        plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+        plt.fill_between(
+            dates,
+            filtered_mean - filtered_epistemic_sd,
+            filtered_mean + filtered_epistemic_sd,
+            color="blue",
+            alpha=0.8,
+            label="Epistemic Uncertainty (67%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 2 * filtered_epistemic_sd,
+            filtered_mean + 2 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.5,
+            label="Epistemic Uncertainty (95%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 2.57 * filtered_epistemic_sd,
+            filtered_mean + 2.57 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.3,
+            label="Epistemic Uncertainty (99%)",
+        )
+        plt.fill_between(
+            dates,
+            filtered_mean - 3.29 * filtered_epistemic_sd,
+            filtered_mean + 3.29 * filtered_epistemic_sd,
+            color="blue",
+            alpha=0.1,
+            label="Epistemic Uncertainty (99.9%)",
+        )
+        plt.axhline(
+            actual_return.mean(),
+            color="red",
+            linestyle="--",
+            label="True mean return across time",
+            alpha=0.5,
+        )
+        plt.gca().set_yticklabels(
+            ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
+        )
+        plt.title(f"Transformer MDN predictions for {ticker}, {TEST_SET} data")
+        plt.xlabel("Date")
+        plt.ylabel("LogReturn")
+        plt.legend()
+        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+        plt.savefig(
+            f"results/time_series/{ticker}_transformer_mdn_v{VERSION}_ensemble_epistemic.svg"
+        )
+
+    # %%
     # 13) Make data frame for signle pass predictions
     df_validation = pd.DataFrame(
         np.vstack([test.dates, test.tickers]).T,
