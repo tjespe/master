@@ -27,7 +27,6 @@ transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/trans
 lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
-lstm_enire_set <- read.csv("~/Masterv4/master/Code/predictions/temporary_test_lstm_mdn.csv")
 
 ########## GARCH MODELS ###########
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
