@@ -203,6 +203,3 @@ for cl in CONFIDENCE_LEVELS:
 # write enriched RV GARCH predictions to existing file
 rv_GARCH_preds.reset_index(inplace=True)
 rv_GARCH_preds.to_csv("predictions/realized_garch_forecast_norm.csv", index=False)
-
-
-# %%

@@ -30,8 +30,8 @@ lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_pre
 
 ########## GARCH MODELS ###########
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/GARCH_preds_enriched.csv")
-#garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#rv_garch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_student_t.csv")
+rv_garch <- read.csv("~/Masterv4/master/Code/predictions/realized_garch_forecast_norm.csv")
 #ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 #ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv.csv")
@@ -211,7 +211,7 @@ model_list_lstm_transformer <- list(
   "RV_GARCH" = rv_garch,
  # "AR_GARCH" = ar_garch_norm,
   #"AR_GARCH_t" = ar_garch_t
-  # "GARCH_t" = garch_t
+  "GARCH_t" = garch_t
 
 )
 
