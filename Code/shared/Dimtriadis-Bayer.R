@@ -3,7 +3,7 @@ library(esback)
 library(dplyr)
 
 # SET THIS PARAMETERS
-test_version <- 1 # 1 = strict, 2 = auxillary, 3 = strict intercept
+test_version <-2 # 1 = strict, 2 = auxillary, 3 = strict intercept
 significance <- 0.05 # significance level for the test
 
 # get return data for the test set
@@ -19,12 +19,12 @@ return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 # comment out the ones we dont have predictions for yet
 
 ############# Transformer #############
-transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv_ensemble.csv")
+transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vivol_ensemble.csv")
 transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv")
 
 ############ LSTM ###################
-lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-final_ensemble.csv")
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 
@@ -68,7 +68,7 @@ DB_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 
 # Model list
 model_list <- list(
- # "LSTM_RV" = lstm_RV_ensemble,
+ "LSTM_RV" = lstm_RV_ensemble,
  "LSTM_IV" = lstm_IV_ensemble,
  "LSTM_RV_IV" = lstm_RV_IV_ensemble,
  # "LSTM_temp" = lstm_enire_set
@@ -471,14 +471,5 @@ print(all_results)
 library(knitr)
 library(kableExtra)
 
-all_results %>%
-  kable("html", escape = F, col.names = c("Model", "Alpha", "Symbols Tested", "Passed", "Failed", "Fail Rate (%)")) %>%
-  kable_styling(full_width = F, position = "left") %>%
-  column_spec(1, bold = T) %>%
-  column_spec(2, bold = T) %>%
-  column_spec(3, bold = T) %>%
-  column_spec(4, bold = T) %>%
-  column_spec(5, bold = T) %>%
-  column_spec(6, bold = T)
 
-
+kable(all_results, format = "pipe", digits = 2, align = 'c')
