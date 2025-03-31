@@ -32,7 +32,7 @@ lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_pre
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/GARCH_preds_enriched.csv")
 garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_student_t.csv")
 rv_garch <- read.csv("~/Masterv4/master/Code/predictions/realized_garch_forecast_norm.csv")
-#ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/predictions_AR(1)-GARCH(1,1)-normal.csv")
 #ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
 egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv")
 
@@ -40,7 +40,7 @@ egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv
 garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
 garch_t <- garch_t[garch_t$Date >= "2023-01-03" & garch_t$Date <= "2024-03-28", ]
 rv_garch <- rv_garch[rv_garch$Date >= "2023-01-03" & rv_garch$Date <= "2024-03-28", ]
-#ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
+ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
 #ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
 egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
 
@@ -91,7 +91,7 @@ harq <- harq[harq$Symbol != "DOW", ]
 garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
 garch_t <- garch_t[garch_t$Symbol != "DOW", ]
 rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
-# ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
+ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
 # ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
 egarch <- egarch[egarch$Symbol != "DOW", ]
 #######################################################################################################
@@ -217,7 +217,7 @@ model_list_garch <- list(
   "GARCH" = garch_norm,
   "EGARCH" = egarch,
   "RV_GARCH" = rv_garch,
- # "AR_GARCH" = ar_garch_norm,
+ "AR_GARCH" = ar_garch_norm,
   #"AR_GARCH_t" = ar_garch_t
   "GARCH_t" = garch_t
 
