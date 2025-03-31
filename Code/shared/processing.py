@@ -440,33 +440,34 @@ def get_lstm_train_test_new(
 
     # %%
     # If we have GARCH predictions, calculate skewness nd kurtosis based on GARCH residuals
-    for garch_type in ["GARCH", "EGARCH"]:
-        if f"{garch_type}_Vol" in df.columns:
-            df[f"{garch_type}_Resid"] = df["LogReturn"] / df[f"{garch_type}_Vol"]
+    if include_garch:
+        for garch_type in ["GARCH", "EGARCH"]:
+            if f"{garch_type}_Vol" in df.columns:
+                df[f"{garch_type}_Resid"] = df["LogReturn"] / df[f"{garch_type}_Vol"]
 
-            # Apply to each Symbol group
-            ewm_stats = df.groupby(level="Symbol")[f"{garch_type}_Resid"].apply(
-                compute_ewm_skew_kurt
-            )
+                # Apply to each Symbol group
+                ewm_stats = df.groupby(level="Symbol")[f"{garch_type}_Resid"].apply(
+                    compute_ewm_skew_kurt
+                )
 
-            # Remove extra level in the multi-index
-            ewm_stats = ewm_stats.droplevel(0)
+                # Remove extra level in the multi-index
+                ewm_stats = ewm_stats.droplevel(0)
 
-            # `ewm_stats` now has a multi-index: (Symbol, Date).
-            # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
-            df = df.join(ewm_stats.add_suffix(f"_{garch_type}"))
+                # `ewm_stats` now has a multi-index: (Symbol, Date).
+                # We can join it back to df (which is indexed by (Date, Symbol) as well) directly:
+                df = df.join(ewm_stats.add_suffix(f"_{garch_type}"))
 
-            # Drop first 20 rows for each instrument
-            df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
+                # Drop first 20 rows for each instrument
+                df = df.groupby("Symbol").apply(lambda x: x.iloc[20:])
 
-            # Remove extra level in the multi-index
-            df = df.droplevel(0)
+                # Remove extra level in the multi-index
+                df = df.droplevel(0)
 
-            important_cols += [
-                f"{garch_type}_Vol",
-                f"Skew_EWM_{garch_type}",
-                f"Kurt_EWM_{garch_type}",
-            ]
+                important_cols += [
+                    f"{garch_type}_Vol",
+                    f"Skew_EWM_{garch_type}",
+                    f"Kurt_EWM_{garch_type}",
+                ]
     df
 
     # %%
@@ -617,8 +618,9 @@ def get_lstm_train_test_new(
 
     # %%
     # Remove rows with nan beta
-    df = df[~df["Beta_5y"].isna()]
-    df
+    if include_beta:
+        df = df[~df["Beta_5y"].isna()]
+        df
 
     # %%
     # For any IVOL cols, front-fill with latest value if missing
