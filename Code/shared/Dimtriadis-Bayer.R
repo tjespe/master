@@ -150,8 +150,8 @@ model_list_boosters <- list(
   "CatBoost_IV" = catboost_IV,
   "CatBoost_RV_IV" = catboost_RV_IV,
   "XGBoost_RV" = xgboost_RV,
- # "XGBoost_IV" = xgboost_IV,
- # "XGBoost_RV_IV" = xgboost_RV_IV,
+  "XGBoost_IV" = xgboost_IV,
+  "XGBoost_RV_IV" = xgboost_RV_IV,
   "LightGBM_RV" = lightgbm_RV,
   "LightGBM_IV" = lightgbm_IV,
   "LightGBM_RV_IV" = lightgbm_RV_IV
@@ -169,9 +169,9 @@ es_config_db <- list(
 # Model list
 
 model_list_DB <- list(
-  "DB_RV" = DB_RV,
-  "DB_IV" = DB_IV,
-  "DB_RV_IV" = DB_RV_IV
+#  "DB_RV" = DB_RV,
+#  "DB_IV" = DB_IV,
+#  "DB_RV_IV" = DB_RV_IV
 )
 
 
