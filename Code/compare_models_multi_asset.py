@@ -662,6 +662,59 @@ for version in [
     except FileNotFoundError:
         print(f"Transformer MDN {version} predictions not found")
 
+# Ensemble MDN
+for version in ["rv-iv"]:
+    try:
+        ensemble_df = pd.read_csv(
+            f"predictions/ensemble_mdn_predictions{SUFFIX}_v{version}_ensemble.csv"
+        )
+        ensemble_df["Symbol"] = ensemble_df["Symbol"].str.replace(".O", "")
+        ensemble_df["Date"] = pd.to_datetime(ensemble_df["Date"])
+        ensemble_df = ensemble_df.set_index(["Date", "Symbol"])
+        ensemble_dates = ensemble_df.index.get_level_values("Date")
+        ensemble_df = ensemble_df[
+            (
+                (ensemble_dates >= TRAIN_VALIDATION_SPLIT)
+                & (ensemble_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (ensemble_dates >= VALIDATION_TEST_SPLIT)
+            )
+        ]
+        if np.isnan(ensemble_df["Mean_SP"]).all():
+            raise FileNotFoundError(f"All Ensemble MDN {version} predictions are NaN")
+        combined_df = df_validation.join(
+            ensemble_df, how="left", rsuffix="_Ensemble_MDN"
+        )
+        ece_col = combined_df.get("ECE")
+        entry = {
+            "name": f"Ensemble MDN {version}",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "dates": combined_df.index.get_level_values("Date"),
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "crps": (
+                crps.values if (crps := combined_df.get("CRPS")) is not None else None
+            ),
+            "p_up": combined_df.get("Prob_Increase"),
+            "ece": ece_col.median() if ece_col is not None else None,
+        }
+        for cl in CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(f"Missing {format_cl(cl)}% interval for Ensemble MDN {version}")
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = 1 - (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"Ensemble MDN {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"Ensemble MDN {version} predictions not found")
+
 # VAE based models
 for version in [4]:
     for predictor in [
