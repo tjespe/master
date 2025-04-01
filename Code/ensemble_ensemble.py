@@ -2,38 +2,49 @@
 # Define parameters (based on settings)
 import subprocess
 from typing import Optional
+from transformer_mdn_ensemble import add_day_indices
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "transformer-lstm-rv-iv"
+VERSION = "rv-iv"
 MODEL_NAME = f"mdn_ensemble_{VERSION}_{TEST_SET}"
 
 # %%
 # Model selection
-models = []
+models = [
+    f"transformer_mdn_ensemble_rv-and-ivol_{TEST_SET}",
+    f"lstm_mdn_ensemble{SUFFIX}_vrv-and-ivol-final_{TEST_SET}",
+]
 
 # %%
-# Model settings
-D_MODEL = 32
-HIDDEN_UNITS_FF = 300
-N_MIXTURES = 10
-DROPOUT = 0
-L2_REGULARIZATION = 1e-6
-NUM_ENCODERS = 1
-NUM_HEADS = 2
-D_TICKER_EMBEDDING = None
+# Feature selection
+MULTIPLY_MARKET_FEATURES_BY_BETA = False
+PI_PENALTY = False
+MU_PENALTY = False
+SIGMA_PENALTY = False
+INCLUDE_MARKET_FEATURES = False
+INCLUDE_RETURNS = False
+INCLUDE_FNG = False
+INCLUDE_RETURNS = False
+INCLUDE_INDUSTRY = False
+INCLUDE_GARCH = False
+INCLUDE_BETA = False
+INCLUDE_OTHERS = False
+INCLUDE_FRED_MD = False
+INCLUDE_10_DAY_IVOL = True
+INCLUDE_30_DAY_IVOL = True
+INCLUDE_1MIN_RV = True
+INCLUDE_5MIN_RV = True
+INCLUDE_TICKERS = False
 
 # %%
-# Settings for training
-WEIGHT_DECAY = 1e-2
-LEARNING_RATE = 5e-5
-BATCH_SIZE = 40
-REDUCE_LR_PATIENCE = 3  # Patience before halving learning rate
-PATIENCE = 10  # Early stopping patience
-N_ENSEMBLE_MEMBERS = 10
-PARALLELLIZE = True
+# Settings
+N_ENSEMBLE_MEMBERS = len(models)
+SUBMODEL_MIXTURES = 10
+SUBMODEL_MEMBERS = 10
+SUBMODEL_TOTAL_MIXTURES = SUBMODEL_MIXTURES * SUBMODEL_MEMBERS
 
 # %%
 # Imports from code shared across models
@@ -67,238 +78,13 @@ import gc
 
 # TensorFlow / Keras
 import tensorflow as tf
-from tensorflow.keras import Model
-from tensorflow.keras.layers import (
-    Input,
-    Dense,
-    Dropout,
-    LayerNormalization,
-    Embedding,
-    GlobalAveragePooling1D,
-    MultiHeadAttention,
-    Concatenate,
-    RepeatVector,
-    Lambda,
-)
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
-
-
-# %%
-def transformer_encoder(inputs):
-    """
-    A single block of Transformer encoder:
-      1) MHA + residual + LayerNorm
-      2) FFN + residual + LayerNorm
-    """
-    # Multi-head self-attention
-    attn_output = MultiHeadAttention(num_heads=NUM_HEADS, key_dim=D_MODEL)(
-        inputs, inputs
-    )
-    attn_output = Dropout(DROPOUT)(attn_output)
-    out1 = LayerNormalization(epsilon=1e-6)(inputs + attn_output)
-
-    # Feed-forward
-    ffn = Dense(
-        HIDDEN_UNITS_FF,
-        activation="relu",
-        kernel_regularizer=l2(L2_REGULARIZATION),
-    )(out1)
-    ffn = Dropout(DROPOUT)(ffn)
-    ffn = Dense(
-        D_MODEL,
-        kernel_regularizer=l2(L2_REGULARIZATION),
-    )(ffn)
-    ffn = Dropout(DROPOUT)(ffn)
-
-    out2 = LayerNormalization(epsilon=1e-6)(out1 + ffn)
-    return out2
-
-
-# %%
-def add_day_indices(tensor):
-    """
-    Adds day indices to sequential input.
-    tensor: shape (batch, LOOKBACK_DAYS, ?)
-    We'll create a new dimension with tf.range(LOOKBACK_DAYS) and concatenate it.
-    """
-    batch_size = tf.shape(tensor)[0]  # dynamic batch size
-    indices = tf.range(LOOKBACK_DAYS, dtype=tf.float32)  # shape=(LOOKBACK_DAYS,)
-    indices = tf.expand_dims(indices, axis=0)  # shape=(1, LOOKBACK_DAYS)
-    indices = tf.tile(indices, [batch_size, 1])  # shape=(batch, LOOKBACK_DAYS)
-    indices = tf.expand_dims(indices, axis=-1)  # shape=(batch, LOOKBACK_DAYS, 1)
-
-    # Concatenate to existing features: now we have one extra dimension for day index
-    return tf.concat([tensor, indices], axis=-1)
-
-
-# %%
-def build_transformer_mdn(
-    num_features: int,
-    ticker_ids_dim: Optional[int],
-):
-    """
-    Creates a Transformer-based encoder for sequences of shape:
-      (lookback_days, num_features)
-    Then outputs 3*n_mixtures for MDN (univariate).
-    """
-    # Input layers
-    feature_inputs = Input(shape=(LOOKBACK_DAYS, num_features), name="feature_inputs")
-
-    if ticker_ids_dim is not None:
-        ticker_inputs = Input(
-            shape=(), dtype=tf.int32, name="ticker_inputs"
-        )  # Scalar ID
-
-        # Ticker embedding
-        ticker_embedding = Embedding(
-            input_dim=ticker_ids_dim,  # Number of unique tickers
-            output_dim=D_TICKER_EMBEDDING,  # Size of the embedding vector
-            name="ticker_embedding",
-        )(ticker_inputs)
-
-        # Expand and concatenate with input features
-        ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
-        x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
-    else:
-        x = feature_inputs
-
-    # Append day indices automatically via a Lambda layer
-    x = Lambda(add_day_indices)(x)
-
-    # Project inputs to d_model
-    x = Dense(D_MODEL, activation=None)(x)
-
-    # Stack multiple Transformer encoder blocks
-    for _ in range(NUM_ENCODERS):
-        x = transformer_encoder(x)
-
-    # Global average pooling (or take last time step)
-    x = GlobalAveragePooling1D()(x)
-
-    # Create initializers for MDN output layer
-    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
-    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
-
-    # Output layer: 3*n_mixtures => [logits_pi, mu, log_var]
-    mdn_output = Dense(
-        3 * N_MIXTURES,
-        activation=None,
-        name="mdn_output",
-        kernel_initializer=mdn_kernel_init,
-        bias_initializer=mdn_bias_init,
-    )(x)
-
-    model = Model(
-        inputs=(
-            [feature_inputs, ticker_inputs]
-            if ticker_ids_dim is not None
-            else feature_inputs
-        ),
-        outputs=mdn_output,
-    )
-    return model
-
-
-class FixedLearningRateSchedule(tf.keras.callbacks.Callback):
-    """
-    Fixed learning rate based on results from validation.
-    This is only used for the final training phase.
-    """
-
-    def on_epoch_begin(self, epoch, logs=None):
-        # Piecewise schedule
-        if epoch < 10:
-            lr = 5e-5
-        elif epoch < 20:
-            lr = 2.5e-5
-        elif epoch < 25:
-            lr = 1e-5
-        else:
-            lr = 5e-6  # 0.5e-5
-
-        self.model.optimizer.learning_rate.assign(lr)
-        print(f"Epoch {epoch + 1} - Setting learning rate to {lr:.6g}")
-
-
-def _train_single_member(args):
-    (
-        i,
-        build_kwargs,
-        X_train,
-        y_train,
-        X_val,
-        y_val,
-        batch_size,
-        patience,
-        lr,
-        weight_decay,
-        n_mixtures,
-        pi_penalty,
-        pre_trained_weights,
-    ) = args
-
-    # Build/compile model
-    model = build_transformer_mdn(**build_kwargs)
-    if pre_trained_weights is not None:
-        model.load_weights(pre_trained_weights)
-    model.compile(
-        optimizer=Adam(learning_rate=lr, weight_decay=weight_decay),
-        loss=mdn_nll_tf(n_mixtures, pi_penalty),
-    )
-
-    # Always have the progress callback
-    progress_cb = ParallelProgressCallback(worker_id=i)
-
-    # -----------------------------------------------------------
-    # Decide which callbacks + how many epochs based on TEST_SET
-    # -----------------------------------------------------------
-    if TEST_SET == "validation":
-        # Dynamic schedule & early stopping
-        reduce_lr = ReduceLROnPlateau(
-            monitor="val_loss", factor=0.5, patience=REDUCE_LR_PATIENCE, min_lr=1e-6
-        )
-        early_stop = EarlyStopping(
-            monitor="val_loss",
-            patience=PATIENCE,
-            restore_best_weights=True,
-        )
-        callbacks = [reduce_lr, early_stop, progress_cb]
-        n_epochs = 50
-    else:
-        # Fixed piecewise schedule with no early stopping
-        fixed_schedule_cb = FixedLearningRateSchedule()
-        callbacks = [progress_cb, fixed_schedule_cb]
-        # Total of 10 + 10 + 5 + 5 = 30 epochs
-        n_epochs = 30
-
-    print(f"[Parallel] Fitting model {i} with TEST_SET={TEST_SET} ...")
-
-    history = model.fit(
-        X_train,
-        y_train,
-        epochs=n_epochs,
-        batch_size=batch_size,
-        verbose=not PARALLELLIZE,
-        validation_data=(X_val, y_val),
-        callbacks=callbacks,
-    )
-
-    val_loss = float(np.min(history.history["val_loss"]))
-    best_epoch = int(np.argmin(history.history["val_loss"]))
-    print(f"[Parallel] Model {i} validation loss: {val_loss} (epoch {best_epoch})")
-
-    return i, model.get_weights(), history.history, val_loss, best_epoch
-
 
 # %%
 # Begin script
 if __name__ == "__main__":
-    print(f"Training Transformer MDN Ensemble v{VERSION}")
-    mp.set_start_method("spawn", force=True)
+    print(f"MDN Ensemble v{VERSION}")
 
     # %%
     # Load preprocessed data
@@ -333,188 +119,23 @@ if __name__ == "__main__":
     print(f"Validation dates: {test.dates.min()} to {test.dates.max()}")
 
     # %%
-    # 2) Build model
-    ensemble_model = MDNEnsemble(
-        [
-            build_transformer_mdn(
-                num_features=train.X.shape[2],
-                ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
-            )
-            for _ in range(N_ENSEMBLE_MEMBERS)
-        ],
-        N_MIXTURES,
-    )
-
-    # %%
-    # 4) Load existing model if it exists
-    model_fname = f"models/{MODEL_NAME}.keras"
-    already_trained = False
-    if os.path.exists(model_fname):
-        mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
-        mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
-        ensemble_model = tf.keras.models.load_model(
-            model_fname,
+    # 2) Load members
+    members = []
+    for model in models:
+        print(f"Loading {model}...")
+        member_model = tf.keras.models.load_model(
+            f"models/{model}.keras",
             custom_objects={
-                "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
-                "mdn_kernel_initializer": mdn_kernel_initializer,
-                "mdn_bias_initializer": mdn_bias_initializer,
+                "loss_fn": mdn_nll_tf(SUBMODEL_TOTAL_MIXTURES),
+                "mdn_kernel_initializer": get_mdn_kernel_initializer(SUBMODEL_MIXTURES),
+                "mdn_bias_initializer": get_mdn_bias_initializer(SUBMODEL_MIXTURES),
                 "MDNEnsemble": MDNEnsemble,
                 "add_day_indices": add_day_indices,
             },
         )
-        already_trained = True
-        print("Loaded pre-trained model from disk.")
-
-    # %%
-    # 5) Train model
-    # Train each member in parallel until val loss converges
-    X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
-    y_train = train.y
-    X_val = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
-    y_val = test.y
-
-    # Create argument tuples for each submodel
-    job_args = []
-    for i in range(N_ENSEMBLE_MEMBERS):
-        build_kwargs = {
-            "num_features": train.X.shape[2],
-            "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
-        }
-        pre_trained_weights = (
-            ensemble_model.submodels[i].get_weights() if already_trained else None
-        )
-        job_args.append(
-            (
-                i,
-                build_kwargs,
-                X_train,
-                y_train,
-                X_val,
-                y_val,
-                BATCH_SIZE,
-                PATIENCE,
-                LEARNING_RATE,
-                WEIGHT_DECAY,
-                N_MIXTURES,
-                PI_PENALTY,
-                pre_trained_weights,
-            )
-        )
-
-    histories = [None] * N_ENSEMBLE_MEMBERS
-    val_losses = [None] * N_ENSEMBLE_MEMBERS
-    optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
-
-    if PARALLELLIZE:
-        with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
-            results = pool.map(_train_single_member, job_args)
-    else:
-        results = [_train_single_member(args) for args in job_args]
-
-    # results is a list of (i, trained_model, history_dict, val_loss).
-    # Sort by i so we can store them in order:
-    results.sort(key=lambda x: x[0])
-
-    # Store trained submodels back into the ensemble, plus record histories/losses
-    for i, weights, hist_dict, best_loss, best_epoch in results:
-        ensemble_model.submodels[i].set_weights(weights)
-        histories[i] = hist_dict
-        val_losses[i] = best_loss
-        optimal_epochs[i] = best_epoch
-        print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
-
-    # %%
-    # 6) Save model
-    ensemble_model.save(model_fname)
-
-    # Store details from training
-    with open(f"models/{MODEL_NAME}_training_details.txt", "w") as f:
-        f.write(f"Training details for {MODEL_NAME}\n")
-        f.write(f"VERSION: {VERSION}\n")
-        f.write(f"LOOKBACK_DAYS: {LOOKBACK_DAYS}\n")
-        f.write(f"SUFFIX: {SUFFIX}\n")
-        f.write(f"\n\nFeatures:\n")
-        f.write(
-            f"MULTIPLY_MARKET_FEATURES_BY_BETA: {MULTIPLY_MARKET_FEATURES_BY_BETA}\n"
-        )
-        f.write(f"PI_PENALTY: {PI_PENALTY}\n")
-        f.write(f"MU_PENALTY: {MU_PENALTY}\n")
-        f.write(f"SIGMA_PENALTY: {SIGMA_PENALTY}\n")
-        f.write(f"INCLUDE_MARKET_FEATURES: {INCLUDE_MARKET_FEATURES}\n")
-        f.write(f"INCLUDE_FNG: {INCLUDE_FNG}\n")
-        f.write(f"INCLUDE_RETURNS: {INCLUDE_RETURNS}\n")
-        f.write(f"INCLUDE_INDUSTRY: {INCLUDE_INDUSTRY}\n")
-        f.write(f"INCLUDE_GARCH: {INCLUDE_GARCH}\n")
-        f.write(f"INCLUDE_BETA: {INCLUDE_BETA}\n")
-        f.write(f"INCLUDE_OTHERS: {INCLUDE_OTHERS}\n")
-        f.write(f"INCLUDE_TICKERS: {INCLUDE_TICKERS}\n")
-        f.write(f"INCLDUE_FRED_MD: {INCLUDE_FRED_MD}\n")
-        f.write(f"INCLUDE_10_DAY_IVOL: {INCLUDE_10_DAY_IVOL}\n")
-        f.write(f"INCLUDE_30_DAY_IVOL: {INCLUDE_30_DAY_IVOL}\n")
-        f.write(f"INCLUDE_1MIN_RV: {INCLUDE_1MIN_RV}\n")
-        f.write(f"INCLUDE_5MIN_RV: {INCLUDE_5MIN_RV}\n")
-        f.write(f"\n\nModel settings:\n")
-        f.write(f"D_MODEL: {D_MODEL}\n")
-        f.write(f"HIDDEN_UNITS_FF: {HIDDEN_UNITS_FF}\n")
-        f.write(f"N_MIXTURES: {N_MIXTURES}\n")
-        f.write(f"DROPOUT: {DROPOUT}\n")
-        f.write(f"L2_REGULARIZATION: {L2_REGULARIZATION}\n")
-        f.write(f"NUM_ENCODERS: {NUM_ENCODERS}\n")
-        f.write(f"NUM_HEADS: {NUM_HEADS}\n")
-        f.write(f"D_TICKER_EMBEDDING: {D_TICKER_EMBEDDING}\n")
-        f.write(f"\n\nTraining settings:\n")
-        f.write(f"PATIENCE: {PATIENCE}\n")
-        f.write(f"WEIGHT_DECAY: {WEIGHT_DECAY}\n")
-        f.write(f"LEARNING_RATE: {LEARNING_RATE}\n")
-        f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
-        f.write(f"N_ENSEMBLE_MEMBERS: {N_ENSEMBLE_MEMBERS}\n")
-        f.write(f"\n\nTraining results:\n")
-        f.write(f"Optimal number of epochs: {[int(n) for n in optimal_epochs]}\n")
-        f.write(f"Validation losses: {val_losses}\n")
-        f.write(f"\n\nTraining loss histories:\n")
-        training_loss_df = pd.DataFrame(
-            [h["loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-        ).round(4)
-        training_loss_df.index.name = "Member"
-        training_loss_df.columns = [
-            f"Epoch {i}" for i in range(1, training_loss_df.shape[1] + 1)
-        ]
-        training_loss_df.to_csv(f, sep="\t", mode="a")
-        f.write("\n\nValidation loss histories:\n")
-        validation_loss_df = pd.DataFrame(
-            [h["val_loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-        ).round(4)
-        validation_loss_df.index.name = "Member"
-        validation_loss_df.columns = [
-            f"Epoch {i}" for i in range(1, validation_loss_df.shape[1] + 1)
-        ]
-        validation_loss_df.to_csv(f, sep="\t", mode="a")
-        learning_rate_df = pd.DataFrame(
-            [h["learning_rate"] for h in histories],
-            index=range(N_ENSEMBLE_MEMBERS),
-        )
-        learning_rate_df = learning_rate_df.applymap(lambda x: f"{x:.3e}")
-        learning_rate_df.index.name = "Member"
-        learning_rate_df.columns = [
-            f"Epoch {i}" for i in range(1, learning_rate_df.shape[1] + 1)
-        ]
-        learning_rate_df.to_csv(f, sep="\t", mode="a")
-
-    # %%
-    # 7) Commit and push
-    try:
-        subprocess.run(["git", "pull"], check=True)
-        subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
-
-        commit_header = f"Train Transformer MDN Ensemble {VERSION}"
-        commit_body = f"Training history:\n" + "\n".join([str(h) for h in histories])
-
-        subprocess.run(
-            ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
-        )
-        subprocess.run(["git", "push"], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Git command failed: {e}")
+        members.append(member_model)
+    ensemble_model = MDNEnsemble(members, SUBMODEL_TOTAL_MIXTURES, name=MODEL_NAME)
+    ensemble_model
 
     # %%
     # 8) Single-pass predictions
@@ -522,7 +143,7 @@ if __name__ == "__main__":
         [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
     )
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
-        y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
+        y_pred_mdn, SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS
     )
 
     # %%
@@ -537,9 +158,9 @@ if __name__ == "__main__":
             pi_pred[from_idx:to_idx],
             mu_pred[from_idx:to_idx],
             sigma_pred[from_idx:to_idx],
-            N_MIXTURES * N_ENSEMBLE_MEMBERS,
+            SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS,
             ticker=ticker,
-            save_to=f"results/distributions/{ticker}_transformer_mdn_v{VERSION}_ensemble.svg",
+            save_to=f"results/distributions/{ticker}_ensemble_mdn_v{VERSION}_ensemble.svg",
         )
 
     # %%
@@ -555,7 +176,7 @@ if __name__ == "__main__":
         s = test.sets[ticker]
         from_idx, to_idx = test.get_range(ticker)
         pi_pred_ticker = pi_pred[from_idx:to_idx]
-        for j in range(N_MIXTURES * N_ENSEMBLE_MEMBERS):
+        for j in range(SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS):
             mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
             if mean_over_time < 0.01:
                 continue
@@ -573,7 +194,7 @@ if __name__ == "__main__":
     labels = list(legend_dict.keys())
     fig.legend(handles, labels, loc="center left")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(f"results/transformer_mdn_v{VERSION}_ensemble_mixture_weights.svg")
+    plt.savefig(f"results/ensemble_mdn_v{VERSION}_ensemble_mixture_weights.svg")
 
     # %%
     # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
@@ -638,13 +259,13 @@ if __name__ == "__main__":
         plt.gca().set_yticklabels(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
         )
-        plt.title(f"Transformer MDN predictions for {ticker}, {TEST_SET} data")
+        plt.title(f"Ensemble MDN predictions for {ticker}, {TEST_SET} data")
         plt.xlabel("Date")
         plt.ylabel("LogReturn")
         plt.legend()
         plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.savefig(
-            f"results/time_series/{ticker}_transformer_mdn_v{VERSION}_ensemble.svg"
+            f"results/time_series/{ticker}_ensemble_mdn_v{VERSION}_ensemble.svg"
         )
 
     # %%
@@ -710,13 +331,13 @@ if __name__ == "__main__":
         plt.gca().set_yticklabels(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
         )
-        plt.title(f"Transformer MDN predictions for {ticker}, {TEST_SET} data")
+        plt.title(f"Ensemble MDN predictions for {ticker}, {TEST_SET} data")
         plt.xlabel("Date")
         plt.ylabel("LogReturn")
         plt.legend()
         plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
         plt.savefig(
-            f"results/time_series/{ticker}_transformer_mdn_v{VERSION}_ensemble_epistemic.svg"
+            f"results/time_series/{ticker}_ensemble_mdn_v{VERSION}_ensemble_epistemic.svg"
         )
 
     # %%
@@ -737,18 +358,18 @@ if __name__ == "__main__":
 
     # %%
     # Calculate loss
-    df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES * N_ENSEMBLE_MEMBERS)(
+    df_validation["NLL"] = mdn_nll_numpy(SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS)(
         test.y, y_pred_mdn
     )
 
     # %%
     # Calculate CRPS
-    crps = mdn_crps_tf(N_MIXTURES * N_ENSEMBLE_MEMBERS)
+    crps = mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS)
     df_validation["CRPS"] = crps(test.y, y_pred_mdn)
 
     # %%
     # Calculate ECE
-    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, test.y, y_pred_mdn)
+    ece = ece_mdn(SUBMODEL_TOTAL_MIXTURES * N_ENSEMBLE_MEMBERS, test.y, y_pred_mdn)
     df_validation["ECE"] = ece
     ece
 
@@ -804,23 +425,5 @@ if __name__ == "__main__":
     # %%
     # Save
     df_validation.set_index(["Date", "Symbol"]).to_csv(
-        f"predictions/transformer_mdn_predictions{SUFFIX}_v{VERSION}_ensemble.csv"
+        f"predictions/ensemble_mdn_predictions{SUFFIX}_v{VERSION}_ensemble.csv"
     )
-
-    # %%
-    # Commit predictions
-    try:
-        subprocess.run(["git", "pull"], check=True)
-        subprocess.run(
-            ["git", "add", f"predictions/*transformer_mdn*{SUFFIX}*"], check=True
-        )
-        commit_header = f"Add predictions for Transformer MDN Ensemble {VERSION}"
-        commit_body = f"Validation loss: {df_validation['NLL'].mean()}"
-        subprocess.run(
-            ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
-        )
-        subprocess.run(["git", "push"], check=True)
-    except subprocess.CalledProcessError as e:
-        print(f"Git command failed: {e}")
-
-# %%

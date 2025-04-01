@@ -26,6 +26,8 @@ class MDNEnsemble(tf.keras.Model):
 
         for m in self.submodels:
             output = m(inputs, training=training)
+            if isinstance(m, MDNEnsemble):
+                output = output[0]  # MDNEnsemble returns a tuple
             pi, mu, sigma = parse_mdn_output(output, self.n_mixtures)
 
             # Scale mixture weights so final sum is 1
