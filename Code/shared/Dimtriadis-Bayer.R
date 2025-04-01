@@ -25,6 +25,9 @@ lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predic
 lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 
+############## ENSEMBLE COMBINATIONS ###############
+MDN_ensemble_IV_RV <- read.csv("~/Masterv4/master/Code/predictions/ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv")
+
 ########## GARCH MODELS ###########
 garch_norm <- read.csv("~/Masterv4/master/Code/predictions/GARCH_preds_enriched.csv")
 garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_student_t.csv")
@@ -71,6 +74,7 @@ transformer_RV_IV_ensemble <- transformer_RV_IV_ensemble[transformer_RV_IV_ensem
 lstm_RV_ensemble <- lstm_RV_ensemble[lstm_RV_ensemble$Symbol != "DOW", ]
 lstm_IV_ensemble <- lstm_IV_ensemble[lstm_IV_ensemble$Symbol != "DOW", ]
 lstm_RV_IV_ensemble <- lstm_RV_IV_ensemble[lstm_RV_IV_ensemble$Symbol != "DOW", ]
+MDN_ensemble_IV_RV <- MDN_ensemble_IV_RV[MDN_ensemble_IV_RV$Symbol != "DOW", ]
 #catboost_RV <- catboost_RV[catboost_RV$Symbol != "DOW", ]
 catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
 catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
@@ -112,7 +116,8 @@ model_list_lstm_transformer <- list(
  "LSTM_RV_IV" = lstm_RV_IV_ensemble,
  "Transformer_RV" = transformer_RV_ensemble,
 "Transformer_IV" = transformer_IV_ensemble,
- "Transformer_RV_IV" = transformer_RV_IV_ensemble
+ "Transformer_RV_IV" = transformer_RV_IV_ensemble,
+  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV
 )
 
 
@@ -200,7 +205,7 @@ model_list_HAR <- list(
 
 
 ####################### DEFINE FUNCTION THAT DOES IT ALL #############################################################
-run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1, 2, 3), sig_levels = c(0.05, 0.1)) {
+run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(2), sig_levels = c(0.05)) {
   all_results <- list()
   
   for (test_version in test_versions) {
@@ -280,11 +285,11 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
 
 ############################ Defining all model combinations ##################################################
 all_model_groups <- list(
-  list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer),
-  list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
+  list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer)
+  #list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
   #list(models = model_list_DB, alpha_config = alpha_config_db, es_config = es_config_db),
-  list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
-  list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
+  #list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
+  #list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
 )
 ############################## Running to get all result variations ###########################################
 esr_results <- run_esr_backtests(
