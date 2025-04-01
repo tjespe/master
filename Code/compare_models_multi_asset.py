@@ -1748,6 +1748,7 @@ for cl in CONFIDENCE_LEVELS:
         f"[{es_str}] AL Loss"
     ].idxmin()
 results_df = results_df.T
+adequate_df = adequate_df.T
 
 passing_models = [
     entry for entry in preds_per_model if entry["name"] in results_df.columns
@@ -2273,7 +2274,27 @@ for model_set in [our, traditional, ml_benchmarks]:
 print("======================================")
 print("TABLE 5: Interval Score and Mean Width")
 print("======================================")
-
+table_cls = [0.90, 0.95, 0.98]
+res_df_keys = [
+    f"[{format_cl(cl)}] {key}"
+    for cl in table_cls
+    for key in ["Interval Score", "Mean width (MPIW)"]
+]
+# Values for all benchmark models, shape: [num_models, num_metrics]
+benchmark_vals = np.array(
+    [
+        [adequate_df.get(model_name, {}).get(key) for key in res_df_keys]
+        for _, model_name in traditional
+    ],
+    dtype=float,
+)
+# Set NaNs to inf so that they are not considered in the comparison
+benchmark_vals[np.isnan(benchmark_vals)] = np.inf
+# Get best values for each metric to decide underlining
+best_vals = np.array(
+    [results_df.loc[key][results_df.loc[key, "Winner"]] for key in res_df_keys],
+    dtype=float,
+)
 for model_set in [our, traditional]:
     print("")
     for display_name, model_name in model_set:
@@ -2287,32 +2308,22 @@ for model_set in [our, traditional]:
             continue
 
         # Calculate the interval score and mean width for each confidence level
-        for cl in [0.90, 0.95, 0.98]:
-            cl_str = format_cl(cl)
-            interval_score = entry.get(f"interval_score_{cl_str}")
-            mean_width = entry.get(f"mpiw_{cl_str}")
-            if interval_score is None or mean_width is None:
-                print("&", " & ".join(["-"] * 2), end="")
-                continue
-            res_df_keys = [
-                f"[{cl_str}] Interval Score",
-                f"[{cl_str}] Mean width (MPIW)",
+        numbers = np.array(
+            [
+                entry.get(f"{key}_{format_cl(cl)}")
+                for cl in table_cls
+                for key in ["interval_score", "mpiw"]
             ]
-            bolden = []
-            for k, row in results_df.loc[res_df_keys].iterrows():
-                bolden.append(row.get(model_name) == row[row["Winner"]])
-            metrics = [
-                f"{interval_score:.4f}",
-                f"{mean_width:.4f}",
-            ]
-            print(
-                "&",
-                " & ".join(
-                    f"\\textbf{{{val}}}" if bold else val
-                    for val, bold in zip(metrics, bolden)
-                ),
-                end=" ",
-            )
+        )
+        bold = (numbers < benchmark_vals).all(axis=0)
+        underline = numbers == best_vals
+        for val, u, b in zip(numbers, underline, bold):
+            val = f"{val:.4f}"
+            if u:
+                val = f"\\underline{{{val}}}"
+            if b and model_set == our:
+                val = f"\\textbf{{{val}}}"
+            print("&", val, end=" ")
 
         print("\\\\")
 
