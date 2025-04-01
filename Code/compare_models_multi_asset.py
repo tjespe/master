@@ -2109,6 +2109,27 @@ ml_benchmarks = [
 print("======================================================")
 print("TABLE 2: Distribution Accuracy and Calibration Metrics")
 print("======================================================")
+res_df_keys = [
+    "NLL",
+    "ECE",
+    "CRPS",
+    "[67] PICP Miss",
+    "[90] PICP Miss",
+    "[95] PICP Miss",
+    "[98] PICP Miss",
+]
+# Values for all benchmark models, shape: [num_models, num_metrics]
+benchmark_vals = np.array(
+    [
+        [results_df.get(model_name, {}).get(key) for key in res_df_keys]
+        for _, model_name in [*traditional, *ml_benchmarks]
+    ],
+    dtype=float,
+)
+# Take the absolute value of the PICP Miss values
+benchmark_vals[:, 3:] = np.abs(benchmark_vals[:, 3:])
+# Set NaNs to inf so that they are not considered in the comparison
+benchmark_vals[np.isnan(benchmark_vals)] = np.inf
 for model_set in [our, traditional, ml_benchmarks]:
     print("")
     for display_name, model_name in model_set:
@@ -2118,34 +2139,24 @@ for model_set in [our, traditional, ml_benchmarks]:
         if entry is None:
             print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
             continue
-        metrics = [
+
+        conf_levels = [0.67, 0.90, 0.95, 0.98]
+        numbers = [
             (
-                f"{nll.mean():.4f}"
+                nll.mean()
                 if (nll := entry.get("nll")) is not None and not np.isnan(nll).any()
-                else "-"
+                else None
             ),
-            f"{ece:.4f}" if (ece := entry.get("ece")) is not None else "-",
-            f"{np.mean(crps):.4f}" if (crps := entry.get("crps")) is not None else "-",
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_67")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_90")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_95")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_98")) is not None
-                else "-"
-            ),
+            ece if (ece := entry.get("ece")) is not None else None,
+            np.mean(crps) if (crps := entry.get("crps")) is not None else None,
+            *(entry.get(f"picp_{format_cl(cl)}") for cl in conf_levels),
+        ]
+        comp_numbers = np.array(numbers, dtype=float)
+        for i, cl in enumerate(conf_levels):
+            comp_numbers[i + 3] = np.abs(cl - comp_numbers[i + 3])
+
+        metrics = [f"{val:.4f}" if val is not None else "-" for val in numbers[:3]] + [
+            f"{val * 100:.2f}\\%" if val is not None else "-" for val in numbers[3:]
         ]
         results_df_keys = [
             "NLL",
@@ -2156,18 +2167,18 @@ for model_set in [our, traditional, ml_benchmarks]:
             "[95] PICP",
             "[98] PICP",
         ]
-        bolden = []
+        underline = []
         for k, row in results_df.loc[results_df_keys].iterrows():
-            bolden.append(row.get(model_name) == row[row["Winner"]])
-        print(
-            display_name,
-            "&",
-            " & ".join(
-                f"\\textbf{{{val}}}" if bold else val
-                for val, bold in zip(metrics, bolden)
-            ),
-            "\\\\",
-        )
+            underline.append(row.get(model_name) == row[row["Winner"]])
+        bold = (comp_numbers < benchmark_vals).all(axis=0)
+        print(display_name, end=" ")
+        for val, under, b in zip(metrics, underline, bold):
+            if under:
+                val = f"\\underline{{{val}}}"
+            if b:
+                val = f"\\textbf{{{val}}}"
+            print("&", val, end=" ")
+        print("\\\\")
 
 # %%
 # Table 3: Model Confidence Set Analysis
