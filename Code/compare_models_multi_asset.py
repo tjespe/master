@@ -603,6 +603,8 @@ for version in [
     "ivol-only",
     "rv-only",
     "rv-and-ivol",
+    "rv_ensemble",
+    "ivol_ensemble",
     "rv-and-ivol_ensemble",
 ]:
     try:
@@ -2433,7 +2435,7 @@ for model_set in [our, traditional]:
             continue
 
         # Calculate the interval score and mean width for each confidence level
-        for cl in [0.90, 0.975, 0.99]:
+        for cl in [0.90, 0.95, 0.98]:
             cl_str = format_cl(cl)
             interval_score = entry.get(f"interval_score_{cl_str}")
             mean_width = entry.get(f"mpiw_{cl_str}")
