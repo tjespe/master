@@ -82,7 +82,7 @@ def parse_mdn_output(mdn_out, n_mixtures):
     return pi, mu, sigma
 
 
-def univariate_mixture_mean_and_var_approx(pi, mu, sigma):
+def univariate_mixture_mean_and_var_approx(pi, mu, sigma_):
     """
     Creates a univariate approximation of the mixture distribution.
 
@@ -92,6 +92,10 @@ def univariate_mixture_mean_and_var_approx(pi, mu, sigma):
     """
     mixture_mean = tf.reduce_sum(pi * mu, axis=1)
     mixture_mean_sq = tf.square(mixture_mean)
+    # Avoid blowing up result when a mixture has very high sigma
+    # (this means it has a very low weight and don't really matter to the distribution,
+    # but since we square the sigma below it can affect the result)
+    sigma = tf.minimum(sigma_, 1)
     # E[sigma^2 + mu^2] = sum_k(pi_k * (sigma_k^2 + mu_k^2))
     e_sigma2_mu2 = tf.reduce_sum(pi * (tf.square(sigma) + tf.square(mu)), axis=1)
     mixture_var = e_sigma2_mu2 - mixture_mean_sq

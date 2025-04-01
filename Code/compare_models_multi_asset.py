@@ -2471,6 +2471,18 @@ print("=========================================================")
 print("")
 
 
+def sci_notation_latex(val, decimals=1):
+    """Return val in the form 5.8 \\times $10^-9$, or '-' if val is NaN."""
+    if np.isnan(val):
+        return "-"
+    # format into standard Python 1e format, e.g. '5.8e-09'
+    s = f"{val:.{decimals}e}"
+    mantissa, exp_str = s.split("e")
+    exp = int(exp_str)  # convert e.g. '-09' -> -9
+    # build the desired string, e.g. '5.8 \times $10^-9$'
+    return f"{mantissa} \\times $10^{exp}$"
+
+
 for display_name, model_name in our:
     entry = next(
         (entry for entry in preds_per_model if entry["name"] == model_name), None
@@ -2479,23 +2491,21 @@ for display_name, model_name in our:
         print(display_name, "&", " & ".join(["-"] * 3), "\\\\")
         continue
 
-    print(display_name, end=" ")
-
-    # Calculate the average aleatoric and epistemic variance for each model
+    # Calculate the average aleatoric and epistemic variance
     aleatoric_var = entry.get("volatility_pred") ** 2
     epistemic_var = entry.get("epistemic_var")
     avg_aleatoric_var = np.mean(aleatoric_var) if aleatoric_var is not None else np.nan
     avg_epistemic_var = np.mean(epistemic_var) if epistemic_var is not None else np.nan
     avg_total_var = avg_aleatoric_var + avg_epistemic_var
 
+    print(display_name, end=" ")
+    if avg_aleatoric_var > 1:
+        break
+
     for val in [avg_aleatoric_var, avg_epistemic_var, avg_total_var]:
-        if np.isnan(val):
-            print("&", "-", end=" ")
-        else:
-            print("&", f"{val:.1e}", end=" ")
+        print("&", sci_notation_latex(val), end=" ")
 
     print("\\\\")
-
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock

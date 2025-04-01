@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol"
+VERSION = "rv"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}"
 
 # %%
@@ -25,8 +25,8 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
-INCLUDE_10_DAY_IVOL = True
-INCLUDE_30_DAY_IVOL = True
+INCLUDE_10_DAY_IVOL = False
+INCLUDE_30_DAY_IVOL = False
 INCLUDE_1MIN_RV = True
 INCLUDE_5MIN_RV = True
 INCLUDE_TICKERS = False
