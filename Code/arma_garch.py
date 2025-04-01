@@ -1,7 +1,7 @@
 # %%
 # Define version paramaters 
-AR_LAGS = 10
-DIST = "normal"
+AR_LAGS = 1
+DIST = "normal" # "normal" or "t"
 
 VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
@@ -73,13 +73,12 @@ for symbol in symbols:
     df_filtered = df.xs(symbol, level="Symbol")
 
     # Training data
-    returns_train = df_filtered["LogReturn"].loc[:TRAIN_VALIDATION_SPLIT]
+    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT]
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
-    returns_validation = df_filtered["LogReturn"].loc[
-        TRAIN_VALIDATION_SPLIT:VALIDATION_TEST_SPLIT
-    ]
+    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:] #(skip first row)
+
     scaled_returns_test = returns_validation * 100  # Scale to percentages
 
     # Initialize an empty list to store forecasts
@@ -124,12 +123,15 @@ if DIST == "t":
 
 # %%
 # Save GARCH predictions to file
-df_validation = df[df.index.get_level_values("Date") >= TRAIN_VALIDATION_SPLIT]
-df_validation = df_validation[df_validation.index.get_level_values("Date") < VALIDATION_TEST_SPLIT]
+df_validation = df[df.index.get_level_values("Date") >= VALIDATION_TEST_SPLIT]
 df_validation.reset_index(inplace=True)
 # remove all coloumns except Symbol, Date, LogReturn, SquaredReturn
 df_validation = df_validation[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
 df_validation
+
+# %%
+# check if length of garch_vol_pred and df_validation is the same
+len(garch_vol_pred), len(df_validation)
 # %%
 df_validation["AR_GARCH_Vol"] = garch_vol_pred
 if DIST == "t":

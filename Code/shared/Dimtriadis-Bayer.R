@@ -29,12 +29,20 @@ lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predic
 lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
 
 ########## GARCH MODELS ###########
-#garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#rv_garch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+garch_norm <- read.csv("~/Masterv4/master/Code/predictions/GARCH_preds_enriched.csv")
+garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_student_t.csv")
+rv_garch <- read.csv("~/Masterv4/master/Code/predictions/realized_garch_forecast_norm.csv")
+ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/predictions_AR(1)-GARCH(1,1)-normal.csv")
 #ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-#egarch <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv")
+
+# filter only for test set, from 2023-01-03 to 2024-03-28
+garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
+garch_t <- garch_t[garch_t$Date >= "2023-01-03" & garch_t$Date <= "2024-03-28", ]
+rv_garch <- rv_garch[rv_garch$Date >= "2023-01-03" & rv_garch$Date <= "2024-03-28", ]
+ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
+#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
+egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
 
 ######### HAR ##############
 har <- read.csv("~/Masterv4/master/Code/predictions/HAR_R.csv")
@@ -71,7 +79,7 @@ catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
 catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
 xgboost_RV <- xgboost_RV[xgboost_RV$Symbol != "DOW", ]
 # xgboost_IV <- xgboost_IV[xgboost_IV$Symbol != "DOW", ]
-xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
+# xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
 lightgbm_RV <- lightgbm_RV[lightgbm_RV$Symbol != "DOW", ]
 lightgbm_IV <- lightgbm_IV[lightgbm_IV$Symbol != "DOW", ]
 lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
@@ -80,12 +88,12 @@ lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
 # DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
 har <- har[har$Symbol != "DOW", ]
 harq <- harq[harq$Symbol != "DOW", ]
-# garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
-# garch_t <- garch_t[garch_t$Symbol != "DOW", ]
-# rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
-# ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
+garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
+garch_t <- garch_t[garch_t$Symbol != "DOW", ]
+rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
+ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
 # ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
-# egarch <- egarch[egarch$Symbol != "DOW", ]
+egarch <- egarch[egarch$Symbol != "DOW", ]
 #######################################################################################################
  # TEST MODELS
 #######################################################################################################
@@ -196,7 +204,24 @@ for (model_name in names(model_list_lstm_transformer)) {
 print(results_lstm_transformers)
 
 #### GARCH ####
+alpha_config_garch <- list(
+  levels = c(0.01, 0.025, 0.05),
+  columns = list("0.01" = "LB_98", "0.025" = "LB_95", "0.05" = "LB_90")
+)
+es_config_garch <- list(
+  columns = list("0.01" = "ES_99", "0.025" = "ES_97.5", "0.05" = "ES_95")
+)
 
+# Model list
+model_list_garch <- list(
+  "GARCH" = garch_norm,
+  "EGARCH" = egarch,
+  "RV_GARCH" = rv_garch,
+ "AR_GARCH" = ar_garch_norm,
+  #"AR_GARCH_t" = ar_garch_t
+  "GARCH_t" = garch_t
+
+)
 
 #### BOOSTERS ####
 alpha_config_boost <- list(
@@ -410,7 +435,7 @@ alpha_config_har <- list(
   levels = c(0.01, 0.025, 0.05),
   columns = list("0.01" = "LB_98", "0.025" = "LB_95", "0.05" = "LB_90")
 )
-es_config_lstm_har <- list(
+es_config_har <- list(
   columns = list("0.01" = "ES_99", "0.025" = "ES_97.5", "0.05" = "ES_95")
 )
 
@@ -615,7 +640,8 @@ all_model_groups <- list(
   list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer),
   list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
   #list(models = model_list_DB, alpha_config = alpha_config_db, es_config = es_config_db),
-  list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har)
+  list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
+  list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
 )
 ############################## Running to get all result variations ###########################################
 esr_results <- run_esr_backtests(
