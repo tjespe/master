@@ -1772,6 +1772,12 @@ def underline_winner(row):
 results_df.style.apply(underline_winner, axis=1)
 
 # %%
+# Look at key adequacy metrics for each model
+results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
+    underline_winner, axis=0
+)
+
+# %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
 # Initialize a dictionary to hold ranking series for each metric.
 # Each metric’s ranking is computed such that rank 1 is best.
