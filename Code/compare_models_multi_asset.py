@@ -1695,6 +1695,11 @@ for cl in CONFIDENCE_LEVELS:
         f"[{es_str}] AL Loss"
     ].idxmin()
 results_df = results_df.T
+
+passing_models = [
+    entry for entry in preds_per_model if entry["name"] in results_df.columns
+]
+
 results_df.to_csv(f"results/comp_results{SUFFIX}_{TEST_SET}.csv")
 
 
@@ -1823,229 +1828,6 @@ print("Lowest mean quantile:", rankings_df.loc["Mean quantile"].idxmin())
 # %%
 # Save rankings to CSV
 rankings_df.to_csv(f"results/comp_ranking{SUFFIX}_{TEST_SET}.csv")
-
-# %%
-# Analyze which sectors each model passes/fails for
-for test_name, key_prefix in [
-    ("Unconditional Coverage", "uc_"),
-    ("Independence", "ind_"),
-    ("Conditional Coverage", "cc_"),
-]:
-    for cl in CONFIDENCE_LEVELS:
-        cl_str = format_cl(cl)
-        sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
-        meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
-        meta_df = meta_df.set_index("Symbol")
-        unique_sectors = set()
-        pass_pct_key = f"sector_pass_pct_{format_cl(cl)}"
-
-        passing_models = [
-            entry for entry in preds_per_model if entry["name"] in results_df.columns
-        ]
-
-        for entry in passing_models:
-            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
-            if chr_results_df is None:
-                continue
-            chr_results_df = chr_results_df.join(meta_df, how="left")
-            chr_results_df = chr_results_df.dropna(subset=f"{key_prefix}pass")
-            passes = (
-                chr_results_df[chr_results_df[f"{key_prefix}pass"].astype(bool)]
-                .groupby(sector_key)[f"{key_prefix}pass"]
-                .count()
-                .sort_values(ascending=False)
-            )
-            fails = (
-                chr_results_df[~chr_results_df[f"{key_prefix}pass"].astype(bool)]
-                .groupby(sector_key)[f"{key_prefix}pass"]
-                .count()
-                .sort_values(ascending=False)
-            )
-            pass_pct = passes / (passes + fails)
-            pass_pct = pass_pct.sort_values()
-            entry[pass_pct_key] = pass_pct
-            unique_sectors.update(passes.index)
-
-        # Get the union of sectors from both datasets
-        sectors = sorted(
-            unique_sectors,
-            key=lambda sector: sum(
-                entry[pass_pct_key].get(sector, 0)
-                for entry in passing_models
-                if entry["name"] != "GARCH" and pass_pct_key in entry
-            ),
-        )
-        y = np.arange(len(sectors))
-
-        num_models = len(passing_models)
-        group_height = 0.8  # total vertical space for each sector's bars
-        bar_height = group_height / num_models
-        # create evenly spaced offsets that place bars side by side
-        offsets = np.linspace(
-            -group_height / 2 + bar_height / 2,
-            group_height / 2 - bar_height / 2,
-            num_models,
-        )
-
-        plt.figure(figsize=(10, len(sectors) * 0.7))
-
-        plt.title(f"Pass Rate ({test_name} at {cl_str}% interval) by Sector")
-
-        for i, entry in enumerate(passing_models):
-            if pass_pct_key not in entry:
-                continue
-            pass_pct = entry[pass_pct_key].reindex(sectors, fill_value=0)
-            plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
-
-        plt.yticks(y, sectors)
-        plt.gca().set_xticklabels(
-            ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-        )
-        plt.legend()
-        plt.show()
-
-# %%
-# Analyze coverage by sector
-for cl in CONFIDENCE_LEVELS:
-    sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
-    meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
-    meta_df = meta_df.set_index("Symbol")
-    unique_sectors = set()
-    coverage_key = f"sector_coverage_{format_cl(cl)}"
-
-    for entry in passing_models:
-        if f"chr_results_df_{format_cl(cl)}" not in entry:
-            print("Missing Christoffersen results for", entry["name"], "at", cl)
-            continue
-        chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
-        chr_results_df = chr_results_df.join(meta_df, how="left")
-        chr_results_df = chr_results_df.dropna(subset="all_pass")
-        entry[coverage_key] = (
-            chr_results_df.groupby(sector_key)["Coverage"]
-            .mean()
-            .sort_values(ascending=False)
-        )
-        unique_sectors.update(entry[coverage_key].index)
-
-    # Get the union of sectors from both datasets
-    if not unique_sectors:
-        print("Unique sectors is empty for", cl)
-        continue  # No passes
-    sectors = sorted(
-        unique_sectors,
-        key=lambda sector: sum(
-            entry[coverage_key].get(sector, 0)
-            for entry in passing_models
-            if entry["name"] != "GARCH" and coverage_key in entry
-        ),
-    )
-    y = np.arange(len(sectors))
-
-    num_models = len(passing_models)
-    group_height = 0.8  # total vertical space for each sector's bars
-    bar_height = group_height / num_models
-    # create evenly spaced offsets that place bars side by side
-    offsets = np.linspace(
-        -group_height / 2 + bar_height / 2,
-        group_height / 2 - bar_height / 2,
-        num_models,
-    )
-
-    plt.figure(figsize=(10, len(sectors) * 0.7))
-
-    plt.title(f"PICP by Sector ({format_cl(cl)}%)")
-
-    for i, entry in enumerate(passing_models):
-        if coverage_key not in entry:
-            continue
-        pass_pct = entry[coverage_key].reindex(sectors, fill_value=0)
-        plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
-
-    x_from = cl - 0.15
-    x_to = min(cl + 0.15, 1)
-    plt.xlim(x_from, x_to)
-    plt.axvline(cl, color="black", linestyle="--", label="Target")
-    plt.yticks(y, sectors)
-    plt.gca().set_xticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-    )
-    plt.legend()
-    plt.show()
-
-# %%
-# Plot PICP for all the important tickers
-include_models = {
-    "GARCH",
-    "LSTM MDN ffnn",
-    "LSTM MDN tuned",
-    "Transformer MDN tuned",
-    "Transformer MDN time",
-    "LSTM MDN ivol-only_ensemble",
-    "LSTM MDN ivol-only-2_ensemble",
-}
-for cl in CONFIDENCE_LEVELS:
-    existing_tickers = sorted(
-        set(df_validation.index.get_level_values("Symbol")).intersection(
-            IMPORTANT_TICKERS
-        )
-    )
-    y = np.arange(len(existing_tickers))
-
-    plt.figure(figsize=(10, len(existing_tickers) * 0.5))
-    plt.title(f"PICP by ticker ({format_cl(cl)}% interval)")
-    x_from = cl - 0.10
-    x_to = cl + 0.10
-
-    use_models = (
-        [entry for entry in passing_models if entry["name"] in include_models]
-        if include_models
-        else passing_models
-    )
-    num_models = len(use_models)
-    group_height = 0.8  # total vertical space for each sector's bars
-    bar_height = group_height / num_models
-    offsets = np.linspace(
-        -group_height / 2 + bar_height / 2,
-        group_height / 2 - bar_height / 2,
-        num_models,
-    )
-
-    for i, entry in enumerate(use_models):
-        chr_key = f"chr_results_df_{format_cl(cl)}"
-        if chr_key not in entry:
-            continue
-        chr_results_df = entry[chr_key]
-        chr_results_df = chr_results_df.loc[
-            np.isin(chr_results_df.index.values, IMPORTANT_TICKERS)
-        ]
-        chr_results_df = chr_results_df.reindex(IMPORTANT_TICKERS, fill_value=0)
-        plt.barh(
-            y + offsets[i],
-            chr_results_df["Coverage"],
-            height=bar_height,
-            label=entry["name"],
-        )
-        # Add a check mark or cross to indicate if the model passes or fails
-        for idx, row in chr_results_df.iterrows():
-            picp = row["Coverage"]
-            if x_from < picp < x_to:
-                plt.text(
-                    row["Coverage"] - 0.002,
-                    y[existing_tickers.index(idx)] + offsets[i],
-                    "✓" if row["uc_pass"] else "✗",
-                    verticalalignment="center",
-                    color="white",
-                )
-
-    plt.xlim(x_from, x_to)
-    plt.axvline(cl, color="black", linestyle="--", label="Target")
-    plt.yticks(y, existing_tickers)
-    plt.gca().set_xticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-    )
-    plt.legend()
-    plt.savefig(f"results/picp_by_ticker_{cl}.svg")
-    plt.show()
 
 # %%
 # Define the most important loss functions
@@ -2499,25 +2281,47 @@ for model_set in [our, traditional, ml_benchmarks]:
             if fz_score is None or al_score is None:
                 print("&", " & ".join(["-"] * 2), end="")
                 continue
+            fz_score = np.mean(fz_score)
+            al_score = np.mean(al_score)
             res_df_keys = [
                 f"[{cl_str}] FZ Loss",
                 f"[{cl_str}] AL Loss",
             ]
-            bolden = []
-            for k, row in results_df.loc[res_df_keys].iterrows():
-                bolden.append(row.get(model_name) == row[row["Winner"]])
-            metrics = [
-                f"{np.mean(fz_score):.4f}",
-                f"{np.mean(al_score):.4f}",
-            ]
-            print(
-                "&",
-                " & ".join(
-                    f"\\textbf{{{val}}}" if bold else val
-                    for val, bold in zip(metrics, bolden)
-                ),
-                end=" ",
+            benchmark_fz_scores, benchmark_al_scores = (
+                [
+                    np.mean(scores)
+                    for benchmarks in [traditional, ml_benchmarks]
+                    for _, benchmark_name in benchmarks
+                    if (
+                        benchmark_entry := next(
+                            (e for e in preds_per_model if e["name"] == benchmark_name),
+                            None,
+                        )
+                    )
+                    and (scores := benchmark_entry.get(f"{key}_{cl_str}")) is not None
+                ]
+                for key in ["FZ0", "AL"]
             )
+            underline = []
+            for k, row in results_df.loc[res_df_keys].iterrows():
+                # Underline if it is the absolute best
+                underline.append(row.get(model_name) == row[row["Winner"]])
+            # Bold if it is better than all benchmarks
+            bolden = [
+                (fz_score < benchmark_fz_scores).all(),
+                (al_score < benchmark_al_scores).all(),
+            ]
+            # Format with 4 decimal places
+            metrics = [
+                f"{fz_score:.4f}",
+                f"{al_score:.4f}",
+            ]
+            for val, bold, under in zip(metrics, bolden, underline):
+                if bold:
+                    val = f"\\textbf{{{val}}}"
+                if under:
+                    val = f"\\underline{{{val}}}"
+                print("& ", val, end=" ")
 
         print("\\\\")
 
@@ -2821,3 +2625,225 @@ for cl in CONFIDENCE_LEVELS:
         )
 
 # %%
+# %%
+# Analyze which sectors each model passes/fails for
+for test_name, key_prefix in [
+    ("Unconditional Coverage", "uc_"),
+    ("Independence", "ind_"),
+    ("Conditional Coverage", "cc_"),
+]:
+    for cl in CONFIDENCE_LEVELS:
+        cl_str = format_cl(cl)
+        sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+        meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+        meta_df = meta_df.set_index("Symbol")
+        unique_sectors = set()
+        pass_pct_key = f"sector_pass_pct_{format_cl(cl)}"
+
+        passing_models = [
+            entry for entry in preds_per_model if entry["name"] in results_df.columns
+        ]
+
+        for entry in passing_models:
+            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            if chr_results_df is None:
+                continue
+            chr_results_df = chr_results_df.join(meta_df, how="left")
+            chr_results_df = chr_results_df.dropna(subset=f"{key_prefix}pass")
+            passes = (
+                chr_results_df[chr_results_df[f"{key_prefix}pass"].astype(bool)]
+                .groupby(sector_key)[f"{key_prefix}pass"]
+                .count()
+                .sort_values(ascending=False)
+            )
+            fails = (
+                chr_results_df[~chr_results_df[f"{key_prefix}pass"].astype(bool)]
+                .groupby(sector_key)[f"{key_prefix}pass"]
+                .count()
+                .sort_values(ascending=False)
+            )
+            pass_pct = passes / (passes + fails)
+            pass_pct = pass_pct.sort_values()
+            entry[pass_pct_key] = pass_pct
+            unique_sectors.update(passes.index)
+
+        # Get the union of sectors from both datasets
+        sectors = sorted(
+            unique_sectors,
+            key=lambda sector: sum(
+                entry[pass_pct_key].get(sector, 0)
+                for entry in passing_models
+                if entry["name"] != "GARCH" and pass_pct_key in entry
+            ),
+        )
+        y = np.arange(len(sectors))
+
+        num_models = len(passing_models)
+        group_height = 0.8  # total vertical space for each sector's bars
+        bar_height = group_height / num_models
+        # create evenly spaced offsets that place bars side by side
+        offsets = np.linspace(
+            -group_height / 2 + bar_height / 2,
+            group_height / 2 - bar_height / 2,
+            num_models,
+        )
+
+        plt.figure(figsize=(10, len(sectors) * 0.7))
+
+        plt.title(f"Pass Rate ({test_name} at {cl_str}% interval) by Sector")
+
+        for i, entry in enumerate(passing_models):
+            if pass_pct_key not in entry:
+                continue
+            pass_pct = entry[pass_pct_key].reindex(sectors, fill_value=0)
+            plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+
+        plt.yticks(y, sectors)
+        plt.gca().set_xticklabels(
+            ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+        )
+        plt.legend()
+        plt.show()
+
+# %%
+# Analyze coverage by sector
+for cl in CONFIDENCE_LEVELS:
+    sector_key = "GICS Sector"  # "GICS Sub-Industry" # "GICS Sector"
+    meta_df = pd.read_csv("data/sp500_stocks_meta.csv")
+    meta_df = meta_df.set_index("Symbol")
+    unique_sectors = set()
+    coverage_key = f"sector_coverage_{format_cl(cl)}"
+
+    for entry in passing_models:
+        if f"chr_results_df_{format_cl(cl)}" not in entry:
+            print("Missing Christoffersen results for", entry["name"], "at", cl)
+            continue
+        chr_results_df = entry[f"chr_results_df_{format_cl(cl)}"]
+        chr_results_df = chr_results_df.join(meta_df, how="left")
+        chr_results_df = chr_results_df.dropna(subset="all_pass")
+        entry[coverage_key] = (
+            chr_results_df.groupby(sector_key)["Coverage"]
+            .mean()
+            .sort_values(ascending=False)
+        )
+        unique_sectors.update(entry[coverage_key].index)
+
+    # Get the union of sectors from both datasets
+    if not unique_sectors:
+        print("Unique sectors is empty for", cl)
+        continue  # No passes
+    sectors = sorted(
+        unique_sectors,
+        key=lambda sector: sum(
+            entry[coverage_key].get(sector, 0)
+            for entry in passing_models
+            if entry["name"] != "GARCH" and coverage_key in entry
+        ),
+    )
+    y = np.arange(len(sectors))
+
+    num_models = len(passing_models)
+    group_height = 0.8  # total vertical space for each sector's bars
+    bar_height = group_height / num_models
+    # create evenly spaced offsets that place bars side by side
+    offsets = np.linspace(
+        -group_height / 2 + bar_height / 2,
+        group_height / 2 - bar_height / 2,
+        num_models,
+    )
+
+    plt.figure(figsize=(10, len(sectors) * 0.7))
+
+    plt.title(f"PICP by Sector ({format_cl(cl)}%)")
+
+    for i, entry in enumerate(passing_models):
+        if coverage_key not in entry:
+            continue
+        pass_pct = entry[coverage_key].reindex(sectors, fill_value=0)
+        plt.barh(y + offsets[i], pass_pct, height=bar_height, label=entry["name"])
+
+    x_from = cl - 0.15
+    x_to = min(cl + 0.15, 1)
+    plt.xlim(x_from, x_to)
+    plt.axvline(cl, color="black", linestyle="--", label="Target")
+    plt.yticks(y, sectors)
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.legend()
+    plt.show()
+
+# %%
+# Plot PICP for all the important tickers
+include_models = {
+    "GARCH",
+    "LSTM MDN ffnn",
+    "LSTM MDN tuned",
+    "Transformer MDN tuned",
+    "Transformer MDN time",
+    "LSTM MDN ivol-only_ensemble",
+    "LSTM MDN ivol-only-2_ensemble",
+}
+for cl in CONFIDENCE_LEVELS:
+    existing_tickers = sorted(
+        set(df_validation.index.get_level_values("Symbol")).intersection(
+            IMPORTANT_TICKERS
+        )
+    )
+    y = np.arange(len(existing_tickers))
+
+    plt.figure(figsize=(10, len(existing_tickers) * 0.5))
+    plt.title(f"PICP by ticker ({format_cl(cl)}% interval)")
+    x_from = cl - 0.10
+    x_to = cl + 0.10
+
+    use_models = (
+        [entry for entry in passing_models if entry["name"] in include_models]
+        if include_models
+        else passing_models
+    )
+    num_models = len(use_models)
+    group_height = 0.8  # total vertical space for each sector's bars
+    bar_height = group_height / num_models
+    offsets = np.linspace(
+        -group_height / 2 + bar_height / 2,
+        group_height / 2 - bar_height / 2,
+        num_models,
+    )
+
+    for i, entry in enumerate(use_models):
+        chr_key = f"chr_results_df_{format_cl(cl)}"
+        if chr_key not in entry:
+            continue
+        chr_results_df = entry[chr_key]
+        chr_results_df = chr_results_df.loc[
+            np.isin(chr_results_df.index.values, IMPORTANT_TICKERS)
+        ]
+        chr_results_df = chr_results_df.reindex(IMPORTANT_TICKERS, fill_value=0)
+        plt.barh(
+            y + offsets[i],
+            chr_results_df["Coverage"],
+            height=bar_height,
+            label=entry["name"],
+        )
+        # Add a check mark or cross to indicate if the model passes or fails
+        for idx, row in chr_results_df.iterrows():
+            picp = row["Coverage"]
+            if x_from < picp < x_to:
+                plt.text(
+                    row["Coverage"] - 0.002,
+                    y[existing_tickers.index(idx)] + offsets[i],
+                    "✓" if row["uc_pass"] else "✗",
+                    verticalalignment="center",
+                    color="white",
+                )
+
+    plt.xlim(x_from, x_to)
+    plt.axvline(cl, color="black", linestyle="--", label="Target")
+    plt.yticks(y, existing_tickers)
+    plt.gca().set_xticklabels(
+        ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
+    )
+    plt.legend()
+    plt.savefig(f"results/picp_by_ticker_{cl}.svg")
+    plt.show()
