@@ -561,6 +561,7 @@ for version in [
             "name": f"LSTM MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "symbols": combined_df.index.get_level_values("Symbol"),
             "dates": combined_df.index.get_level_values("Date"),
@@ -635,6 +636,7 @@ for version in [
             "name": f"Transformer MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "dates": combined_df.index.get_level_values("Date"),
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -690,6 +692,7 @@ for version in ["rv-iv"]:
             "name": f"Ensemble MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "dates": combined_df.index.get_level_values("Date"),
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -2456,6 +2459,42 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
 
         print("\\\\")
+
+
+# %%
+# Table 9: Aleatoric and Epistemic variance
+# Columns:
+# Model,	Average aleatoric variance,	Average epistemic variance,	Average total variance
+print("=========================================================")
+print("TABLE 9: Aleatoric and Epistemic variance (average across symbols)")
+print("=========================================================")
+print("")
+
+
+for display_name, model_name in our:
+    entry = next(
+        (entry for entry in preds_per_model if entry["name"] == model_name), None
+    )
+    if entry is None:
+        print(display_name, "&", " & ".join(["-"] * 3), "\\\\")
+        continue
+
+    print(display_name, end=" ")
+
+    # Calculate the average aleatoric and epistemic variance for each model
+    aleatoric_var = entry.get("volatility_pred") ** 2
+    epistemic_var = entry.get("epistemic_var")
+    avg_aleatoric_var = np.mean(aleatoric_var) if aleatoric_var is not None else np.nan
+    avg_epistemic_var = np.mean(epistemic_var) if epistemic_var is not None else np.nan
+    avg_total_var = avg_aleatoric_var + avg_epistemic_var
+
+    for val in [avg_aleatoric_var, avg_epistemic_var, avg_total_var]:
+        if np.isnan(val):
+            print("&", "-", end=" ")
+        else:
+            print("&", f"{val:.1e}", end=" ")
+
+    print("\\\\")
 
 
 # %%
