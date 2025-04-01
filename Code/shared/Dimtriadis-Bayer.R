@@ -2,9 +2,14 @@
 library(esback)
 library(dplyr)
 
+# UPDATE BASEPATH TO YOUR FILE PATH
+base_path_return_data <- "~/Masterv4/master/Code/data/dow_jones/processed_data"
+base_path_predictions <- "~/Masterv4/master/Code/predictions"
+
+
 
 # get return data for the test set
-return_data <- read.csv("~/Masterv4/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
+return_data <- read.csv(file.path(base_path_return_data, "dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv"))
 # filter only for test set, from 2023-01-03 to 2024-03-28
 return_data <- return_data[return_data$Date >= "2023-01-03" & return_data$Date <= "2024-03-28", ] 
 # return_data <- return_data[return_data$Date >= "2005-02-15" & return_data$Date <= "2024-03-28", ]
@@ -16,25 +21,26 @@ return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 # comment out the ones we dont have predictions for yet
 
 ############# Transformer #############
-transformer_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv_ensemble.csv")
-transformer_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vivol_ensemble.csv")
-transformer_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv")
+transformer_RV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv_ensemble.csv"))
+transformer_IV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vivol_ensemble.csv"))
+transformer_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv"))
 
 ############ LSTM ###################
-lstm_RV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-final_ensemble.csv")
-lstm_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vivol-final_ensemble.csv")
-lstm_RV_IV_ensemble <- read.csv("~/Masterv4/master/Code/predictions/lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv")
+lstm_RV_ensemble     <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vrv-final_ensemble.csv"))
+lstm_IV_ensemble     <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vivol-final_ensemble.csv"))
+lstm_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv"))
 
 ############## ENSEMBLE COMBINATIONS ###############
-MDN_ensemble_IV_RV <- read.csv("~/Masterv4/master/Code/predictions/ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv")
+MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
 
 ########## GARCH MODELS ###########
-garch_norm <- read.csv("~/Masterv4/master/Code/predictions/GARCH_preds_enriched.csv")
-garch_t <- read.csv("~/Masterv4/master/Code/predictions/garch_predictions_student_t.csv")
-rv_garch <- read.csv("~/Masterv4/master/Code/predictions/realized_garch_forecast_norm.csv")
-ar_garch_norm <- read.csv("~/Masterv4/master/Code/predictions/predictions_AR(1)-GARCH(1,1)-normal.csv")
-#ar_garch_t <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-egarch <- read.csv("~/Masterv4/master/Code/predictions/EGARCH_preds_enriched.csv")
+garch_norm     <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriched.csv"))
+garch_t        <- read.csv(file.path(base_path_predictions, "garch_predictions_student_t.csv"))
+rv_garch       <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_norm.csv"))
+ar_garch_norm  <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-normal.csv"))
+# ar_garch_t   <- read.csv(file.path(base_path, ".csv"))  # Not included because file name is missing
+egarch         <- read.csv(file.path(base_path_predictions, "EGARCH_preds_enriched.csv"))
+
 
 # filter only for test set, from 2023-01-03 to 2024-03-28
 garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
@@ -45,26 +51,26 @@ ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_nor
 egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
 
 ######### HAR ##############
-har <- read.csv("~/Masterv4/master/Code/predictions/HAR_R.csv")
-harq <- read.csv("~/Masterv4/master/Code/predictions/HARQ_R.csv")
+har   <- read.csv(file.path(base_path_predictions, "HAR_R.csv"))
+harq  <- read.csv(file.path(base_path_predictions, "HARQ_R.csv"))
 
 ########### BOOSTERS ###########
-# catboost_RV <- read.csv("~/Masterv4/master/Code/predictions/CatBoost_RV.csv")
-catboost_IV <- read.csv("~/Masterv4/master/Code/predictions/CatBoost_IV.csv")
-catboost_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/CatBoost_RV_IV.csv")
+# catboost_RV <- read.csv(file.path(base_path, "CatBoost_RV.csv"))
+catboost_IV     <- read.csv(file.path(base_path_predictions, "CatBoost_IV.csv"))
+catboost_RV_IV  <- read.csv(file.path(base_path_predictions, "CatBoost_RV_IV.csv"))
 
-xgboost_RV <- read.csv("~/Masterv4/master/Code/predictions/XGBoost_RV.csv")
-#xgboost_IV <- read.csv("~/Masterv4/master/Code/predictions/XGBoost_IV.csv")
-# xgboost_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/XGBoost_RV_IV.csv")
+xgboost_RV      <- read.csv(file.path(base_path_predictions, "XGBoost_RV.csv"))
+# xgboost_IV    <- read.csv(file.path(base_path, "XGBoost_IV.csv"))
+# xgboost_RV_IV <- read.csv(file.path(base_path, "XGBoost_RV_IV.csv"))
 
-lightgbm_RV <- read.csv("~/Masterv4/master/Code/predictions/LightGBM_RV.csv")
-lightgbm_IV <- read.csv("~/Masterv4/master/Code/predictions/LightGBM_IV.csv")
-lightgbm_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/LightGBM_RV_IV.csv")
+lightgbm_RV     <- read.csv(file.path(base_path_predictions, "LightGBM_RV.csv"))
+lightgbm_IV     <- read.csv(file.path(base_path_predictions, "LightGBM_IV.csv"))
+lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV.csv"))
 
 ########## DB ###########
-# DB_RV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-# DB_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
-# DB_RV_IV <- read.csv("~/Masterv4/master/Code/predictions/.csv")
+# DB_RV     <- read.csv(file.path(base_path, ".csv"))
+# DB_IV     <- read.csv(file.path(base_path, ".csv"))
+# DB_RV_IV  <- read.csv(file.path(base_path, ".csv"))
 
 
 # remove ticker "DOW" from all models if it exists
