@@ -48,10 +48,10 @@ MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
-N_ENSEMBLE_MEMBERS = 10
-EPOCHS = 15
+N_ENSEMBLE_MEMBERS = 2  # 10
+EPOCHS = 1
 PARALLELLIZE = False  # True
-ROLLING_INTERVAL = 30  # Monthly retraining interval
+ROLLING_INTERVAL = 4000  # 30  # Monthly retraining interval
 
 # %%
 # Imports from code shared across models
@@ -350,6 +350,9 @@ if __name__ == "__main__":
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
+    test = data.get_test_set_for_date(
+        pd.Timestamp(VALIDATION_TEST_SPLIT), first_test_date
+    )
 
     # %%
     # 6) Plot 10 charts with the distributions for 10 random days
@@ -473,11 +476,8 @@ if __name__ == "__main__":
 
     # %%
     # 13) Make data frame for signle pass predictions
-    full_test = data.get_test_set_for_date(
-        pd.Timestamp(VALIDATION_TEST_SPLIT), first_test_date
-    )
     df_validation = pd.DataFrame(
-        np.vstack([full_test.dates, full_test.tickers]).T,
+        np.vstack([test.dates, test.tickers]).T,
         columns=["Date", "Symbol"],
     )
     # %%
