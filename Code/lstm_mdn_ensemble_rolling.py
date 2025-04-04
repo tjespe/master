@@ -4,7 +4,11 @@ import subprocess
 from typing import Optional
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
-from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
+from settings import (
+    LOOKBACK_DAYS,
+    SUFFIX,
+    VALIDATION_TEST_SPLIT,
+)
 import multiprocessing as mp
 
 VERSION = "rv-and-ivol-final-rolling"
@@ -37,39 +41,17 @@ DROPOUT = 0.0
 L2_REG = 1e-4
 NUM_HIDDEN_LAYERS = 0
 EMBEDDING_DIMENSIONS = None
-MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_{TEST_SET}"
+MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 
 # %%
 # Settings for training
-TRAIN = True
-PATIENCE = 5  # Early stopping patience
 WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
 N_ENSEMBLE_MEMBERS = 10
-OPTIMAL_EPOCHS = 15
-USE_EARLY_STOPPING = TEST_SET == "validation"
-EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
+EPOCHS = 15
 PARALLELLIZE = True
-
-# %%
-# Print clear message about which set we are using
-msg = [
-    f"LSTM MDN Ensemble v{VERSION} on **{TEST_SET}** data",
-    (
-        (
-            "Training up to {EPOCHS} epochs with early stopping"
-            if USE_EARLY_STOPPING
-            else f"Training without early stopping (using epochs = {OPTIMAL_EPOCHS})"
-        )
-        if TRAIN
-        else "No training"
-    ),
-]
-max_len = max(len(m) for m in msg)
-print("@" * (max_len + 4))
-print("\n".join([f"@ {m.ljust(max_len)} @" for m in msg]))
-print("@" * (max_len + 4))
+ROLLING_INTERVAL = 30  # Monthly retraining interval
 
 # %%
 # Imports from code shared across models
@@ -216,23 +198,14 @@ def _train_single_member(args):
         X_val,
         y_val,
         batch_size,
-        patience,
         lr,
         weight_decay,
         n_mixtures,
         pi_penalty,
-        pre_trained_weights,
     ) = args
 
     # Rebuild callbacks/optimizer/loss in each process
-    early_stop = EarlyStopping(
-        monitor="val_loss",
-        patience=patience,
-        restore_best_weights=True,
-    )
     model = build_lstm_mdn(**build_kwargs)
-    if pre_trained_weights is not None:
-        model.load_weights(pre_trained_weights)
     model.compile(
         optimizer=Adam(learning_rate=lr, weight_decay=weight_decay),
         loss=mdn_nll_tf(n_mixtures, pi_penalty),
@@ -249,7 +222,7 @@ def _train_single_member(args):
         batch_size=batch_size,
         verbose=not PARALLELLIZE,
         validation_data=(X_val, y_val),
-        callbacks=[early_stop, progress_cb] if USE_EARLY_STOPPING else [progress_cb],
+        callbacks=[progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
@@ -286,202 +259,103 @@ if __name__ == "__main__":
     gc.collect()
 
     # %%
-    # Extract correct train and test data based on settings
-    train = data.get_training_set(test_set=TEST_SET)
-    test = data.get_test_set(test_set=TEST_SET)
+    # Train model (rolling if ROLLING_INTERVAL is set)
+    # Get correct train and test
+    first_test_date = pd.to_datetime(VALIDATION_TEST_SPLIT)
+    if ROLLING_INTERVAL is None or ROLLING_INTERVAL == 0:
+        ROLLING_INTERVAL = np.inf
+    end_date = lambda: first_test_date + pd.DateOffset(days=ROLLING_INTERVAL)
+    y_pred_results = []
+    epistemic_var_results = []
+    while (test := data.get_test_set_for_date(first_test_date, end_date())).y.shape[0]:
+        train = data.get_training_set_for_date(first_test_date)
 
-    # %%
-    # 1) Inspect shapes
-    print(f"X_train.shape: {train.X.shape}, y_train.shape: {train.y.shape}")
-    print(f"Training dates: {train.dates.min().date()} to {train.dates.max().date()}")
-    print(f"Test set shape: {test.X.shape}, {test.y.shape}")
-    print(f"Test dates: {test.dates.min().date()} to {test.dates.max().date()}")
+        # 1) Inspect shapes
+        print("Making rolling predictions from", first_test_date.date().isoformat())
+        print(f"X_train.shape: {train.X.shape}, y_train.shape: {train.y.shape}")
+        print(
+            f"Training dates: {train.dates.min().date()} to {train.dates.max().date()}"
+        )
+        print(f"Test set shape: {test.X.shape}, {test.y.shape}")
+        print(f"Test dates: {test.dates.min().date()} to {test.dates.max().date()}")
 
-    # %%
-    # 2) Build model
-    ensemble_model = MDNEnsemble(
-        [
-            build_lstm_mdn(
-                num_features=train.X.shape[2],
-                ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
+        # 2) Build model
+        ensemble_model = MDNEnsemble(
+            [
+                build_lstm_mdn(
+                    num_features=train.X.shape[2],
+                    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
+                )
+                for _ in range(N_ENSEMBLE_MEMBERS)
+            ],
+            N_MIXTURES,
+        )
+
+        # 3) Train each member in parallel until val loss converges
+        X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
+        y_train = train.y
+        X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
+        y_test = test.y
+
+        job_args = []
+        for i in range(N_ENSEMBLE_MEMBERS):
+            build_kwargs = {
+                "num_features": train.X.shape[2],
+                "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
+            }
+            job_args.append(
+                (
+                    i,
+                    build_kwargs,
+                    X_train,
+                    y_train,
+                    X_test,
+                    y_test,
+                    BATCH_SIZE,
+                    LEARNING_RATE,
+                    WEIGHT_DECAY,
+                    N_MIXTURES,
+                    PI_PENALTY,
+                )
             )
-            for _ in range(N_ENSEMBLE_MEMBERS)
-        ],
-        N_MIXTURES,
-    )
-    already_trained = False
 
-    # %%
-    # 4) Load existing model if it exists
-    model_fname = f"models/{MODEL_NAME}.keras"
-    if os.path.exists(model_fname):
-        mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
-        mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
-        ensemble_model = tf.keras.models.load_model(
-            model_fname,
-            custom_objects={
-                "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
-                "mdn_kernel_initializer": mdn_kernel_initializer,
-                "mdn_bias_initializer": mdn_bias_initializer,
-                "MDNEnsemble": MDNEnsemble,
-            },
-        )
-        print("Loaded pre-trained model from disk.")
-        already_trained = True
-
-    # %%
-    # 5) Train model
-    # Train each member in parallel until val loss converges
-    X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
-    y_train = train.y
-    X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
-    y_test = test.y
-
-    # Create argument tuples for each submodel
-    job_args = []
-    for i in range(N_ENSEMBLE_MEMBERS):
-        build_kwargs = {
-            "num_features": train.X.shape[2],
-            "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
-        }
-        pre_trained_weights = (
-            ensemble_model.submodels[i].get_weights() if already_trained else None
-        )
-        job_args.append(
-            (
-                i,
-                build_kwargs,
-                X_train,
-                y_train,
-                X_test,
-                y_test,
-                BATCH_SIZE,
-                PATIENCE,
-                LEARNING_RATE,
-                WEIGHT_DECAY,
-                N_MIXTURES,
-                PI_PENALTY,
-                pre_trained_weights,
-            )
-        )
-
-    histories = [None] * N_ENSEMBLE_MEMBERS
-    val_losses = [None] * N_ENSEMBLE_MEMBERS
-    optimal_epochs = [None] * N_ENSEMBLE_MEMBERS
-
-    if TRAIN:
         if PARALLELLIZE:
             with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
                 results = pool.map(_train_single_member, job_args)
         else:
             results = [_train_single_member(args) for args in job_args]
 
-        # results is a list of (i, trained_model, history_dict, val_loss).
-        # Sort by i so we can store them in order:
-        results.sort(key=lambda x: x[0])
-
         # Store trained submodels back into the ensemble, plus record histories/losses
         for i, weights, hist_dict, best_loss, best_epoch in results:
             ensemble_model.submodels[i].set_weights(weights)
-            histories[i] = hist_dict
-            val_losses[i] = best_loss
-            optimal_epochs[i] = best_epoch
             print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
 
-        # %%
-        # 6) Save model
-        ensemble_model.save(model_fname)
+        # Save model in case we need it
+        ensemble_model.save(
+            f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
+        )
 
-        # Store details from training
-        with open(f"models/{MODEL_NAME}_training_details.txt", "w") as f:
-            f.write(f"Training details for {MODEL_NAME}\n")
-            f.write(f"VERSION: {VERSION}\n")
-            f.write(f"LOOKBACK_DAYS: {LOOKBACK_DAYS}\n")
-            f.write(f"SUFFIX: {SUFFIX}\n")
-            f.write(f"\n\nFeatures:\n")
-            f.write(
-                f"MULTIPLY_MARKET_FEATURES_BY_BETA: {MULTIPLY_MARKET_FEATURES_BY_BETA}\n"
-            )
-            f.write(f"PI_PENALTY: {PI_PENALTY}\n")
-            f.write(f"MU_PENALTY: {MU_PENALTY}\n")
-            f.write(f"SIGMA_PENALTY: {SIGMA_PENALTY}\n")
-            f.write(f"INCLUDE_MARKET_FEATURES: {INCLUDE_MARKET_FEATURES}\n")
-            f.write(f"INCLUDE_FNG: {INCLUDE_FNG}\n")
-            f.write(f"INCLUDE_RETURNS: {INCLUDE_RETURNS}\n")
-            f.write(f"INCLUDE_INDUSTRY: {INCLUDE_INDUSTRY}\n")
-            f.write(f"INCLUDE_GARCH: {INCLUDE_GARCH}\n")
-            f.write(f"INCLUDE_BETA: {INCLUDE_BETA}\n")
-            f.write(f"INCLUDE_OTHERS: {INCLUDE_OTHERS}\n")
-            f.write(f"INCLUDE_TICKERS: {INCLUDE_TICKERS}\n")
-            f.write(f"INCLDUE_FRED_MD: {INCLDUE_FRED_MD}\n")
-            f.write(f"INCLUDE_10_DAY_IVOL: {INCLUDE_10_DAY_IVOL}\n")
-            f.write(f"INCLUDE_30_DAY_IVOL: {INCLUDE_30_DAY_IVOL}\n")
-            f.write(f"INCLUDE_1MIN_RV: {INCLUDE_1MIN_RV}\n")
-            f.write(f"INCLUDE_5MIN_RV: {INCLUDE_5MIN_RV}\n")
-            f.write(f"\n\nModel settings:\n")
-            f.write(f"HIDDEN_UNITS: {HIDDEN_UNITS}\n")
-            f.write(f"N_MIXTURES: {N_MIXTURES}\n")
-            f.write(f"DROPOUT: {DROPOUT}\n")
-            f.write(f"L2_REG: {L2_REG}\n")
-            f.write(f"NUM_HIDDEN_LAYERS: {NUM_HIDDEN_LAYERS}\n")
-            f.write(f"EMBEDDING_DIMENSIONS: {EMBEDDING_DIMENSIONS}\n")
-            f.write(f"\n\nTraining settings:\n")
-            f.write(f"PATIENCE: {PATIENCE}\n")
-            f.write(f"WEIGHT_DECAY: {WEIGHT_DECAY}\n")
-            f.write(f"LEARNING_RATE: {LEARNING_RATE}\n")
-            f.write(f"BATCH_SIZE: {BATCH_SIZE}\n")
-            f.write(f"N_ENSEMBLE_MEMBERS: {N_ENSEMBLE_MEMBERS}\n")
-            f.write(f"\n\nTraining results:\n")
-            f.write(f"Optimal number of epochs: {[int(n) for n in optimal_epochs]}\n")
-            f.write(f"Validation losses: {val_losses}\n")
-            f.write(f"\n\nTraining loss histories:\n")
-            training_loss_df = pd.DataFrame(
-                [h["loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-            )
-            training_loss_df.index.name = "Member"
-            training_loss_df.columns = [
-                f"Epoch {i}" for i in range(1, training_loss_df.shape[1] + 1)
-            ]
-            training_loss_df.to_csv(f, sep="\t", mode="a")
-            f.write("\n\nValidation loss histories:\n")
-            validation_loss_df = pd.DataFrame(
-                [h["val_loss"] for h in histories], index=range(N_ENSEMBLE_MEMBERS)
-            )
-            validation_loss_df.index.name = "Member"
-            validation_loss_df.columns = [
-                f"Epoch {i}" for i in range(1, validation_loss_df.shape[1] + 1)
-            ]
-            validation_loss_df.to_csv(f, sep="\t", mode="a")
+        # 4) Make predictions
+        y_pred_mdn, epistemic_var = ensemble_model.predict(X_test)
+        y_pred_results.append(y_pred_mdn)
+        epistemic_var_results.append(epistemic_var)
 
-        # %%
-        # 7) Commit and push
-        try:
-            subprocess.run(["git", "pull"], check=True)
-            subprocess.run(["git", "add", f"models/*{MODEL_NAME}*"], check=True)
-
-            commit_header = f"Train LSTM MDN Ensemble {VERSION}"
-            commit_body = f"Training history:\n" + "\n".join(
-                [str(h) for h in histories]
-            )
-
-            subprocess.run(
-                ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
-            )
-            subprocess.run(["git", "push"], check=True)
-        except subprocess.CalledProcessError as e:
-            print(f"Git command failed: {e}")
+        # 5) Move to next date
+        first_test_date = end_date() + pd.DateOffset(days=1)
 
     # %%
-    # 8) Single-pass predictions
-    y_pred_mdn, epistemic_var = ensemble_model.predict(
-        [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
-    )
+    # 5) Concatenate results
+    y_pred_mdn = np.concatenate(y_pred_results, axis=0)
+    epistemic_var = np.concatenate(epistemic_var_results, axis=0)
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
+    test = data.get_test_set_for_date(
+        pd.Timestamp(VALIDATION_TEST_SPLIT), first_test_date
+    )
 
     # %%
-    # 9) Plot 10 charts with the distributions for 10 random days
+    # 6) Plot 10 charts with the distributions for 10 random days
     example_tickers = ["AAPL", "WMT", "GS"]
     for ticker in example_tickers:
         s = test.sets[ticker]
@@ -498,7 +372,7 @@ if __name__ == "__main__":
         )
 
     # %%
-    # 10) Plot weights over time to show how they change
+    # 7) Plot weights over time to show how they change
     fig, axes = plt.subplots(
         nrows=len(example_tickers), figsize=(18, len(example_tickers) * 9)
     )
@@ -593,7 +467,7 @@ if __name__ == "__main__":
         plt.gca().set_yticklabels(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
         )
-        plt.title(f"LSTM w MDN predictions for {ticker}, {TEST_SET} data")
+        plt.title(f"LSTM w MDN predictions for {ticker}, test data")
         plt.xlabel("Date")
         plt.ylabel("LogReturn")
         # Place legend outside of plot
@@ -681,7 +555,7 @@ if __name__ == "__main__":
         subprocess.run(["git", "pull"], check=True)
         subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
         commit_header = f"Add predictions for LSTM MDN Ensemble {VERSION}"
-        commit_body = f"Loss ({TEST_SET}): {df_validation['NLL'].mean()}"
+        commit_body = f"Loss (test set): {df_validation['NLL'].mean()}"
         subprocess.run(
             ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
         )
