@@ -39,6 +39,10 @@ CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
 FILTER_ON_IMPORTANT_TICKERS = True
 
 # %%
+# Whether or not models with incomplete periods should be excluded
+EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS = True
+
+# %%
 # Select wheter or not to print all of the christoffersen tests while testing
 PRINT_CHRISTOFFERSEN_TESTS = False
 
@@ -1121,6 +1125,19 @@ preds_per_model = [
     model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
 ]
 
+# %%
+# Exclude models with incomplete periods if requested
+if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
+    keep = []
+    for model in preds_per_model:
+        nans = pd.Series(model["volatility_pred"]).isnull().sum()
+        if nans > 0:
+            print(f"Excluding {model['name']} because it has {nans} NaN predictions")
+            continue
+        keep.append(model)
+    preds_per_model = keep
+    print("Remaining models:", len(preds_per_model))
+
 
 # %%
 # Create function for inspecting entries
@@ -1678,7 +1695,7 @@ for model in results_df.index:
     for cl in CONFIDENCE_LEVELS:
         passes += results_df.loc[model, f"[{format_cl(cl)}] CC passes"]
         fails += results_df.loc[model, f"[{format_cl(cl)}] CC fails"]
-    if fails / (passes + fails) > 0.2:
+    if fails / (passes + fails) > 0.3:
         print(f"Removing {model} due to CC fails")
         results_df.drop(model, inplace=True)
 

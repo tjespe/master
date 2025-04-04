@@ -248,8 +248,10 @@ class ProcessedData:
     ) -> DataSetCollection:
         return self.all.filter_by_dates(None, prediction_date - pd.Timedelta(days=1))
 
-    def get_test_set_for_date(self, prediction_date: pd.Timestamp) -> DataSetCollection:
-        return self.all.filter_by_dates(prediction_date)
+    def get_test_set_for_date(
+        self, prediction_date: pd.Timestamp, to_date=None
+    ) -> DataSetCollection:
+        return self.all.filter_by_dates(prediction_date, to_date)
 
 
 def get_lstm_train_test_new(

@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final"
+VERSION = "rv-and-ivol-final-rolling"
 
 # %%
 # Feature selection
@@ -494,7 +494,7 @@ if __name__ == "__main__":
             sigma_pred[from_idx:to_idx],
             N_MIXTURES * N_ENSEMBLE_MEMBERS,
             ticker=ticker,
-            save_to=f"results/distributions/{ticker}_lstm_mdn_v{VERSION}_ensemble.svg",
+            save_to=f"results/distributions/{ticker}_{MODEL_NAME}.svg",
         )
 
     # %%
@@ -528,7 +528,7 @@ if __name__ == "__main__":
     labels = list(legend_dict.keys())
     fig.legend(handles, labels, loc="center left")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(f"results/lstm_mdn_v{VERSION}_ensemble_mixture_weights.svg")
+    plt.savefig(f"results/{MODEL_NAME}_mixture_weights.svg")
 
     # %%
     # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
@@ -598,7 +598,7 @@ if __name__ == "__main__":
         plt.ylabel("LogReturn")
         # Place legend outside of plot
         plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(f"results/time_series/{ticker}_lstm_mdn_v{VERSION}_ensemble.svg")
+        plt.savefig(f"results/time_series/{ticker}_{MODEL_NAME}.svg")
 
     # %%
     # 13) Make data frame for signle pass predictions
@@ -673,9 +673,7 @@ if __name__ == "__main__":
 
     # %%
     # Save
-    df_validation.set_index(["Date", "Symbol"]).to_csv(
-        f"predictions/lstm_mdn_predictions{SUFFIX}_v{VERSION}_ensemble.csv"
-    )
+    df_validation.set_index(["Date", "Symbol"]).to_csv(f"predictions/{MODEL_NAME}.csv")
 
     # %%
     # Commit predictions
