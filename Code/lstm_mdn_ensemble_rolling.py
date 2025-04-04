@@ -48,10 +48,10 @@ MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 WEIGHT_DECAY = 1e-4  # from optuna
 LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
-N_ENSEMBLE_MEMBERS = 2  # 10
-EPOCHS = 1
-PARALLELLIZE = False  # True
-ROLLING_INTERVAL = 4000  # 30  # Monthly retraining interval
+N_ENSEMBLE_MEMBERS = 10
+EPOCHS = 15
+PARALLELLIZE = True
+ROLLING_INTERVAL = 30  # Monthly retraining interval
 
 # %%
 # Imports from code shared across models
