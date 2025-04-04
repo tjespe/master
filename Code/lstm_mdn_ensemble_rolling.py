@@ -50,7 +50,7 @@ LEARNING_RATE = 0.00015  # from optuna
 BATCH_SIZE = 32
 N_ENSEMBLE_MEMBERS = 10
 EPOCHS = 15
-PARALLELLIZE = False  # True
+PARALLELLIZE = True
 ROLLING_INTERVAL = 30  # Monthly retraining interval
 
 # %%
