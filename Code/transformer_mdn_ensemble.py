@@ -507,7 +507,7 @@ if __name__ == "__main__":
         ]
         validation_loss_df.to_csv(f, sep="\t", mode="a")
         learning_rate_df = pd.DataFrame(
-            [h["learning_rate"] for h in histories],
+            [h.get("learning_rate") for h in histories],
             index=range(N_ENSEMBLE_MEMBERS),
         )
         learning_rate_df = learning_rate_df.applymap(lambda x: f"{x:.3e}")
