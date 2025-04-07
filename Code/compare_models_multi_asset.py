@@ -593,6 +593,7 @@ for version in [
     "rv-and-ivol-final-rolling",
     # Diagnostic models
     "rv-and-ivol-final-diagnostic",
+    "rv-and-ivol-final-rolling-diagnostic",
 ]:
     try:
         fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
@@ -1185,6 +1186,8 @@ if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
         keep.append(model)
     preds_per_model = keep
     print("Remaining models:", len(preds_per_model))
+    for i, entry in enumerate(preds_per_model):
+        print(i, entry["name"])
 
 
 # %%
@@ -1863,14 +1866,14 @@ plt.legend()
 # %%
 # Look NLL in the first period
 plt.figure(figsize=(12, 6))
-from_date = "2019-12-31"
-to_date = "2020-06-30"
 from_date = "2024-01-01"
 to_date = "2024-06-30"
 for name in [
-    "GARCH",
-    "LSTM MDN rv-and-ivol-final_ensemble",
-    "LSTM MDN rv-and-ivol-final-rolling",
+    # "GARCH",
+    # "LSTM MDN rv-and-ivol-final_ensemble",
+    # "LSTM MDN rv-and-ivol-final-rolling",
+    "LSTM MDN rv-and-ivol-final-diagnostic",
+    "LSTM MDN rv-and-ivol-final-rolling-diagnostic",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
     nll_df = pd.DataFrame(
