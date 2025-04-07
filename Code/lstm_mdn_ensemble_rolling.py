@@ -11,7 +11,7 @@ from settings import (
 )
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final-rolling-diagnostic"
+VERSION = "rv-and-ivol-final-rolling-diagnostic-2"
 
 # %%
 # Feature selection
@@ -342,6 +342,23 @@ if __name__ == "__main__":
 
         # 5) Move to next date
         first_test_date = end_date() + pd.DateOffset(days=1)
+
+        # Temporary: try to reload data to see if it helps
+        data = get_lstm_train_test_new(
+            multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
+            include_returns=INCLUDE_RETURNS,
+            include_spx_data=INCLUDE_MARKET_FEATURES,
+            include_others=INCLUDE_OTHERS,
+            include_beta=INCLUDE_BETA,
+            include_fng=INCLUDE_FNG,
+            include_garch=INCLUDE_GARCH,
+            include_industry=INCLUDE_INDUSTRY,
+            include_fred_md=INCLDUE_FRED_MD,
+            include_1min_rv=INCLUDE_1MIN_RV,
+            include_5min_rv=INCLUDE_5MIN_RV,
+            include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
+            + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
+        )
 
     # %%
     # 5) Concatenate results
