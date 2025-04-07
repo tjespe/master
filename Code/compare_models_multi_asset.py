@@ -659,9 +659,9 @@ for version in [
     "ivol-only",
     "rv-only",
     "rv-and-ivol",
-    "rv_ensemble",
-    "ivol_ensemble",
-    "rv-and-ivol_ensemble",
+    "rv_test_ensemble",
+    "ivol_test_ensemble",
+    "rv-and-ivol_test_ensemble",
 ]:
     try:
         transformer_df = pd.read_csv(
