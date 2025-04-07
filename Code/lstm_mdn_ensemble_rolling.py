@@ -11,7 +11,7 @@ from settings import (
 )
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final-rolling"
+VERSION = "rv-and-ivol-final-rolling-diagnostic"
 
 # %%
 # Feature selection
@@ -195,8 +195,8 @@ def _train_single_member(args):
         build_kwargs,
         X_train,
         y_train,
-        X_val,
-        y_val,
+        X_test,
+        y_test,
         batch_size,
         lr,
         weight_decay,
@@ -221,7 +221,7 @@ def _train_single_member(args):
         epochs=EPOCHS,
         batch_size=batch_size,
         verbose=not PARALLELLIZE,
-        validation_data=(X_val, y_val),
+        validation_data=(X_test, y_test),
         callbacks=[progress_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))

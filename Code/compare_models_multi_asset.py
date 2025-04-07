@@ -47,10 +47,6 @@ EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS = True
 PRINT_CHRISTOFFERSEN_TESTS = False
 
 # %%
-# Exclude uninteresting models
-EXCLUDE_MODELS = []
-
-# %%
 import numpy as np
 from scipy.stats import norm
 import pandas as pd
@@ -590,6 +586,62 @@ for version in [
     except FileNotFoundError:
         print(f"LSTM MDN {version} predictions not found")
 
+# LSTM MDN, new naming convention
+for version in [
+    "ivol-final-rolling",
+    "rv-final-rolling",
+    "rv-and-ivol-final-rolling",
+]:
+    try:
+        fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
+        lstm_mdn_df = pd.read_csv(fname)
+        lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
+        lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
+        lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
+        lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
+        lstm_mdn_df = lstm_mdn_df[
+            (
+                (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
+                & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
+            )
+        ]
+        if np.isnan(lstm_mdn_df["Mean_SP"]).all():
+            raise Exception(f"All LSTM MDN {version} predictions are NaN")
+        combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
+        ece_col = combined_df.get("ECE")
+        entry = {
+            "name": f"LSTM MDN {version}",
+            "mean_pred": combined_df["Mean_SP"].values,
+            "volatility_pred": combined_df["Vol_SP"].values,
+            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
+            "crps": (
+                crps.values if (crps := combined_df.get("CRPS")) is not None else None
+            ),
+            "p_up": combined_df.get("Prob_Increase"),
+            "ece": ece_col.median() if ece_col is not None else None,
+        }
+        for cl in CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = 1 - (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
+        nans = combined_df["Mean_SP"].isnull().sum()
+        if nans > 0:
+            print(f"LSTM MDN {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"LSTM MDN {version} predictions not found")
+    except Exception as e:
+        print(f"Issue loading LSTM MDN {version} predictions: {e}")
+
 # Transformer MDN
 for version in [
     # 3,
@@ -1120,12 +1172,6 @@ for version in [
 ###########################################
 
 # %%
-# Remove excluded models
-preds_per_model = [
-    model for model in preds_per_model if model["name"] not in EXCLUDE_MODELS
-]
-
-# %%
 # Exclude models with incomplete periods if requested
 if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
     keep = []
@@ -1141,21 +1187,17 @@ if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
 
 # %%
 # Create function for inspecting entries
-m = None
-
-
 def inspect_entry():
-    global m, v
     for i, entry in enumerate(preds_per_model):
         print(i, entry["name"])
     i = int(input("Enter index: "))
     m = preds_per_model[i]
     print("=========================")
     print("Selected", m["name"])
-    print("It is available in scope as 'm'")
     print("=========================")
     print("Keys in entry:")
     print(list(m.keys()))
+    return m
 
 
 # %%
@@ -1695,9 +1737,9 @@ for model in results_df.index:
     for cl in CONFIDENCE_LEVELS:
         passes += results_df.loc[model, f"[{format_cl(cl)}] CC passes"]
         fails += results_df.loc[model, f"[{format_cl(cl)}] CC fails"]
-    if fails / (passes + fails) > 0.3:
-        print(f"Removing {model} due to CC fails")
-        results_df.drop(model, inplace=True)
+    # if fails / (passes + fails) > 0.3:
+    #     print(f"Removing {model} due to CC fails")
+    #     results_df.drop(model, inplace=True)
 
 # Identify winners
 inadequate_models = {"HAR_R", "HARQ_R"}
@@ -1793,6 +1835,57 @@ results_df.style.apply(underline_winner, axis=1)
 results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
     underline_winner, axis=0
 )
+
+# %%
+# Look at how NLL changes over time
+plt.figure(figsize=(12, 6))
+for name in [
+    "GARCH",
+    "LSTM MDN rv-and-ivol-final_ensemble",
+    "LSTM MDN rv-and-ivol-final-rolling",
+]:
+    entry = next(entry for entry in passing_models if entry["name"] == name)
+    nll_df = pd.DataFrame(
+        {
+            "Date": entry["dates"],
+            "Symbol": entry["symbols"],
+            "NLL": entry["nll"],
+            "Model": entry["name"],
+        }
+    ).set_index(["Date", "Symbol"])
+    plt.plot(
+        nll_df.groupby("Date")["NLL"].mean().rolling(30).mean(), label=entry["name"]
+    )
+plt.legend()
+
+# %%
+# Look NLL in the first period
+plt.figure(figsize=(12, 6))
+from_date = "2019-12-31"
+to_date = "2020-06-30"
+from_date = "2024-01-01"
+to_date = "2024-06-30"
+for name in [
+    "GARCH",
+    "LSTM MDN rv-and-ivol-final_ensemble",
+    "LSTM MDN rv-and-ivol-final-rolling",
+]:
+    entry = next(entry for entry in passing_models if entry["name"] == name)
+    nll_df = pd.DataFrame(
+        {
+            "Date": entry["dates"],
+            "Symbol": entry["symbols"],
+            "NLL": entry["nll"],
+            "Model": entry["name"],
+        }
+    ).set_index(["Date", "Symbol"])
+    nll_df = nll_df.loc[
+        (from_date <= nll_df.index.get_level_values("Date"))
+        & (nll_df.index.get_level_values("Date") <= to_date)
+    ]
+    plt.plot(nll_df.groupby("Date")["NLL"].mean(), label=entry["name"])
+plt.title("NLL")
+plt.legend()
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
