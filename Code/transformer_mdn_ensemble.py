@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol"
+VERSION = "ivol"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}"
 
 # %%
@@ -27,8 +27,8 @@ INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = True
-INCLUDE_5MIN_RV = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
 INCLUDE_TICKERS = False
 
 # %%
@@ -510,12 +510,13 @@ if __name__ == "__main__":
             [h.get("learning_rate") for h in histories],
             index=range(N_ENSEMBLE_MEMBERS),
         )
-        learning_rate_df = learning_rate_df.applymap(lambda x: f"{x:.3e}")
-        learning_rate_df.index.name = "Member"
-        learning_rate_df.columns = [
-            f"Epoch {i}" for i in range(1, learning_rate_df.shape[1] + 1)
-        ]
-        learning_rate_df.to_csv(f, sep="\t", mode="a")
+        if not learning_rate_df.isnull().all().all():
+            learning_rate_df = learning_rate_df.applymap(lambda x: f"{x:.3e}")
+            learning_rate_df.index.name = "Member"
+            learning_rate_df.columns = [
+                f"Epoch {i}" for i in range(1, learning_rate_df.shape[1] + 1)
+            ]
+            learning_rate_df.to_csv(f, sep="\t", mode="a")
 
     # %%
     # 7) Commit and push
