@@ -7,7 +7,7 @@ from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, TEST_SET
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final-rolling"
+VERSION = "rv-and-ivol-final-diagnostic"
 
 # %%
 # Feature selection
