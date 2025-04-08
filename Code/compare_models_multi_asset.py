@@ -592,8 +592,8 @@ for version in [
     "rv-final-rolling",
     "rv-and-ivol-final-rolling",
     # Diagnostic models
-    "rv-and-ivol-final-diagnostic",
-    "rv-and-ivol-final-rolling-diagnostic",
+    # "rv-and-ivol-final-diagnostic",
+    # "rv-and-ivol-final-rolling-diagnostic",
 ]:
     try:
         fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
