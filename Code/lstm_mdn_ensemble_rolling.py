@@ -439,20 +439,20 @@ if __name__ == "__main__":
 
         plt.figure(figsize=(12, 6))
         plt.plot(
-            dates,
+            ticker_dates,
             actual_return,
             label="Actual Returns",
             color="black",
             alpha=0.5,
         )
-        plt.plot(dates, ticker_mean, label="Predicted Mean", color="red")
+        plt.plot(ticker_dates, ticker_mean, label="Predicted Mean", color="red")
         median = ticker_intervals[:, 0, 0]
-        plt.plot(dates, median, label="Median", color="green")
+        plt.plot(ticker_dates, median, label="Median", color="green")
         for i, cl in enumerate(confidence_levels):
             if cl == 0:
                 continue
             plt.fill_between(
-                dates,
+                ticker_dates,
                 ticker_intervals[:, i, 0],
                 ticker_intervals[:, i, 1],
                 color="blue",
@@ -465,7 +465,7 @@ if __name__ == "__main__":
                 actual_return > ticker_intervals[:, i, 1],
             )
             plt.scatter(
-                np.array(dates)[violations],
+                np.array(ticker_dates)[violations],
                 actual_return[violations],
                 marker="x",
                 label=f"Violations ({100*cl:.1f}%)",
@@ -516,7 +516,7 @@ if __name__ == "__main__":
 
     # %%
     # Calculate ECE
-    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, true_y, y_pred_mdn)
+    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, np.array(true_y), y_pred_mdn)
     df_validation["ECE"] = ece
     ece
 
