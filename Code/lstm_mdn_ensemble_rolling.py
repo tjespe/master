@@ -282,48 +282,35 @@ if __name__ == "__main__":
         print(f"Test set shape: {test.X.shape}, {test.y.shape}")
         print(f"Test dates: {test.dates.min().date()} to {test.dates.max().date()}")
 
-        # 2) Load if exists
-        model_fname = f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
+        # 2) Build model
+        ensemble_model = MDNEnsemble(
+            [
+                build_lstm_mdn(
+                    num_features=train.X.shape[2],
+                    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
+                )
+                for _ in range(N_ENSEMBLE_MEMBERS)
+            ],
+            N_MIXTURES,
+        )
+
+        # 3) Extract relevant data
+        X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
+        y_train = train.y
+        X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
+        y_test = test.y
+
+        # 4) Load if exists
+        model_fname = (
+            f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
+        )
         if os.path.exists(model_fname):
-            class DoNothingInitializer(tf.keras.initializers.Initializer):
-                def __call__(self, shape, dtype=None, **kwargs):
-                    # We never actually use this in practice
-                    return tf.zeros(shape, dtype=dtype)
-
-                def get_config(self):
-                    return {}
-
-            ensemble_model = tf.keras.models.load_model(
-                model_fname,
-                custom_objects={
-                    "mdn_kernel_initializer": DoNothingInitializer(),
-                    "mdn_bias_initializer": DoNothingInitializer(),
-                    "MDNEnsemble": MDNEnsemble,
-                },
-                compile=False
-            )
+            ensemble_model.load_weights(model_fname)
             print("Loaded pre-trained model from disk.")
         else:
             print("Could not find pre-trained model", model_fname)
 
-            # 2) Build model
-            ensemble_model = MDNEnsemble(
-                [
-                    build_lstm_mdn(
-                        num_features=train.X.shape[2],
-                        ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
-                    )
-                    for _ in range(N_ENSEMBLE_MEMBERS)
-                ],
-                N_MIXTURES,
-            )
-
-            # 3) Train each member in parallel until val loss converges
-            X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
-            y_train = train.y
-            X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
-            y_test = test.y
-
+            # 5) Train each member in parallel until val loss converges
             job_args = []
             for i in range(N_ENSEMBLE_MEMBERS):
                 build_kwargs = {
@@ -355,20 +342,22 @@ if __name__ == "__main__":
             # Store trained submodels back into the ensemble, plus record histories/losses
             for i, weights, hist_dict, best_loss, best_epoch in results:
                 ensemble_model.submodels[i].set_weights(weights)
-                print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
+                print(
+                    f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}])."
+                )
 
             # Save model in case we need it
             ensemble_model.save(model_fname)
 
-        # 4) Make predictions
+        # 6) Make predictions
         y_pred_mdn, epistemic_var = ensemble_model.predict(X_test)
         y_pred_results.append(y_pred_mdn)
         epistemic_var_results.append(epistemic_var)
-        symbols += test.tickers
-        dates += test.dates
-        true_y += test.y
+        symbols += list(test.tickers)
+        dates += list(test.dates)
+        true_y += list(test.y)
 
-        # 5) Move to next date
+        # 7) Move to next date
         first_test_date = end_date() + pd.DateOffset(days=1)
 
     # %%
@@ -378,7 +367,9 @@ if __name__ == "__main__":
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
-    filter_ndarray = lambda ticker, ndarr: np.array([val for val, t in zip(ndarr, symbols) if t == ticker])
+    filter_ndarray = lambda ticker, ndarr: np.array(
+        [val for val, t in zip(ndarr, symbols) if t == ticker]
+    )
 
     # %%
     # 6) Plot 10 charts with the distributions for 10 random days
@@ -410,7 +401,11 @@ if __name__ == "__main__":
             mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
             if mean_over_time < 0.01:
                 continue
-            (line,) = ax.plot(filter_ndarray(ticker, dates), pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+            (line,) = ax.plot(
+                filter_ndarray(ticker, dates),
+                pi_pred_ticker[:, j],
+                label=f"$\pi_{{{j}}}$",
+            )
             # Only add new labels
             if f"$\pi_{{{j}}}$" not in legend_dict:
                 legend_dict[f"$\pi_{{{j}}}$"] = line
