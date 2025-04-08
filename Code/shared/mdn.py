@@ -123,8 +123,8 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
 
         # compute mixture mean & var for each sample
         mean_s, var_s = univariate_mixture_mean_and_var_approx(pi, mu, sigma)
-        mc_means.append(mean_s.numpy())
-        mc_vars.append(var_s.numpy())
+        mc_means.append(np.array(mean_s))
+        mc_vars.append(np.array(var_s))
 
     mc_means = np.array(mc_means)  # shape: (T, batch)
     mc_vars = np.array(mc_vars)  # shape: (T, batch)
@@ -285,7 +285,7 @@ def plot_sample_days(
         plotted_mixtures = 0
         top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
         for j in range(n_mixtures):
-            weight = pi_pred[-day, j].numpy()
+            weight = np.array(pi_pred[-day, j])
             if weight < 0.001:
                 continue
             plotted_mixtures += 1
