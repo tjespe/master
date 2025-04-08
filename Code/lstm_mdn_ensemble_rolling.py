@@ -11,7 +11,7 @@ from settings import (
 )
 import multiprocessing as mp
 
-VERSION = "rv-and-ivol-final-rolling-diagnostic-2"
+VERSION = "ivol-final-rolling"
 
 # %%
 # Feature selection
@@ -30,8 +30,8 @@ INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
 INCLUDE_10_DAY_IVOL = True
 INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = True
-INCLUDE_5MIN_RV = True
+INCLUDE_1MIN_RV = False
+INCLUDE_5MIN_RV = False
 
 # %%
 # Model settings
@@ -285,19 +285,27 @@ if __name__ == "__main__":
         # 2) Load if exists
         model_fname = f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
         if os.path.exists(model_fname):
-            mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
-            mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
+            class DoNothingInitializer(tf.keras.initializers.Initializer):
+                def __call__(self, shape, dtype=None, **kwargs):
+                    # We never actually use this in practice
+                    return tf.zeros(shape, dtype=dtype)
+
+                def get_config(self):
+                    return {}
+
             ensemble_model = tf.keras.models.load_model(
                 model_fname,
                 custom_objects={
-                    "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
-                    "mdn_kernel_initializer": mdn_kernel_initializer,
-                    "mdn_bias_initializer": mdn_bias_initializer,
+                    "mdn_kernel_initializer": DoNothingInitializer(),
+                    "mdn_bias_initializer": DoNothingInitializer(),
                     "MDNEnsemble": MDNEnsemble,
                 },
+                compile=False
             )
             print("Loaded pre-trained model from disk.")
         else:
+            print("Could not find pre-trained model", model_fname)
+
             # 2) Build model
             ensemble_model = MDNEnsemble(
                 [
