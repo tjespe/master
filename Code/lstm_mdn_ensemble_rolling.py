@@ -267,6 +267,9 @@ if __name__ == "__main__":
     end_date = lambda: first_test_date + pd.DateOffset(days=ROLLING_INTERVAL)
     y_pred_results = []
     epistemic_var_results = []
+    symbols = []
+    dates = []
+    true_y = []
     while (test := data.get_test_set_for_date(first_test_date, end_date())).y.shape[0]:
         train = data.get_training_set_for_date(first_test_date)
 
@@ -279,86 +282,86 @@ if __name__ == "__main__":
         print(f"Test set shape: {test.X.shape}, {test.y.shape}")
         print(f"Test dates: {test.dates.min().date()} to {test.dates.max().date()}")
 
-        # 2) Build model
-        ensemble_model = MDNEnsemble(
-            [
-                build_lstm_mdn(
-                    num_features=train.X.shape[2],
-                    ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
-                )
-                for _ in range(N_ENSEMBLE_MEMBERS)
-            ],
-            N_MIXTURES,
-        )
-
-        # 3) Train each member in parallel until val loss converges
-        X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
-        y_train = train.y
-        X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
-        y_test = test.y
-
-        job_args = []
-        for i in range(N_ENSEMBLE_MEMBERS):
-            build_kwargs = {
-                "num_features": train.X.shape[2],
-                "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
-            }
-            job_args.append(
-                (
-                    i,
-                    build_kwargs,
-                    X_train,
-                    y_train,
-                    X_test,
-                    y_test,
-                    BATCH_SIZE,
-                    LEARNING_RATE,
-                    WEIGHT_DECAY,
-                    N_MIXTURES,
-                    PI_PENALTY,
-                )
+        # 2) Load if exists
+        model_fname = f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
+        if os.path.exists(model_fname):
+            mdn_kernel_initializer = get_mdn_kernel_initializer(N_MIXTURES)
+            mdn_bias_initializer = get_mdn_bias_initializer(N_MIXTURES)
+            ensemble_model = tf.keras.models.load_model(
+                model_fname,
+                custom_objects={
+                    "loss_fn": mean_mdn_crps_tf(N_MIXTURES, PI_PENALTY),
+                    "mdn_kernel_initializer": mdn_kernel_initializer,
+                    "mdn_bias_initializer": mdn_bias_initializer,
+                    "MDNEnsemble": MDNEnsemble,
+                },
+            )
+            print("Loaded pre-trained model from disk.")
+        else:
+            # 2) Build model
+            ensemble_model = MDNEnsemble(
+                [
+                    build_lstm_mdn(
+                        num_features=train.X.shape[2],
+                        ticker_ids_dim=data.ticker_ids_dim if INCLUDE_TICKERS else None,
+                    )
+                    for _ in range(N_ENSEMBLE_MEMBERS)
+                ],
+                N_MIXTURES,
             )
 
-        if PARALLELLIZE:
-            with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
-                results = pool.map(_train_single_member, job_args)
-        else:
-            results = [_train_single_member(args) for args in job_args]
+            # 3) Train each member in parallel until val loss converges
+            X_train = [train.X, train_ticker_ids] if INCLUDE_TICKERS else train.X
+            y_train = train.y
+            X_test = [test.X, test_ticker_ids] if INCLUDE_TICKERS else test.X
+            y_test = test.y
 
-        # Store trained submodels back into the ensemble, plus record histories/losses
-        for i, weights, hist_dict, best_loss, best_epoch in results:
-            ensemble_model.submodels[i].set_weights(weights)
-            print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
+            job_args = []
+            for i in range(N_ENSEMBLE_MEMBERS):
+                build_kwargs = {
+                    "num_features": train.X.shape[2],
+                    "ticker_ids_dim": data.ticker_ids_dim if INCLUDE_TICKERS else None,
+                }
+                job_args.append(
+                    (
+                        i,
+                        build_kwargs,
+                        X_train,
+                        y_train,
+                        X_test,
+                        y_test,
+                        BATCH_SIZE,
+                        LEARNING_RATE,
+                        WEIGHT_DECAY,
+                        N_MIXTURES,
+                        PI_PENALTY,
+                    )
+                )
 
-        # Save model in case we need it
-        ensemble_model.save(
-            f"models/rolling/{MODEL_NAME}_{first_test_date.date().isoformat()}.h5"
-        )
+            if PARALLELLIZE:
+                with mp.Pool(processes=N_ENSEMBLE_MEMBERS) as pool:
+                    results = pool.map(_train_single_member, job_args)
+            else:
+                results = [_train_single_member(args) for args in job_args]
+
+            # Store trained submodels back into the ensemble, plus record histories/losses
+            for i, weights, hist_dict, best_loss, best_epoch in results:
+                ensemble_model.submodels[i].set_weights(weights)
+                print(f"Model {i} done (best val_loss={best_loss} [epoch {best_epoch}]).")
+
+            # Save model in case we need it
+            ensemble_model.save(model_fname)
 
         # 4) Make predictions
         y_pred_mdn, epistemic_var = ensemble_model.predict(X_test)
         y_pred_results.append(y_pred_mdn)
         epistemic_var_results.append(epistemic_var)
+        symbols += test.tickers
+        dates += test.dates
+        true_y += test.y
 
         # 5) Move to next date
         first_test_date = end_date() + pd.DateOffset(days=1)
-
-        # Temporary: try to reload data to see if it helps
-        data = get_lstm_train_test_new(
-            multiply_by_beta=MULTIPLY_MARKET_FEATURES_BY_BETA,
-            include_returns=INCLUDE_RETURNS,
-            include_spx_data=INCLUDE_MARKET_FEATURES,
-            include_others=INCLUDE_OTHERS,
-            include_beta=INCLUDE_BETA,
-            include_fng=INCLUDE_FNG,
-            include_garch=INCLUDE_GARCH,
-            include_industry=INCLUDE_INDUSTRY,
-            include_fred_md=INCLDUE_FRED_MD,
-            include_1min_rv=INCLUDE_1MIN_RV,
-            include_5min_rv=INCLUDE_5MIN_RV,
-            include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_10_DAY_IVOL else [])
-            + (["Historical Call IVOL"] if INCLUDE_30_DAY_IVOL else []),
-        )
 
     # %%
     # 5) Concatenate results
@@ -367,22 +370,18 @@ if __name__ == "__main__":
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
-    test = data.get_test_set_for_date(
-        pd.Timestamp(VALIDATION_TEST_SPLIT), first_test_date
-    )
+    filter_ndarray = lambda ticker, ndarr: np.array([val for val, t in zip(ndarr, symbols) if t == ticker])
 
     # %%
     # 6) Plot 10 charts with the distributions for 10 random days
     example_tickers = ["AAPL", "WMT", "GS"]
     for ticker in example_tickers:
-        s = test.sets[ticker]
-        from_idx, to_idx = test.get_range(ticker)
         plot_sample_days(
-            s.y_dates,
-            s.y,
-            pi_pred[from_idx:to_idx],
-            mu_pred[from_idx:to_idx],
-            sigma_pred[from_idx:to_idx],
+            filter_ndarray(ticker, dates),
+            filter_ndarray(ticker, true_y),
+            filter_ndarray(ticker, pi_pred),
+            filter_ndarray(ticker, mu_pred),
+            filter_ndarray(ticker, sigma_pred),
             N_MIXTURES * N_ENSEMBLE_MEMBERS,
             ticker=ticker,
             save_to=f"results/distributions/{ticker}_{MODEL_NAME}.svg",
@@ -398,14 +397,12 @@ if __name__ == "__main__":
     legend_dict = {}
 
     for ax, ticker in zip(axes, example_tickers):
-        s = test.sets[ticker]
-        from_idx, to_idx = test.get_range(ticker)
-        pi_pred_ticker = pi_pred[from_idx:to_idx]
+        pi_pred_ticker = filter_ndarray(ticker, pi_pred)
         for j in range(N_MIXTURES * N_ENSEMBLE_MEMBERS):
             mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
             if mean_over_time < 0.01:
                 continue
-            (line,) = ax.plot(s.y_dates, pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
+            (line,) = ax.plot(filter_ndarray(ticker, dates), pi_pred_ticker[:, j], label=f"$\pi_{{{j}}}$")
             # Only add new labels
             if f"$\pi_{{{j}}}$" not in legend_dict:
                 legend_dict[f"$\pi_{{{j}}}$"] = line
@@ -432,14 +429,10 @@ if __name__ == "__main__":
     # 12) Plot time series with mean, volatility and actual returns for last X days
     mean = (pi_pred * mu_pred).numpy().sum(axis=1)
     for ticker in example_tickers:
-        from_idx, to_idx = test.get_range(ticker)
-        ticker_mean = mean[from_idx:to_idx]
-        filtered_mean = ticker_mean
-        ticker_intervals = intervals[from_idx:to_idx]
-        filtered_intervals = ticker_intervals
-        s = test.sets[ticker]
-        dates = s.y_dates
-        actual_return = s.y
+        ticker_mean = filter_ndarray(ticker, mean)
+        ticker_intervals = filter_ndarray(ticker, intervals)
+        ticker_dates = filter_ndarray(ticker, dates)
+        actual_return = filter_ndarray(ticker, true_y)
 
         plt.figure(figsize=(12, 6))
         plt.plot(
@@ -449,24 +442,24 @@ if __name__ == "__main__":
             color="black",
             alpha=0.5,
         )
-        plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
-        median = filtered_intervals[:, 0, 0]
+        plt.plot(dates, ticker_mean, label="Predicted Mean", color="red")
+        median = ticker_intervals[:, 0, 0]
         plt.plot(dates, median, label="Median", color="green")
         for i, cl in enumerate(confidence_levels):
             if cl == 0:
                 continue
             plt.fill_between(
                 dates,
-                filtered_intervals[:, i, 0],
-                filtered_intervals[:, i, 1],
+                ticker_intervals[:, i, 0],
+                ticker_intervals[:, i, 1],
                 color="blue",
                 alpha=0.7 - i * 0.07,
                 label=f"{100*cl:.1f}% Interval",
             )
             # Mark violations
             violations = np.logical_or(
-                actual_return < filtered_intervals[:, i, 0],
-                actual_return > filtered_intervals[:, i, 1],
+                actual_return < ticker_intervals[:, i, 0],
+                actual_return > ticker_intervals[:, i, 1],
             )
             plt.scatter(
                 np.array(dates)[violations],
@@ -494,7 +487,7 @@ if __name__ == "__main__":
     # %%
     # 13) Make data frame for signle pass predictions
     df_validation = pd.DataFrame(
-        np.vstack([test.dates, test.tickers]).T,
+        np.vstack([dates, symbols]).T,
         columns=["Date", "Symbol"],
     )
     # %%
@@ -510,17 +503,17 @@ if __name__ == "__main__":
     # %%
     # Calculate loss
     df_validation["NLL"] = mdn_nll_numpy(N_MIXTURES * N_ENSEMBLE_MEMBERS)(
-        test.y, y_pred_mdn
+        true_y, y_pred_mdn
     )
 
     # %%
     # Calculate CRPS
     crps = mdn_crps_tf(N_MIXTURES * N_ENSEMBLE_MEMBERS)
-    df_validation["CRPS"] = crps(test.y, y_pred_mdn)
+    df_validation["CRPS"] = crps(true_y, y_pred_mdn)
 
     # %%
     # Calculate ECE
-    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, test.y, y_pred_mdn)
+    ece = ece_mdn(N_MIXTURES * N_ENSEMBLE_MEMBERS, true_y, y_pred_mdn)
     df_validation["ECE"] = ece
     ece
 
