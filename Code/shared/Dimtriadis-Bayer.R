@@ -6,12 +6,13 @@ library(dplyr)
 base_path_return_data <- "~/Masterv4/master/Code/data/dow_jones/processed_data"
 base_path_predictions <- "~/Masterv4/master/Code/predictions"
 
+test_set_start_date <- "2019-12-31"
 
 
 # get return data for the test set
 return_data <- read.csv(file.path(base_path_return_data, "dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv"))
 # filter only for test set, from 2023-01-03 to 2024-03-28
-return_data <- return_data[return_data$Date >= "2023-01-03" & return_data$Date <= "2024-03-28", ] 
+return_data <- return_data[return_data$Date >= test_set_start_date & return_data$Date <= "2024-03-28", ] 
 # return_data <- return_data[return_data$Date >= "2005-02-15" & return_data$Date <= "2024-03-28", ]
 # remove .O at the end of the Symbol for the return data
 return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
@@ -56,13 +57,13 @@ garch_norm     <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriche
 egarch         <- read.csv(file.path(base_path_predictions, "EGARCH_preds_enriched.csv"))
 
 
-# filter only for test set, from 2023-01-03 to 2024-03-28
-garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
-#garch_t <- garch_t[garch_t$Date >= "2023-01-03" & garch_t$Date <= "2024-03-28", ]
-#rv_garch <- rv_garch[rv_garch$Date >= "2023-01-03" & rv_garch$Date <= "2024-03-28", ]
-#ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
-#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
-egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
+# filter only for test set, from test_set_start_date to 2024-03-28
+garch_norm <- garch_norm[garch_norm$Date >= test_set_start_date & garch_norm$Date <= "2024-03-28", ]
+#garch_t <- garch_t[garch_t$Date >= test_set_start_date & garch_t$Date <= "2024-03-28", ]
+#rv_garch <- rv_garch[rv_garch$Date >= test_set_start_date & rv_garch$Date <= "2024-03-28", ]
+#ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= test_set_start_date & ar_garch_norm$Date <= "2024-03-28", ]
+#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
+egarch <- egarch[egarch$Date >= test_set_start_date & egarch$Date <= "2024-03-28", ]
 
 ######### HAR ##############
 har   <- read.csv(file.path(base_path_predictions, "HAR_R.csv"))
