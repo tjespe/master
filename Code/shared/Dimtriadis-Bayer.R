@@ -46,7 +46,7 @@ lstm_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "lstm_
 lstm_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "lstm_mdn_ensemble_stocks_vrv-and-ivol-final-rolling_test.csv"))
 
 ############## ENSEMBLE COMBINATIONS ###############
-MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
+#MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
 
 ########## GARCH MODELS ###########
 garch_norm     <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriched.csv"))
@@ -141,7 +141,7 @@ model_list_lstm_transformer <- list(
  "Transformer_RV" = transformer_RV_ensemble,
 "Transformer_IV" = transformer_IV_ensemble,
  "Transformer_RV_IV" = transformer_RV_IV_ensemble,
-  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
+ # "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
   "LSTM_RV_ensemble_rolling" = lstm_RV_ensemble_rolling,
   "LSTM_IV_ensemble_rolling" = lstm_IV_ensemble_rolling,
   "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling
