@@ -163,11 +163,11 @@ es_config_garch <- list(
 # Model list
 model_list_garch <- list(
   "GARCH" = garch_norm,
-  "EGARCH" = egarch,
-  "RV_GARCH" = rv_garch,
- "AR_GARCH" = ar_garch_norm,
+  "EGARCH" = egarch
+  #"RV_GARCH" = rv_garch,
+ #"AR_GARCH" = ar_garch_norm,
   #"AR_GARCH_t" = ar_garch_t
-  "GARCH_t" = garch_t
+  #"GARCH_t" = garch_t
 
 )
 
@@ -235,7 +235,7 @@ model_list_HAR <- list(
 
 
 ####################### DEFINE FUNCTION THAT DOES IT ALL #############################################################
-run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1), sig_levels = c(0.05)) {
+run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(2), sig_levels = c(0.05)) {
   all_results <- list()
   
   for (test_version in test_versions) {
