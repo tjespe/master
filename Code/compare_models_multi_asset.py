@@ -228,6 +228,61 @@ try:
 except FileNotFoundError:
     print("GARCH Student-t predictions not found")
 
+# GARCH Skewed-t Model
+try:
+    garch_skewt_vol_pred = pd.read_csv("predictions/garch_predictions_skewt.csv")
+    garch_skewt_vol_pred["Date"] = pd.to_datetime(garch_skewt_vol_pred["Date"])
+    garch_skewt_vol_pred = garch_skewt_vol_pred.set_index(["Date", "Symbol"])
+    garch_skewt_dates = garch_skewt_vol_pred.index.get_level_values("Date")
+    garch_skewt_vol_pred = garch_skewt_vol_pred[ 
+        (
+            (garch_skewt_dates >= TRAIN_VALIDATION_SPLIT)
+            & (garch_skewt_dates < VALIDATION_TEST_SPLIT)
+            if TEST_SET == "validation"
+            else (garch_skewt_dates >= VALIDATION_TEST_SPLIT)
+        )
+    ]
+    if np.isnan(garch_skewt_vol_pred).all().all():
+        raise FileNotFoundError("All GARCH Skewed-t predictions are NaN")
+    combined_df = df_validation.join(
+        garch_skewt_vol_pred, how="left", rsuffix="_GARCH_skewt"
+    )
+    garch_skewt_vol_pred = combined_df["GARCH_skewt_Vol"].values
+    y_true = combined_df["LogReturn"].values
+    mus = np.zeros_like(garch_skewt_vol_pred)
+    nus = combined_df["GARCH_skewt_Nu"].values
+    skew = combined_df["GARCH_skewt_Skew"].values
+    crps = combined_df["GARCH_skewt_CRPS"].values
+    
+    entry = {
+        "name": "GARCH Skewed-t",
+        "mean_pred": mus,
+        "volatility_pred": garch_skewt_vol_pred,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "dates": combined_df.index.get_level_values("Date"),
+        # "nll": student_t_nll( must make a new function for this
+        #     y_true,
+        #     mus,
+        #     garch_skewt_vol_pred,
+        #     nus,
+        #     skew=skew
+        # ),
+        "crps": crps,
+        #"ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
+        "LB_67": combined_df["LB_67"].values,
+        "UB_67": combined_df["UB_67"].values,
+        "LB_90": combined_df["LB_90"].values,
+        "UB_90": combined_df["UB_90"].values,
+        "LB_95": combined_df["LB_95"].values,
+        "UB_95": combined_df["UB_95"].values,
+        "LB_98": combined_df["LB_98"].values,
+        "UB_98": combined_df["UB_98"].values,
+        "ES_83.5": combined_df["ES_83.5"].values,
+        "ES_95": combined_df["ES_95"].values,
+        "ES_97.5": combined_df["ES_97.5"].values,
+        "ES_99": combined_df["ES_99"].values,
+    }
+
 # AR GARCH Model
 for version in [
     "AR(1)-GARCH(1,1)-normal",

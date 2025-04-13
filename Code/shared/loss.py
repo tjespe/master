@@ -515,6 +515,45 @@ def crps_student_t(x, mu, sigma, nu):
     crps_value, _ = quad(integrand, -np.inf, np.inf)
     return crps_value
 
+def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
+    """
+    Compute the Continuous Ranked Probability Score (CRPS) for a skewed t forecast using
+    Monte Carlo simulation.
+    
+    Parameters:
+    -----------
+    x : float
+        Observed value.
+    mu : float
+        Forecasted mean.
+    sigma : float
+        Forecasted volatility (scale parameter).
+    nu : float
+        Degrees of freedom of the skewed t distribution.
+    lam : float
+        Skewness parameter.
+    nsim : int, optional
+        Number of simulation draws (default is 1000).
+    random_state : int or None, optional
+        Seed for the random number generator.
+    
+    Returns:
+    --------
+    crps : float
+        The CRPS score.
+    """
+    # Standardize the observed value
+    z_obs = (x - mu) / sigma
+    skewt = SkewStudent()
+    # Generate samples from the standardized skewed t distribution
+    z_samples = skewt.rvs(nsim, nu=nu, lam=lam, random_state=random_state)
+    # CRPS: sigma * [ E|z - z_obs| - 0.5 E|z - z'| ]
+    term1 = np.mean(np.abs(z_samples - z_obs))
+    # Compute the pairwise differences (using broadcasting)
+    diff_matrix = np.abs(z_samples[:, None] - z_samples[None, :])
+    term2 = 0.5 * np.mean(diff_matrix)
+    return sigma * (term1 - term2)
+
 
 ##############################################################################
 # ECE for Mixture Density Networks
