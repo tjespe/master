@@ -282,6 +282,12 @@ try:
         "ES_97.5": combined_df["ES_97.5"].values,
         "ES_99": combined_df["ES_99"].values,
     }
+    preds_per_model.append(entry)
+    nans = np.isnan(garch_skewt_vol_pred).sum()
+    if nans > 0:
+        print(f"GARCH Skewed-t has {nans} NaN predictions")
+except FileNotFoundError:
+    print("GARCH Skewed-t predictions not found")
 
 # AR GARCH Model
 for version in [
