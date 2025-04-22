@@ -591,7 +591,9 @@ if __name__ == "__main__":
     labels = list(legend_dict.keys())
     fig.legend(handles, labels, loc="center left")
     plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(f"results/transformer_mdn_v{VERSION}_{TEST_SET}_ensemble_mixture_weights.svg")
+    plt.savefig(
+        f"results/transformer_mdn_v{VERSION}_{TEST_SET}_ensemble_mixture_weights.svg"
+    )
 
     # %%
     # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels
