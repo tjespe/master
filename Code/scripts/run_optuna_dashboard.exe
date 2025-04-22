@@ -1,0 +1,2 @@
+cd ..
+C:\Users\tordjes\AppData\Roaming\Python\Python312\Scripts\optuna-dashboard.exe sqlite:///optuna/transformer_mdn_study.db
