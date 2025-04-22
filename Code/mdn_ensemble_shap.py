@@ -5,29 +5,32 @@ Load an MDN ensemble model, compute volatility (variance), Value-at-Risk (VaR),
 and Expected Shortfall (ES), then run SHAP analysis on each quantity.
 """
 
-
-# ---------------------------
-# Model & Data Parameters
-# ---------------------------
 from lstm_mdn_ensemble import build_lstm_mdn
 from transformer_mdn_ensemble import build_transformer_mdn
 from settings import SUFFIX
-from shared.expanding_window import find_latest_model
 
+# %%
+# Model loading parameters
 VERSION = "ivol-final-rolling"
-# Which model to load, can be set to a string directly or the output of find_latest_model
-MODEL_FNAME = find_latest_model(
-    "models/rolling", f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test_*.h5"
+# SHAP takes a long time to run, so we only look at a subset of the data
+ANALYSIS_START_DATE = "2024-02-27"
+# Filename for weights. Important that the loaded model is not trained on data after
+# the ANALYSIS_START_DATE.
+MODEL_FNAME = (
+    f"models/rolling/lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test_{ANALYSIS_START_DATE}.h5"
 )
+# Function for building the model
 BUILD_FN = build_lstm_mdn  # or build_transformer_mdn
+
+# %%
+# Structural parameters
 N_ENSEMBLE_MEMBERS = 10
 N_MIXTURES = 10
-HIDDEN_UNITS = 60
-DROPOUT = 0.0
 NUM_HIDDEN_LAYERS = 0
 EMBEDDING_DIMENSIONS = None
 
-# Data flags (match your training settings)
+# %%
+# Data flags (must match training settings)
 DATA_FLAGS = dict(
     multiply_by_beta=False,
     include_returns=False,
@@ -58,26 +61,12 @@ from shared.mdn import (
     calculate_es_for_quantile,
     calculate_intervals_vectorized,
     parse_mdn_output,
-    get_mdn_kernel_initializer,
-    get_mdn_bias_initializer,
 )
 from settings import (
     LOOKBACK_DAYS,
     SUFFIX,
     VALIDATION_TEST_SPLIT,
 )
-from tensorflow.keras import Model
-from tensorflow.keras.layers import (
-    Input,
-    Dense,
-    Dropout,
-    LSTM,
-    Embedding,
-    Flatten,
-    Concatenate,
-    RepeatVector,
-)
-from tensorflow.keras.regularizers import l2
 
 
 # %%
@@ -94,12 +83,9 @@ if __name__ == "__main__":
     # %%
     # Load data
     data = get_lstm_train_test_new(**DATA_FLAGS)
-    first_test_date = pd.to_datetime(VALIDATION_TEST_SPLIT)
+    first_test_date = pd.to_datetime(ANALYSIS_START_DATE)
     train = data.get_training_set_for_date(first_test_date)
-    # for illustration, use a 30-day test window
-    test = data.get_test_set_for_date(
-        first_test_date, first_test_date + pd.DateOffset(days=30)
-    )
+    test = data.get_test_set_for_date(first_test_date)
 
     X_train = train.X
     X_test = test.X
