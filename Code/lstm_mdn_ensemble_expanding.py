@@ -2,6 +2,7 @@
 # Define parameters (based on settings)
 import subprocess
 from typing import Optional
+from lstm_mdn_ensemble import build_lstm_mdn
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
 from settings import (
@@ -101,86 +102,6 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
-
-
-# %%
-def build_lstm_mdn(
-    num_features: int,
-    ticker_ids_dim: Optional[int],
-):
-    """
-    Creates a lstm-based encoder for sequences of shape:
-      (lookback_days, num_features)
-    Then outputs 3*n_mixtures for MDN (univariate).
-    """
-    # Sequence input (time series)
-    seq_input = Input(shape=(LOOKBACK_DAYS, num_features), name="seq_input")
-
-    inputs = [seq_input]  # We'll append ticker_input if we have tickers
-
-    # If we have ticker IDs, embed them
-    if ticker_ids_dim is not None:
-        ticker_input = Input(shape=(), dtype="int32", name="ticker_input")
-        inputs.append(ticker_input)
-
-        # 1) Embed the ticker ID -> shape: (batch, embed_dim)
-        ticker_embed = Embedding(
-            input_dim=ticker_ids_dim,
-            output_dim=EMBEDDING_DIMENSIONS,
-            name="ticker_embedding",
-        )(
-            ticker_input
-        )  # shape: (batch, 1, embed_dim)
-
-        ticker_embed = Flatten()(ticker_embed)  # shape: (batch, embed_dim)
-
-        # 2) Repeat the embedding across time -> shape: (batch, lookback_days, embed_dim)
-        ticker_embed = RepeatVector(LOOKBACK_DAYS)(ticker_embed)
-
-        # 3) Concatenate with the input features -> shape: (batch, lookback_days, num_features + embed_dim)
-        x = Concatenate(axis=-1, name="concat_seq_ticker")([seq_input, ticker_embed])
-    else:
-        # No ticker input
-        x = seq_input
-
-    # 4) Pass through LSTM
-    x = LSTM(
-        units=HIDDEN_UNITS,
-        activation="tanh",
-        kernel_regularizer=l2(1e-3),
-        name="lstm_layer",
-    )(x)
-
-    if DROPOUT > 0:
-        x = Dropout(DROPOUT, name="dropout_lstm")(x)
-
-    # 5) Optionally pass through additional Dense layers
-    for i in range(NUM_HIDDEN_LAYERS):
-        x = Dense(
-            units=HIDDEN_UNITS,
-            activation="relu",
-            kernel_regularizer=l2(1e-3),
-            name=f"dense_layer_{i}",
-        )(x)
-        if DROPOUT > 0:
-            x = Dropout(DROPOUT, name=f"dropout_layer_{i}")(x)
-
-    # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_var])
-    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
-    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
-    mdn_output = Dense(
-        3 * N_MIXTURES,
-        activation=None,
-        kernel_initializer=mdn_kernel_init,
-        bias_initializer=mdn_bias_init,
-        name="mdn_output",
-    )(x)
-
-    model = Model(
-        inputs=[seq_input, ticker_input] if ticker_ids_dim is not None else [seq_input],
-        outputs=mdn_output,
-    )
-    return model
 
 
 # %%
