@@ -9,7 +9,7 @@ import multiprocessing as mp
 
 
 VERSION = "ivol"
-MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}"
+MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}_expanding"
 
 # %%
 # Feature selection
@@ -48,11 +48,9 @@ D_TICKER_EMBEDDING = None
 WEIGHT_DECAY = 1e-2
 LEARNING_RATE = 5e-5
 BATCH_SIZE = 40
-REDUCE_LR_PATIENCE = 3  # Patience before halving learning rate
-PATIENCE = 10  # Early stopping patience
 N_ENSEMBLE_MEMBERS = 10
 PARALLELLIZE = True
-ROLLING_INTERVAL = 30  # Monthly retraining interval
+RETRAINING_INTERVAL = 30  # Monthly retraining interval
 
 # %%
 # Imports from code shared across models
@@ -284,7 +282,7 @@ def _train_single_member(args):
         batch_size=batch_size,
         verbose=not PARALLELLIZE,
         validation_data=(X_test, y_test),
-        callbacks=[progress_cb],
+        callbacks=[progress_cb, fixed_schedule_cb],
     )
     val_loss = float(np.min(history.history["val_loss"]))
     best_epoch = np.argmin(history.history["val_loss"])
@@ -324,9 +322,9 @@ if __name__ == "__main__":
     # Train model (rolling if ROLLING_INTERVAL is set)
     # Get correct train and test
     first_test_date = pd.to_datetime(VALIDATION_TEST_SPLIT)
-    if ROLLING_INTERVAL is None or ROLLING_INTERVAL == 0:
-        ROLLING_INTERVAL = np.inf
-    end_date = lambda: first_test_date + pd.DateOffset(days=ROLLING_INTERVAL)
+    if RETRAINING_INTERVAL is None or RETRAINING_INTERVAL == 0:
+        RETRAINING_INTERVAL = np.inf
+    end_date = lambda: first_test_date + pd.DateOffset(days=RETRAINING_INTERVAL)
     y_pred_results = []
     epistemic_var_results = []
     symbols = []
@@ -429,9 +427,8 @@ if __name__ == "__main__":
     pi_pred, mu_pred, sigma_pred = parse_mdn_output(
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
-    filter_ndarray = lambda ticker, ndarr: np.array(
-        [val for val, t in zip(ndarr, symbols) if t == ticker]
-    )
+    symbols_arr = np.array(symbols)
+    filter_ndarray = lambda ticker, ndarr: np.array(ndarr)[symbols_arr == ticker]
 
     # %%
     # 6) Plot 10 charts with the distributions for 10 random days
@@ -542,7 +539,7 @@ if __name__ == "__main__":
         plt.gca().set_yticklabels(
             ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
         )
-        plt.title(f"LSTM w MDN predictions for {ticker}, test data")
+        plt.title(f"Transformer w MDN predictions for {ticker}, test data")
         plt.xlabel("Date")
         plt.ylabel("LogReturn")
         # Place legend outside of plot
@@ -628,8 +625,10 @@ if __name__ == "__main__":
     # Commit predictions
     try:
         subprocess.run(["git", "pull"], check=True)
-        subprocess.run(["git", "add", f"predictions/*lstm_mdn*{SUFFIX}*"], check=True)
-        commit_header = f"Add predictions for LSTM MDN Ensemble {VERSION}"
+        subprocess.run(["git", "add", f"predictions/*transformer_mdn*"], check=True)
+        commit_header = (
+            f"Add predictions for expanding Transformer MDN Ensemble {VERSION}"
+        )
         commit_body = f"Loss (test set): {df_validation['NLL'].mean()}"
         subprocess.run(
             ["git", "commit", "-m", commit_header, "-m", commit_body], check=True
