@@ -1,0 +1,87 @@
+% Based on template by Jon Arnt Kårstad, NTNU IMT
+\documentclass{article}
+
+% Importing settings from our file "setup.sty"
+\usepackage{setup}
+
+% Importing variables
+\import{./}{variables}
+
+% Beginning of document 
+\begin{document} 
+
+% Inserting title page
+\import{./Sections/}{front_page}
+
+% Insert a blank page 
+\newpage
+\null
+\thispagestyle{empty}
+\newpage
+
+% Defining front matter settings 
+\frontmatter
+
+% Preface
+\import{./Sections/}{preface}
+\newpage
+
+
+
+% Abstract 
+\begin{abstract}
+    \import{./Sections/}{0_abstract}
+\end{abstract}
+\clearpage
+
+
+% Inserting table of contents
+\tableofcontents
+
+% Inserting list of figures & list of tables
+\listoffigures
+\listoftables
+
+% Defining main matter settings 
+\mainmatter
+
+
+%Sections
+\import{./Sections/}{1_introduction}
+\newpage
+\import{./Sections/}{2_literature}
+\newpage
+\import{./Sections/}{3_data}
+\newpage
+\import{./Sections/}{4_methods}
+\newpage
+\import{./Sections/}{5_results}
+\newpage
+\import{./Sections/}{6_discussion}
+\newpage
+\import{./Sections/}{7_conclusion}
+
+% Inserting bibliography
+\newpage
+% \bibliography{references}
+\printbibliography
+
+
+% Inserting appendix with separate settings
+\addappendix
+
+Appendixes we need:
+\begin{itemize}
+    \item Mathematical definition and description of all tests, scoring functions, MCS description (etc).
+    \item Perhaps deeper definition of LSTMs / Transformers
+    \item List of abbreviations
+    \item SHAP - feature importance method description
+    \item Loss function over time for LSTM and Transformer?
+    \item Full results?
+\end{itemize}
+\import{./Appendices/}{A_appendix}
+\import{./Appendices/}{B_appendix}
+
+
+% End of document
+\end{document}
