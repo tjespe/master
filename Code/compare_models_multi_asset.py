@@ -4,6 +4,7 @@ from shared.adequacy import (
     christoffersen_test,
     pooled_bayer_dimitriadis_test,
 )
+from shared.jupyter import is_notebook
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import (
@@ -31,8 +32,12 @@ from arch.bootstrap import MCS
 
 
 # %%
-# Defined which confidence level to use for prediction intervals
+# Define which confidence levels to look at in tests
 CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+
+# %%
+# Define all confidence levels that we want to read from the files
+ALL_CONFIDENCE_LEVELS = CONFIDENCE_LEVELS + [0.99, 0.995]
 
 # %%
 # Select whether to only filter on important tickers
@@ -148,7 +153,7 @@ for garch_type in ["GARCH", "EGARCH"]:
             "ece": ece_gaussian(y_true, mus, log_vars),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * garch_vol_pred
@@ -234,7 +239,7 @@ try:
     garch_skewt_vol_pred["Date"] = pd.to_datetime(garch_skewt_vol_pred["Date"])
     garch_skewt_vol_pred = garch_skewt_vol_pred.set_index(["Date", "Symbol"])
     garch_skewt_dates = garch_skewt_vol_pred.index.get_level_values("Date")
-    garch_skewt_vol_pred = garch_skewt_vol_pred[ 
+    garch_skewt_vol_pred = garch_skewt_vol_pred[
         (
             (garch_skewt_dates >= TRAIN_VALIDATION_SPLIT)
             & (garch_skewt_dates < VALIDATION_TEST_SPLIT)
@@ -253,7 +258,7 @@ try:
     nus = combined_df["GARCH_skewt_Nu"].values
     skew = combined_df["GARCH_skewt_Skew"].values
     crps = combined_df["GARCH_skewt_CRPS"].values
-    
+
     entry = {
         "name": "GARCH Skewed-t",
         "mean_pred": mus,
@@ -268,7 +273,7 @@ try:
         #     skew=skew
         # ),
         "crps": crps,
-        #"ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
+        # "ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
         "LB_67": combined_df["LB_67"].values,
         "UB_67": combined_df["UB_67"].values,
         "LB_90": combined_df["LB_90"].values,
@@ -408,7 +413,7 @@ for version in [
             "ece": ece_gaussian(y_true, mus, np.log(har_vol_pred**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * har_vol_pred
@@ -467,7 +472,7 @@ for version in ["R"]:  # "python",
             "ece": ece_gaussian(y_true, mus, np.log(harq_vol_pred**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * harq_vol_pred
@@ -532,7 +537,7 @@ for version in ["norm", "std"]:
             "ece": ece_gaussian(y_true, mus, np.log(realized_garch_preds**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * realized_garch_preds
@@ -632,7 +637,7 @@ for version in [
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -689,7 +694,7 @@ for version in [
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -766,7 +771,7 @@ for version in [
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -822,7 +827,7 @@ for version in ["rv-iv"]:
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -885,7 +890,7 @@ for version in [4]:
                 "p_up": combined_df.get("Prob_Increase"),
                 "ece": ece_col.median() if ece_col is not None else None,
             }
-            for cl in CONFIDENCE_LEVELS:
+            for cl in ALL_CONFIDENCE_LEVELS:
                 lb = combined_df.get(f"LB_{format_cl(cl)}")
                 ub = combined_df.get(f"UB_{format_cl(cl)}")
                 if lb is None or ub is None:
@@ -2683,6 +2688,88 @@ for display_name, model_name in our:
         print("&", sci_notation_latex(val), end=" ")
 
     print("\\\\")
+
+# %%
+# Generate time series chart with confidence intervals for each model
+example_tickers = ["AAPL", "WMT"]
+# Include more conf levels here because it is interesting to see
+conf_levels = CONFIDENCE_LEVELS + [0.99, 0.995]
+import shared.styling_guidelines_graphs
+
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(f"Model {model_name} not found in preds_per_model")
+            continue
+        model_name = entry["name"]
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        for cl in conf_levels:
+            log_df[f"LB_{format_cl(cl)}"] = np.array(entry.get(f"LB_{format_cl(cl)}"))
+            log_df[f"UB_{format_cl(cl)}"] = np.array(entry.get(f"UB_{format_cl(cl)}"))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            plt.figure(figsize=(12, 6))
+            plt.plot(
+                true_ret,
+                label="Actual Returns",
+                color="black",
+                alpha=0.5,
+            )
+            plt.plot(ticker_df["Mean"], label="Predicted Mean", color="red")
+            for i, cl in enumerate(conf_levels):
+                lb = ticker_df[f"LB_{format_cl(cl)}"]
+                ub = ticker_df[f"UB_{format_cl(cl)}"]
+                if lb.isnull().any() or ub.isnull().any():
+                    # Skip if any of the bounds are NaN
+                    print(
+                        f"Skipping {model_name} for {ticker} at {cl} due to NaN values in bounds"
+                    )
+                    continue
+                plt.fill_between(
+                    lb.index,
+                    lb,
+                    ub,
+                    color="blue",
+                    alpha=0.7 - i * 0.07,
+                    label=f"{100*cl:.1f}% Interval",
+                )
+                # Mark violations
+                violations = np.logical_or(
+                    true_log_ret < lb,
+                    true_log_ret > ub,
+                )
+                plt.scatter(
+                    true_log_ret[violations].index,
+                    true_log_ret[violations],
+                    marker="x",
+                    label=f"Violations ({100*cl:.1f}%)",
+                )
+            plt.ylim(-0.2, 0.2)
+            plt.gca().set_yticklabels(
+                ["{:.1f}%".format(n * 100) for n in plt.gca().get_yticks()]
+            )
+            plt.title(f"{display_name} predictions for {ticker} on holdout data")
+            plt.xlabel("Date")
+            plt.ylabel("Return")
+            # Place legend outside of plot
+            plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+            # Ensure everything fits in the figure
+            plt.tight_layout()
+            plt.savefig(f"results/time_series/{ticker}_{model_name}.pdf")
+            if is_notebook():
+                plt.show()
+            plt.close()
+
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock

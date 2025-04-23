@@ -359,65 +359,6 @@ if __name__ == "__main__":
     )
 
     # %%
-    # 12) Plot time series with mean, volatility and actual returns for last X days
-    mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-    for ticker in example_tickers:
-        ticker_mean = filter_ndarray(ticker, mean)
-        ticker_intervals = filter_ndarray(ticker, intervals)
-        ticker_dates = filter_ndarray(ticker, dates)
-        actual_return = filter_ndarray(ticker, true_y)
-
-        plt.figure(figsize=(12, 6))
-        plt.plot(
-            ticker_dates,
-            actual_return,
-            label="Actual Returns",
-            color="black",
-            alpha=0.5,
-        )
-        plt.plot(ticker_dates, ticker_mean, label="Predicted Mean", color="red")
-        median = ticker_intervals[:, 0, 0]
-        plt.plot(ticker_dates, median, label="Median", color="green")
-        for i, cl in enumerate(confidence_levels):
-            if cl == 0:
-                continue
-            plt.fill_between(
-                ticker_dates,
-                ticker_intervals[:, i, 0],
-                ticker_intervals[:, i, 1],
-                color="blue",
-                alpha=0.7 - i * 0.07,
-                label=f"{100*cl:.1f}% Interval",
-            )
-            # Mark violations
-            violations = np.logical_or(
-                actual_return < ticker_intervals[:, i, 0],
-                actual_return > ticker_intervals[:, i, 1],
-            )
-            plt.scatter(
-                np.array(ticker_dates)[violations],
-                actual_return[violations],
-                marker="x",
-                label=f"Violations ({100*cl:.1f}%)",
-            )
-        plt.axhline(
-            actual_return.mean(),
-            color="red",
-            linestyle="--",
-            label="True mean return across time",
-            alpha=0.5,
-        )
-        plt.gca().set_yticklabels(
-            ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
-        )
-        plt.title(f"Transformer w MDN predictions for {ticker}, test data")
-        plt.xlabel("Date")
-        plt.ylabel("LogReturn")
-        # Place legend outside of plot
-        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(f"results/time_series/{ticker}_{MODEL_NAME}.svg")
-
-    # %%
     # 13) Make data frame for signle pass predictions
     df_validation = pd.DataFrame(
         np.vstack([dates, symbols]).T,
