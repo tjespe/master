@@ -337,6 +337,8 @@ Use these for backing:
 
 % ==================== VaR and ES construction ==================== %
 \subsection{Value-at-Risk and Expected Shortfall Construction}
+
+
 VaR and ES construction NY SEKSJON
 * gjort analysisk vs moen et atl (approkimering) - formel for anlysik Var og ES estiemring
 - define short what is var and ES, ES often cusntruction doing sih (quatial regression framwork), we do i atnalytly because we have the whole distribution
@@ -354,9 +356,11 @@ VaR and ES construction NY SEKSJON
 % ==================== Testing and Evaluation Implementation ==================== %
 \subsection{Testing and Evaluation Implementation}
 \label{sec:testing_and_evaluation_implementation}
-The evaluation framework used to assess the proposed probabilistic AI models and benchmark models consist of mulitple metrics to capture different aspects of the predictive performance, including distributional accuracy, VaR evaluation and ES evaluation for both adequacy and accuracy. 
+In order to comprehensively evaluate the probabilistic models and their forecasts against the benchmark models we employ multiple measures to evaluate both the distributional accuracy and the adequacy of the tail risk estimates. Concise descriptions follows, refer to Appendix \ref{...} for full descriptions. 
 
-\subsubsection{Metrics for Evaluating Distributional Accuracy and Calibration} \\
+\subsubsection{Evaluating Distributional Accuracy and Calibration} 
+When evaluating a predicted distribution, it is essential to assess both its accuracy and calibration \parencite{Gneiting2007}. Accuracy-often referred to as sharpness-measures how well the central tendency of the distribution alignes with observed outcomes, and is typically assessed with proper scoring rules. Calibration, on the other hand, evaluates the statistical consistency between predicted uncertainty and observed variability; a well-calibrated model yields distributions whose empirical coverage aligns with the nominal level. As \textcite{Gneiting2007} emphasize, distributional forecasts should aim to maximize sharpness subject to calibration, ensuring that predictions are both precise and statistically reliable.
+
 \textbf{NLL} \\
 ...
 
@@ -396,7 +400,7 @@ We compute Prediction Interval Coverage Probability (PICP), to evaluate the empi
 where $[l_t, u_t]$ is the predicted $1-\alpha$ confidence interval. A well calibrated model should have $\text{PICP}^{(\alpha)}$ equal to $1-\alpha$. (SOURCE)
 
 
-\subsubsection{VaR Model Evaluation} 
+\subsubsection{VaR Evaluation} 
 \textbf{Chrstoffersen's Conditional Coverage Test for VaR Adequacy} \\ 
 Christoffersen's likelihood-ratio framework \parencite{christoffersen1998}, which provides a joint test for conditional coverage, is used to evaluate the adequacy of the VaR forecasts. The test consist of three components. \\ 
 The Unconditional Coverage (UC) test check wether the frequency of VaR exceedances matches the nominal coverage level $\alpha$, by the null hypothesis: 
@@ -439,7 +443,7 @@ Mean Prediction Interval Width (MPIW): [NEED SOURCES FOR WHY USE AND ORIGIN]
 
 
 
-\subsubsection{ES Model Evaluation}
+\subsubsection{ES Evaluation}
 
 
 
@@ -474,7 +478,8 @@ Asymmetric Laplace (AL) was introduced by \textcite{Taylor2017}, which is given 
 
 \subsubsection{Model Confidence Set Procedure} 
 \label{sec:model_confidence_set_procedure}
-To evaluate the relative predictive performance of the proposed models and benchmark models, we employ the Model Confidence Set (MCS) approach introduced by \textcite{hansen2011mcs}. The MCS methodology provides a statistical framework for identifying the set of best models with a given level of confidence. The approach compares the models based on their forecast performance based on a specified loss functions, and iteratively removing the model with the weakest performance until the null hypothesis of equal predictive ability is no longer rejected \parencite{hansen2011mcs}. For implementation we follow the approach of \textcite{marchese2020mcs}, applying the MCS approach at both the 75\% and 90\% confidence level for a more rigorous assessment. We perform separate MCS analysis for VaR and ES forecast accuracy. For VaR assessment we use NNL loss function and CRPS, while for ES forecast we use Fissler-Ziegel (FZ) loss function and the Asymmetric Laplace (AL) loss function. 
+To evaluate the relative predictive performance of the proposed models and benchmark models, we employ the Model Confidence Set (MCS) approach introduced by \textcite{hansen2011mcs}. The MCS methodology provides a statistical framework for identifying the best subset of models with a given level of confidence. 
+The procedure iteratively tests and eliminates inferior models from the initial set based on pairwise loss differentials on the applied loss functions, until a subset remains in which no model is statistically significantly worse than the others at the given confidence level \parencite{hansen2011mcs}. For implementation we follow the approach of \textcite{marchese2020mcs}, applying the MCS approach at both the 75\% and 90\% confidence level for a more rigorous assessment. We perform separate MCS analysis for VaR and ES forecast accuracy. For VaR assessment we use NNL loss function and CRPS, while for ES forecast we use Fissler-Ziegel (FZ) loss function and the Asymmetric Laplace (AL) loss function. Details about the MCS approach is further described in Appendix \ref{}.
 
 % ==================== XAI Techniques ==================== %
 \subsection{XAI Techniques}
