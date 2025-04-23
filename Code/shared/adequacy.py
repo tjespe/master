@@ -162,11 +162,6 @@ def pooled_bayer_dimitriadis_test(y_true, var_pred, es_pred, alpha):
     var_pred = np.asarray(var_pred)
     es_pred = np.asarray(es_pred)
 
-    # Print shapes
-    print("y_true.shape", y_true.shape)
-    print("var_pred.shape", var_pred.shape)
-    print("es_pred.shape", es_pred.shape)
-
     n = len(y_true)
     if any(len(arr) != n for arr in [var_pred, es_pred]):
         raise ValueError("y_true, var_pred, es_pred must have the same length.")
