@@ -1,5 +1,6 @@
 # %%
 # Define parameters (based on settings)
+from datetime import date
 import subprocess
 from typing import Optional
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
@@ -195,6 +196,12 @@ if __name__ == "__main__":
     dates = []
     true_y = []
     while (test := data.get_test_set_for_date(first_test_date, end_date())).y.shape[0]:
+        if first_test_date < pd.to_datetime(date(2023, 1, 1)):
+            # Skip this for now because it runs on another machine
+            print("Skipping", first_test_date.date().isoformat())
+            first_test_date = end_date() + pd.DateOffset(days=1)
+            continue
+
         train = data.get_training_set_for_date(first_test_date)
 
         # 1) Inspect shapes
