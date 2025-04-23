@@ -65,6 +65,15 @@ garch_norm <- garch_norm[garch_norm$Date >= test_set_start_date & garch_norm$Dat
 #ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
 egarch <- egarch[egarch$Date >= test_set_start_date & egarch$Date <= "2024-03-28", ]
 
+# remove .O at the end of the Symbol for the garch models
+garch_norm$Symbol <- gsub("\\.O$", "", garch_norm$Symbol)
+garch_t$Symbol <- gsub("\\.O$", "", garch_t$Symbol)
+rv_garch$Symbol <- gsub("\\.O$", "", rv_garch$Symbol)
+ar_garch_norm$Symbol <- gsub("\\.O$", "", ar_garch_norm$Symbol)
+#ar_garch_t$Symbol <- gsub("\\.O$", "", ar_garch_t$Symbol)
+egarch$Symbol <- gsub("\\.O$", "", egarch$Symbol)
+
+
 ######### HAR ##############
 har   <- read.csv(file.path(base_path_predictions, "HAR_R.csv"))
 harq  <- read.csv(file.path(base_path_predictions, "HARQ_R.csv"))
