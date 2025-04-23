@@ -45,9 +45,9 @@ DATA_FLAGS = dict(
     include_garch=False,
     include_industry=False,
     include_fred_md=False,
-    include_1min_rv=False,
-    include_5min_rv=False,
-    include_ivol_cols=["10 Day Call IVOL", "Historical Call IVOL"],
+    include_1min_rv="rv" in VERSION,
+    include_5min_rv="rv" in VERSION,
+    include_ivol_cols=["10 Day Call IVOL", "Historical Call IVOL"] if "ivol" in VERSION else [],
 )
 
 # %%
