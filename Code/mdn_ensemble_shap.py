@@ -5,20 +5,24 @@ Load an MDN ensemble model, compute volatility (variance), Value-at-Risk (VaR),
 and Expected Shortfall (ES), then run SHAP analysis on each quantity.
 """
 
+from matplotlib import pyplot as plt
 from lstm_mdn_ensemble import build_lstm_mdn
+from shared.conf_levels import format_cl, get_VaR_level
+from shared.jupyter import is_notebook
 from transformer_mdn_ensemble import build_transformer_mdn
 from settings import SUFFIX
+import shared.styling_guidelines_graphs
 
 # %%
 # Model loading parameters
 VERSION = "ivol-final-rolling"
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
+# Model name (used for storing results)
+MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
-MODEL_FNAME = (
-    f"models/rolling/lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test_{ANALYSIS_START_DATE}.h5"
-)
+MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
 # Function for building the model
 BUILD_FN = build_lstm_mdn  # or build_transformer_mdn
 
@@ -90,10 +94,11 @@ if __name__ == "__main__":
     X_train = train.X
     X_test = test.X
     num_features = X_train.shape[2]
+    cols = list(train.df.columns)[1:]
 
     # %%
     # Load latest ensemble
-    submodels = [BUILD_FN(num_features) for _ in range(N_ENSEMBLE_MEMBERS)]
+    submodels = [BUILD_FN(num_features, None) for _ in range(N_ENSEMBLE_MEMBERS)]
     ensemble_model = MDNEnsemble(submodels, N_MIXTURES)
     ensemble_model.load_weights(MODEL_FNAME)
 
@@ -104,47 +109,72 @@ if __name__ == "__main__":
 
     # %%
     # Background and test samples for SHAP (adjust sizes as needed)
-    Xb = flatten(X_train[:50])
-    Xt = X_test[:20]
+    # Pick 50 evenly spread samples from the training set for background
+    Xb_idx = np.linspace(0, len(X_train) - 1, 50, dtype=int)
+    Xb = flatten(X_train[Xb_idx])
+    # Pick 20 evenly spread samples from the test set for analysis
+    Xt_idx = np.linspace(0, len(X_test) - 1, 20, dtype=int)
+    Xt = X_test[Xt_idx]
     Xtf = flatten(Xt)
 
     # %%
-    # Prediction functions
-    def predict_variance(x_flat: np.ndarray) -> np.ndarray:
+    confidence_levels = [
+        0.90,  # 95% VaR
+        0.95,  # 97.5% VaR
+        0.98,  # 99% VaR
+    ]
+
+    def predict(x_flat: np.ndarray) -> np.ndarray:
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
         raw, _ = ensemble_model.predict(X)
         pi, mu, sigma = parse_mdn_output(raw, N_MIXTURES * N_ENSEMBLE_MEMBERS)
         var = np.sum(pi * (sigma**2 + mu**2), axis=1) - np.sum(pi * mu, axis=1) ** 2
-        return var
-
-    def predict_var95(x_flat: np.ndarray) -> np.ndarray:
-        X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
-        raw, _ = ensemble_model.predict(X)
-        pi, mu, sigma = parse_mdn_output(raw, N_MIXTURES * N_ENSEMBLE_MEMBERS)
-        intervals = calculate_intervals_vectorized(pi, mu, sigma, [0.95])
-        return intervals[:, 0, 0]
-
-    def predict_es95(x_flat: np.ndarray) -> np.ndarray:
-        X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
-        raw, _ = ensemble_model.predict(X)
-        pi, mu, sigma = parse_mdn_output(raw, N_MIXTURES * N_ENSEMBLE_MEMBERS)
-        intervals = calculate_intervals_vectorized(pi, mu, sigma, [0.95])
-        var95 = intervals[:, 0, 0]
-        es = calculate_es_for_quantile(pi, mu, sigma, var95)
-        return es
+        intervals = calculate_intervals_vectorized(pi, mu, sigma, confidence_levels)
+        VaR_estimates = []
+        ES_estimates = []
+        for i, cl in enumerate(confidence_levels):
+            VaR = intervals[:, i, 0]
+            es = calculate_es_for_quantile(pi, mu, sigma, VaR)
+            ES_estimates.append(es)
+            VaR_estimates.append(VaR)
+        return np.vstack((var, *VaR_estimates, *ES_estimates)).T
 
     # %%
     # SHAP analysis
-    expl_var = shap.KernelExplainer(predict_variance, Xb)
-    shap_values_var = expl_var.shap_values(Xtf)
-    shap.summary_plot(shap_values_var, Xtf, show=True)
+    expl_var = shap.KernelExplainer(predict, Xb)
+    shap_values = expl_var.shap_values(Xtf)
 
-    expl_vaR = shap.KernelExplainer(predict_var95, Xb)
-    shap_values_vaR = expl_vaR.shap_values(Xtf)
-    shap.summary_plot(shap_values_vaR, Xtf, show=True)
+    # %%
+    # Save shap_values to file
+    os.makedirs("results/xai/raw/", exist_ok=True)
+    np.save(f"results/xai/raw/{MODEL_NAME}_{ANALYSIS_START_DATE}_shap.npy", shap_values)
 
-    expl_es = shap.KernelExplainer(predict_es95, Xb)
-    shap_values_es = expl_es.shap_values(Xtf)
-    shap.summary_plot(shap_values_es, Xtf, show=True)
+    # %%
+    # Present results
+    feature_names = [
+        f"{feat} ({LOOKBACK_DAYS - lag} days ago)".replace("(1 days", "(1 day")
+        for lag in range(LOOKBACK_DAYS)
+        for feat in cols
+    ]
+    output_names = [
+        "Variance",
+        *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
+        *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
+    ]
+    for i, name in enumerate(output_names):
+        shap.summary_plot(
+            shap_values[:, :, i],
+            Xtf,
+            show=False,
+            feature_names=feature_names,
+        )
+        plt.title(name)
+        plt.savefig(
+            f"results/xai/shap_{name}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
+            bbox_inches="tight",
+            dpi=300,
+        )
+        if is_notebook():
+            plt.show()
 
 # %%
