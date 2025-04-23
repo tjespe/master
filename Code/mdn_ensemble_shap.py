@@ -65,6 +65,7 @@ from shared.mdn import (
     calculate_es_for_quantile,
     calculate_intervals_vectorized,
     parse_mdn_output,
+    univariate_mixture_mean_and_var_approx,
 )
 from settings import (
     LOOKBACK_DAYS,
@@ -128,7 +129,8 @@ if __name__ == "__main__":
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
         raw, _ = ensemble_model.predict(X)
         pi, mu, sigma = parse_mdn_output(raw, N_MIXTURES * N_ENSEMBLE_MEMBERS)
-        var = np.sum(pi * (sigma**2 + mu**2), axis=1) - np.sum(pi * mu, axis=1) ** 2
+        mean, var = univariate_mixture_mean_and_var_approx(pi, mu, sigma)
+        vol = np.sqrt(var)
         intervals = calculate_intervals_vectorized(pi, mu, sigma, confidence_levels)
         VaR_estimates = []
         ES_estimates = []
@@ -137,7 +139,7 @@ if __name__ == "__main__":
             es = calculate_es_for_quantile(pi, mu, sigma, VaR)
             ES_estimates.append(es)
             VaR_estimates.append(VaR)
-        return np.vstack((var, *VaR_estimates, *ES_estimates)).T
+        return np.vstack((vol, *VaR_estimates, *ES_estimates)).T
 
     # %%
     # SHAP analysis
@@ -157,7 +159,7 @@ if __name__ == "__main__":
         for feat in cols
     ]
     output_names = [
-        "Variance",
+        "Volatility",
         *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
         *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
     ]
