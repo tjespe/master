@@ -6,12 +6,13 @@ library(dplyr)
 base_path_return_data <- "~/Masterv4/master/Code/data/dow_jones/processed_data"
 base_path_predictions <- "~/Masterv4/master/Code/predictions"
 
+test_set_start_date <- "2019-12-31"
 
 
 # get return data for the test set
 return_data <- read.csv(file.path(base_path_return_data, "dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv"))
 # filter only for test set, from 2023-01-03 to 2024-03-28
-return_data <- return_data[return_data$Date >= "2023-01-03" & return_data$Date <= "2024-03-28", ] 
+return_data <- return_data[return_data$Date >= test_set_start_date & return_data$Date <= "2024-03-28", ] 
 # return_data <- return_data[return_data$Date >= "2005-02-15" & return_data$Date <= "2024-03-28", ]
 # remove .O at the end of the Symbol for the return data
 return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
@@ -21,34 +22,48 @@ return_data$Symbol <- gsub("\\.O$", "", return_data$Symbol)
 # comment out the ones we dont have predictions for yet
 
 ############# Transformer #############
-transformer_RV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv_ensemble.csv"))
-transformer_IV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vivol_ensemble.csv"))
-transformer_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv-and-ivol_ensemble.csv"))
+
+# non-rolling
+transformer_RV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv_test_ensemble.csv"))
+transformer_IV_ensemble     <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vivol_test_ensemble.csv"))
+transformer_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv-and-ivol_test_ensemble.csv"))
+
+# rolling
+#transformer_RV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vrv-final-rolling_ensemble_test.csv"))
+#transformer_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vivol-final-rolling_ensemble_test.csv"))
+#transformer_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vrv-and-ivol-final-rolling_ensemble_test.csv"))
 
 ############ LSTM ###################
+
+#non-rolling
 lstm_RV_ensemble     <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vrv-final_ensemble.csv"))
 lstm_IV_ensemble     <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vivol-final_ensemble.csv"))
 lstm_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "lstm_mdn_predictions_stocks_vrv-and-ivol-final_ensemble.csv"))
 
+#rolling
+lstm_RV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "lstm_mdn_ensemble_stocks_vrv-final-rolling_test.csv"))
+lstm_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "lstm_mdn_ensemble_stocks_vivol-final-rolling_test.csv"))
+lstm_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "lstm_mdn_ensemble_stocks_vrv-and-ivol-final-rolling_test.csv"))
+
 ############## ENSEMBLE COMBINATIONS ###############
-MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
+#MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
 
 ########## GARCH MODELS ###########
 garch_norm     <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriched.csv"))
-garch_t        <- read.csv(file.path(base_path_predictions, "garch_predictions_student_t.csv"))
-rv_garch       <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_norm.csv"))
-ar_garch_norm  <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-normal.csv"))
+#garch_t        <- read.csv(file.path(base_path_predictions, "garch_predictions_student_t.csv"))
+#rv_garch       <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_norm.csv"))
+#ar_garch_norm  <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-normal.csv"))
 # ar_garch_t   <- read.csv(file.path(base_path, ".csv"))  # Not included because file name is missing
 egarch         <- read.csv(file.path(base_path_predictions, "EGARCH_preds_enriched.csv"))
 
 
-# filter only for test set, from 2023-01-03 to 2024-03-28
-garch_norm <- garch_norm[garch_norm$Date >= "2023-01-03" & garch_norm$Date <= "2024-03-28", ]
-garch_t <- garch_t[garch_t$Date >= "2023-01-03" & garch_t$Date <= "2024-03-28", ]
-rv_garch <- rv_garch[rv_garch$Date >= "2023-01-03" & rv_garch$Date <= "2024-03-28", ]
-ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= "2023-01-03" & ar_garch_norm$Date <= "2024-03-28", ]
-#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= "2023-01-03" & ar_garch_t$Date <= "2024-03-28", ]
-egarch <- egarch[egarch$Date >= "2023-01-03" & egarch$Date <= "2024-03-28", ]
+# filter only for test set, from test_set_start_date to 2024-03-28
+garch_norm <- garch_norm[garch_norm$Date >= test_set_start_date & garch_norm$Date <= "2024-03-28", ]
+#garch_t <- garch_t[garch_t$Date >= test_set_start_date & garch_t$Date <= "2024-03-28", ]
+#rv_garch <- rv_garch[rv_garch$Date >= test_set_start_date & rv_garch$Date <= "2024-03-28", ]
+#ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= test_set_start_date & ar_garch_norm$Date <= "2024-03-28", ]
+#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
+egarch <- egarch[egarch$Date >= test_set_start_date & egarch$Date <= "2024-03-28", ]
 
 ######### HAR ##############
 har   <- read.csv(file.path(base_path_predictions, "HAR_R.csv"))
@@ -56,16 +71,16 @@ harq  <- read.csv(file.path(base_path_predictions, "HARQ_R.csv"))
 
 ########### BOOSTERS ###########
 # catboost_RV <- read.csv(file.path(base_path, "CatBoost_RV.csv"))
-catboost_IV     <- read.csv(file.path(base_path_predictions, "CatBoost_IV.csv"))
-catboost_RV_IV  <- read.csv(file.path(base_path_predictions, "CatBoost_RV_IV.csv"))
+#catboost_IV     <- read.csv(file.path(base_path_predictions, "CatBoost_IV.csv"))
+#catboost_RV_IV  <- read.csv(file.path(base_path_predictions, "CatBoost_RV_IV.csv"))
 
-xgboost_RV      <- read.csv(file.path(base_path_predictions, "XGBoost_RV.csv"))
+#xgboost_RV      <- read.csv(file.path(base_path_predictions, "XGBoost_RV.csv"))
 # xgboost_IV    <- read.csv(file.path(base_path, "XGBoost_IV.csv"))
 # xgboost_RV_IV <- read.csv(file.path(base_path, "XGBoost_RV_IV.csv"))
 
-lightgbm_RV     <- read.csv(file.path(base_path_predictions, "LightGBM_RV.csv"))
-lightgbm_IV     <- read.csv(file.path(base_path_predictions, "LightGBM_IV.csv"))
-lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV.csv"))
+#lightgbm_RV     <- read.csv(file.path(base_path_predictions, "LightGBM_RV.csv"))
+#lightgbm_IV     <- read.csv(file.path(base_path_predictions, "LightGBM_IV.csv"))
+#lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV.csv"))
 
 ########## DB ###########
 # DB_RV     <- read.csv(file.path(base_path, ".csv"))
@@ -77,9 +92,15 @@ lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV.csv
 transformer_RV_ensemble <- transformer_RV_ensemble[transformer_RV_ensemble$Symbol != "DOW", ]
 transformer_IV_ensemble <- transformer_IV_ensemble[transformer_IV_ensemble$Symbol != "DOW", ]
 transformer_RV_IV_ensemble <- transformer_RV_IV_ensemble[transformer_RV_IV_ensemble$Symbol != "DOW", ]
+# transformer_RV_ensemble_rolling <- transformer_RV_ensemble_rolling[transformer_RV_ensemble_rolling$Symbol != "DOW", ]
+# transformer_IV_ensemble_rolling <- transformer_IV_ensemble_rolling[transformer_IV_ensemble_rolling$Symbol != "DOW", ]
+# transformer_RV_IV_ensemble_rolling <- transformer_RV_IV_ensemble_rolling[transformer_RV_IV_ensemble_rolling$Symbol != "DOW", ]
 lstm_RV_ensemble <- lstm_RV_ensemble[lstm_RV_ensemble$Symbol != "DOW", ]
 lstm_IV_ensemble <- lstm_IV_ensemble[lstm_IV_ensemble$Symbol != "DOW", ]
 lstm_RV_IV_ensemble <- lstm_RV_IV_ensemble[lstm_RV_IV_ensemble$Symbol != "DOW", ]
+lstm_RV_ensemble_rolling <- lstm_RV_ensemble_rolling[lstm_RV_ensemble_rolling$Symbol != "DOW", ]
+lstm_IV_ensemble_rolling <- lstm_IV_ensemble_rolling[lstm_IV_ensemble_rolling$Symbol != "DOW", ]
+lstm_RV_IV_ensemble_rolling <- lstm_RV_IV_ensemble_rolling[lstm_RV_IV_ensemble_rolling$Symbol != "DOW", ]
 MDN_ensemble_IV_RV <- MDN_ensemble_IV_RV[MDN_ensemble_IV_RV$Symbol != "DOW", ]
 #catboost_RV <- catboost_RV[catboost_RV$Symbol != "DOW", ]
 catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
@@ -123,7 +144,10 @@ model_list_lstm_transformer <- list(
  "Transformer_RV" = transformer_RV_ensemble,
 "Transformer_IV" = transformer_IV_ensemble,
  "Transformer_RV_IV" = transformer_RV_IV_ensemble,
-  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV
+ # "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
+  "LSTM_RV_ensemble_rolling" = lstm_RV_ensemble_rolling,
+  "LSTM_IV_ensemble_rolling" = lstm_IV_ensemble_rolling,
+  "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling
 )
 
 
@@ -139,11 +163,11 @@ es_config_garch <- list(
 # Model list
 model_list_garch <- list(
   "GARCH" = garch_norm,
-  "EGARCH" = egarch,
-  "RV_GARCH" = rv_garch,
- "AR_GARCH" = ar_garch_norm,
+  "EGARCH" = egarch
+  #"RV_GARCH" = rv_garch,
+ #"AR_GARCH" = ar_garch_norm,
   #"AR_GARCH_t" = ar_garch_t
-  "GARCH_t" = garch_t
+  #"GARCH_t" = garch_t
 
 )
 
@@ -291,11 +315,11 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(2
 
 ############################ Defining all model combinations ##################################################
 all_model_groups <- list(
-  list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer)
+  list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer),
   #list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
   #list(models = model_list_DB, alpha_config = alpha_config_db, es_config = es_config_db),
   #list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
-  #list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
+  list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
 )
 ############################## Running to get all result variations ###########################################
 esr_results <- run_esr_backtests(

@@ -592,8 +592,8 @@ for version in [
     "rv-final-rolling",
     "rv-and-ivol-final-rolling",
     # Diagnostic models
-    "rv-and-ivol-final-diagnostic",
-    "rv-and-ivol-final-rolling-diagnostic",
+    # "rv-and-ivol-final-diagnostic",
+    # "rv-and-ivol-final-rolling-diagnostic",
 ]:
     try:
         fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
@@ -1869,11 +1869,9 @@ plt.figure(figsize=(12, 6))
 from_date = "2024-01-01"
 to_date = "2024-06-30"
 for name in [
-    # "GARCH",
-    # "LSTM MDN rv-and-ivol-final_ensemble",
-    # "LSTM MDN rv-and-ivol-final-rolling",
-    "LSTM MDN rv-and-ivol-final-diagnostic",
-    "LSTM MDN rv-and-ivol-final-rolling-diagnostic",
+    "GARCH",
+    "LSTM MDN rv-and-ivol-final_ensemble",
+    "LSTM MDN rv-and-ivol-final-rolling",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
     nll_df = pd.DataFrame(
@@ -1912,6 +1910,9 @@ for metric in results_df.index:
         # Temporarily remove CRPS from ranking because it is not available for all models
         or "CRPS" in metric
     ):
+        continue
+
+    if values.isnull().all():
         continue
 
     # Determine ranking rule for each metric.
