@@ -53,25 +53,6 @@ EPOCHS = 50 if USE_EARLY_STOPPING else OPTIMAL_EPOCHS
 PARALLELLIZE = True
 
 # %%
-# Print clear message about which set we are using
-msg = [
-    f"LSTM MDN Ensemble v{VERSION} on **{TEST_SET}** data",
-    (
-        (
-            "Training up to {EPOCHS} epochs with early stopping"
-            if USE_EARLY_STOPPING
-            else f"Training without early stopping (using epochs = {OPTIMAL_EPOCHS})"
-        )
-        if TRAIN
-        else "No training"
-    ),
-]
-max_len = max(len(m) for m in msg)
-print("@" * (max_len + 4))
-print("\n".join([f"@ {m.ljust(max_len)} @" for m in msg]))
-print("@" * (max_len + 4))
-
-# %%
 # Imports from code shared across models
 from shared.mdn import (
     calculate_es_for_quantile,
@@ -262,6 +243,25 @@ def _train_single_member(args):
 if __name__ == "__main__":
     print(f"Training LSTM MDN Ensemble v{VERSION}")
     mp.set_start_method("spawn", force=True)
+
+    # %%
+    # Print clear message about which set we are using
+    msg = [
+        f"LSTM MDN Ensemble v{VERSION} on **{TEST_SET}** data",
+        (
+            (
+                "Training up to {EPOCHS} epochs with early stopping"
+                if USE_EARLY_STOPPING
+                else f"Training without early stopping (using epochs = {OPTIMAL_EPOCHS})"
+            )
+            if TRAIN
+            else "No training"
+        ),
+    ]
+    max_len = max(len(m) for m in msg)
+    print("@" * (max_len + 4))
+    print("\n".join([f"@ {m.ljust(max_len)} @" for m in msg]))
+    print("@" * (max_len + 4))
 
     # %%
     # Load preprocessed data
