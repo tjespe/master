@@ -2735,34 +2735,45 @@ for model_set in [our, traditional, ml_benchmarks]:
                         f"Skipping {model_name} for {ticker} at {cl} due to NaN values in bounds"
                     )
                     continue
+                alpha = 0.75 - i * 0.14
                 plt.fill_between(
                     lb.index,
                     lb,
                     ub,
                     color="blue",
-                    alpha=0.7 - i * 0.07,
-                    label=f"{100*cl:.1f}% Interval",
+                    alpha=alpha,
+                    label=f"{format_cl(cl)}% Interval",
                 )
                 # Mark violations
                 violations = np.logical_or(
                     true_log_ret < lb,
                     true_log_ret > ub,
                 )
-                plt.scatter(
-                    true_log_ret[violations].index,
-                    true_log_ret[violations],
-                    marker="x",
-                    label=f"Violations ({100*cl:.1f}%)",
-                )
+                mark_color = (0.3 + i * 0.1,) * 3
+                # Commented out now because it is too crowded
+                # plt.scatter(
+                #     true_log_ret[violations].index,
+                #     true_log_ret[violations],
+                #     marker="x",
+                #     label=f"Exceedances",
+                #     color=mark_color,
+                #     s=100,
+                #     zorder=20 - i,
+                # )
             plt.ylim(-0.2, 0.2)
+            plt.xlim(ticker_df.index.min(), ticker_df.index.max())
             plt.gca().set_yticklabels(
                 ["{:.1f}%".format(n * 100) for n in plt.gca().get_yticks()]
             )
             plt.title(f"{display_name} predictions for {ticker} on holdout data")
-            plt.xlabel("Date")
-            plt.ylabel("Return")
-            # Place legend outside of plot
-            plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
+            # Place legend below plot
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=4,
+                fontsize=10,
+                frameon=False,
+            )
             # Ensure everything fits in the figure
             plt.tight_layout()
             plt.savefig(f"results/time_series/{ticker}_{model_name}.pdf")
@@ -2770,6 +2781,8 @@ for model_set in [our, traditional, ml_benchmarks]:
                 plt.show()
             plt.close()
 
+
+# %%
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
