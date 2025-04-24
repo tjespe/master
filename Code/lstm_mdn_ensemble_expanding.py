@@ -12,7 +12,7 @@ from settings import (
 )
 import multiprocessing as mp
 
-VERSION = "ivol-final-rolling"
+VERSION = "rv-and-ivol-final-rolling"
 
 # %%
 # Feature selection
