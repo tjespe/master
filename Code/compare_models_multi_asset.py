@@ -560,107 +560,104 @@ for version in ["norm", "std"]:
         print("Realized GARCH predictions not found")
 
 
-# LSTM MDN
-for version in [
-    # "quick",
-    # "fe",
-    # "pireg",
-    # "dynamic",
-    # "dynamic-weighted",
-    # "embedded",
-    # "l2",
-    # "embedded-2",
-    # "embedded-small",
-    # "crps",
-    # "crps-2",
-    # "nll-crps-mix",
-    # 3,
-    # "basic",
-    # "basic-w-tickers",
-    # "rv-data",
-    "rv-data-2",
-    # "rv-data-3",
-    # "w-egarch",
-    # "w-egarch-2",
-    "ffnn",
-    # "tuned",
-    # "tuned-w-fred",
-    "ivol-only",
-    "rv-only",
-    "rv-5-only",
-    "rv-and-ivol",
-    ###################
-    # Ensemble models #
-    ###################
-    "ivol-only_ensemble",
-    "ivol-only-2_ensemble",
-    "rv-only_ensemble",
-    "rv-and-ivol_ensemble",
-    ####################
-    # Test data models #
-    ####################
-    "ivol-final_ensemble",
-    "rv-final_ensemble",
-    "rv-and-ivol-final_ensemble",
-]:
-    try:
-        lstm_mdn_df = pd.read_csv(
-            f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
-        )
-        lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
-        lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
-        lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
-        lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
-        lstm_mdn_df = lstm_mdn_df[
-            (
-                (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
-                & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
-                if TEST_SET == "validation"
-                else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
-            )
-        ]
-        if np.isnan(lstm_mdn_df["Mean_SP"]).all():
-            raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
-        combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
-        ece_col = combined_df.get("ECE")
-        entry = {
-            "name": f"LSTM MDN {version}",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "epistemic_var": combined_df.get("EpistemicVarMean"),
-            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            "dates": combined_df.index.get_level_values("Date"),
-            "crps": (
-                crps.values if (crps := combined_df.get("CRPS")) is not None else None
-            ),
-            "p_up": combined_df.get("Prob_Increase"),
-            "ece": ece_col.median() if ece_col is not None else None,
-        }
-        for cl in ALL_CONFIDENCE_LEVELS:
-            lb = combined_df.get(f"LB_{format_cl(cl)}")
-            ub = combined_df.get(f"UB_{format_cl(cl)}")
-            if lb is None or ub is None:
-                print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
-            entry[f"LB_{format_cl(cl)}"] = lb
-            entry[f"UB_{format_cl(cl)}"] = ub
-            alpha = 1 - (1 - cl) / 2
-            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
-        preds_per_model.append(entry)
-        nans = combined_df["Mean_SP"].isnull().sum()
-        if nans > 0:
-            print(f"LSTM MDN {version} has {nans} NaN predictions")
-    except FileNotFoundError:
-        print(f"LSTM MDN {version} predictions not found")
+# LSTM MDN (not with expanding window, so no longer in use)
+# for version in [
+#     # "quick",
+#     # "fe",
+#     # "pireg",
+#     # "dynamic",
+#     # "dynamic-weighted",
+#     # "embedded",
+#     # "l2",
+#     # "embedded-2",
+#     # "embedded-small",
+#     # "crps",
+#     # "crps-2",
+#     # "nll-crps-mix",
+#     # 3,
+#     # "basic",
+#     # "basic-w-tickers",
+#     # "rv-data",
+#     "rv-data-2",
+#     # "rv-data-3",
+#     # "w-egarch",
+#     # "w-egarch-2",
+#     "ffnn",
+#     # "tuned",
+#     # "tuned-w-fred",
+#     "ivol-only",
+#     "rv-only",
+#     "rv-5-only",
+#     "rv-and-ivol",
+#     ###################
+#     # Ensemble models #
+#     ###################
+#     "ivol-only_ensemble",
+#     "ivol-only-2_ensemble",
+#     "rv-only_ensemble",
+#     "rv-and-ivol_ensemble",
+#     ####################
+#     # Test data models #
+#     ####################
+#     "ivol-final_ensemble",
+#     "rv-final_ensemble",
+#     "rv-and-ivol-final_ensemble",
+# ]:
+#     try:
+#         lstm_mdn_df = pd.read_csv(
+#             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
+#         )
+#         lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
+#         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
+#         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
+#         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
+#         lstm_mdn_df = lstm_mdn_df[
+#             (
+#                 (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
+#                 & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+#                 if TEST_SET == "validation"
+#                 else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
+#             )
+#         ]
+#         if np.isnan(lstm_mdn_df["Mean_SP"]).all():
+#             raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
+#         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
+#         ece_col = combined_df.get("ECE")
+#         entry = {
+#             "name": f"LSTM MDN {version}",
+#             "mean_pred": combined_df["Mean_SP"].values,
+#             "volatility_pred": combined_df["Vol_SP"].values,
+#             "epistemic_var": combined_df.get("EpistemicVarMean"),
+#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+#             "symbols": combined_df.index.get_level_values("Symbol"),
+#             "dates": combined_df.index.get_level_values("Date"),
+#             "crps": (
+#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
+#             ),
+#             "p_up": combined_df.get("Prob_Increase"),
+#             "ece": ece_col.median() if ece_col is not None else None,
+#         }
+#         for cl in ALL_CONFIDENCE_LEVELS:
+#             lb = combined_df.get(f"LB_{format_cl(cl)}")
+#             ub = combined_df.get(f"UB_{format_cl(cl)}")
+#             if lb is None or ub is None:
+#                 print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
+#             entry[f"LB_{format_cl(cl)}"] = lb
+#             entry[f"UB_{format_cl(cl)}"] = ub
+#             alpha = 1 - (1 - cl) / 2
+#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+#         preds_per_model.append(entry)
+#         nans = combined_df["Mean_SP"].isnull().sum()
+#         if nans > 0:
+#             print(f"LSTM MDN {version} has {nans} NaN predictions")
+#     except FileNotFoundError:
+#         print(f"LSTM MDN {version} predictions not found")
 
 # LSTM MDN, new naming convention
 for version in [
     "ivol-final-rolling",
     "rv-final-rolling",
     "rv-and-ivol-final-rolling",
-    # Diagnostic models
-    # "rv-and-ivol-final-diagnostic",
-    # "rv-and-ivol-final-rolling-diagnostic",
 ]:
     try:
         fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
@@ -1916,7 +1913,7 @@ results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
 plt.figure(figsize=(12, 6))
 for name in [
     "GARCH",
-    "LSTM MDN rv-and-ivol-final_ensemble",
+    # "LSTM MDN rv-and-ivol-final_ensemble",
     "LSTM MDN rv-and-ivol-final-rolling",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
@@ -1940,7 +1937,7 @@ from_date = "2024-01-01"
 to_date = "2024-06-30"
 for name in [
     "GARCH",
-    "LSTM MDN rv-and-ivol-final_ensemble",
+    # "LSTM MDN rv-and-ivol-final_ensemble",
     "LSTM MDN rv-and-ivol-final-rolling",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
@@ -2256,9 +2253,9 @@ styled_df
 # %%
 # Generate tables for Latex document
 our = [
-    ("LSTM-MDN-RV", "LSTM MDN rv-final_ensemble"),
-    ("LSTM-MDN-IV", "LSTM MDN ivol-final_ensemble"),
-    ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final_ensemble"),
+    ("LSTM-MDN-RV", "LSTM MDN rv-final-rolling"),
+    ("LSTM-MDN-IV", "LSTM MDN ivol-final-rolling"),
+    ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final-rolling"),
     ("Transformer-MDN-RV", "Transformer MDN rv_ensemble"),
     ("Transformer-MDN-IV", "Transformer MDN ivol_ensemble"),
     ("Transformer-MDN-RV-IV", "Transformer MDN rv-and-ivol_ensemble"),
