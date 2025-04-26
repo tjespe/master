@@ -30,7 +30,7 @@ transformer_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "transf
 
 # rolling
 transformer_RV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_rvol_test_expanding.csv"))
-#transformer_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vivol-final-rolling_ensemble_test.csv"))
+transformer_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_ivol_test_expanding.csv"))
 transformer_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_rvol-ivol_test_expanding.csv"))
 
 ############ LSTM ###################
@@ -102,7 +102,7 @@ transformer_RV_ensemble <- transformer_RV_ensemble[transformer_RV_ensemble$Symbo
 transformer_IV_ensemble <- transformer_IV_ensemble[transformer_IV_ensemble$Symbol != "DOW", ]
 transformer_RV_IV_ensemble <- transformer_RV_IV_ensemble[transformer_RV_IV_ensemble$Symbol != "DOW", ]
 transformer_RV_ensemble_rolling <- transformer_RV_ensemble_rolling[transformer_RV_ensemble_rolling$Symbol != "DOW", ]
-# transformer_IV_ensemble_rolling <- transformer_IV_ensemble_rolling[transformer_IV_ensemble_rolling$Symbol != "DOW", ]
+transformer_IV_ensemble_rolling <- transformer_IV_ensemble_rolling[transformer_IV_ensemble_rolling$Symbol != "DOW", ]
 transformer_RV_IV_ensemble_rolling <- transformer_RV_IV_ensemble_rolling[transformer_RV_IV_ensemble_rolling$Symbol != "DOW", ]
 lstm_RV_ensemble <- lstm_RV_ensemble[lstm_RV_ensemble$Symbol != "DOW", ]
 lstm_IV_ensemble <- lstm_IV_ensemble[lstm_IV_ensemble$Symbol != "DOW", ]
@@ -147,18 +147,18 @@ es_config_lstm_transformer <- list(
 
 # Model list
 model_list_lstm_transformer <- list(
- "LSTM_RV" = lstm_RV_ensemble,
- "LSTM_IV" = lstm_IV_ensemble,
- "LSTM_RV_IV" = lstm_RV_IV_ensemble,
- "Transformer_RV" = transformer_RV_ensemble,
-"Transformer_IV" = transformer_IV_ensemble,
- "Transformer_RV_IV" = transformer_RV_IV_ensemble,
+ #"LSTM_RV" = lstm_RV_ensemble,
+ #"LSTM_IV" = lstm_IV_ensemble,
+ #"LSTM_RV_IV" = lstm_RV_IV_ensemble,
+ #"Transformer_RV" = transformer_RV_ensemble,
+#"Transformer_IV" = transformer_IV_ensemble,
+ #"Transformer_RV_IV" = transformer_RV_IV_ensemble,
  # "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
   "LSTM_RV_ensemble_rolling" = lstm_RV_ensemble_rolling,
   "LSTM_IV_ensemble_rolling" = lstm_IV_ensemble_rolling,
   "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling,
   "Transformer_RV_ensemble_rolling" = transformer_RV_ensemble_rolling,
-  #"Transformer_IV_ensemble_rolling" = transformer_IV_ensemble_rolling,
+  "Transformer_IV_ensemble_rolling" = transformer_IV_ensemble_rolling,
   "Transformer_RV_IV_ensemble_rolling" = transformer_RV_IV_ensemble_rolling
 )
 
@@ -243,11 +243,12 @@ model_list_HAR <- list(
 #####################################################
 
 
-
+names(transformer_RV_ensemble_rolling)
+head(transformer_RV_ensemble_rolling[, grep("^ES", names(transformer_RV_ensemble_rolling))])
 
 
 ####################### DEFINE FUNCTION THAT DOES IT ALL #############################################################
-run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(2), sig_levels = c(0.05)) {
+run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1), sig_levels = c(0.05)) {
   all_results <- list()
   
   for (test_version in test_versions) {
@@ -269,15 +270,29 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(2
             fail_count <- 0
             
             for (sym in symbols) {
-              model_sym_data <- model_data[model_data$Symbol == sym, ]
-              return_sym_data <- return_data[return_data$Symbol == sym, ]
+              # grab the single column names for this alpha
+              alpha_col <- alpha_config$columns[[ as.character(alpha) ]]
+              es_col    <- es_config$columns[[ as.character(alpha) ]]
               
-              if (nrow(model_sym_data) != nrow(return_sym_data)) next
-              if (anyNA(model_sym_data) || anyNA(return_sym_data)) next
+              # subset and align by Date
+              returns <- return_data %>%
+                filter(Symbol == sym) %>%
+                select(Date, LogReturn) %>%
+                arrange(Date)
               
-              r <- return_sym_data$LogReturn
-              q <- model_sym_data[[alpha_config$columns[[as.character(alpha)]]]]
-              e <- model_sym_data[[es_config$columns[[as.character(alpha)]]]]
+              preds   <- model_data %>%
+                filter(Symbol == sym) %>%
+                select(Date, all_of(c(alpha_col, es_col))) %>%
+                arrange(Date)
+              
+              # do an inner???join to line up dates exactly
+              joint   <- inner_join(returns, preds, by = "Date")
+              if (nrow(joint) == 0) next  # no overlap
+              
+              # now extract r, q, e
+              r <- joint$LogReturn
+              q <- joint[[alpha_col]]
+              e <- joint[[es_col]]
               
               result <- tryCatch({
                 esr_backtest(
@@ -349,3 +364,84 @@ for (key in names(esr_results)) {
   df$Alpha <- factor(df$Alpha, levels = c(0.01, 0.025, 0.05), labels = c("1%", "2.5%", "5%"))
   print(kable(df, format = "pipe", digits = 2, align = 'c'))
 }
+
+
+
+# IGNORE THIS
+###########################################################
+# isolate one model to see what happens
+# pick your model & return data
+model_df   <- transformer_RV_IV_ensemble_rolling
+return_df  <- return_data
+
+symbols    <- unique(model_df$Symbol)
+alphas     <- alpha_config_lstm_transformer$levels
+
+# prepare a list to collect everything
+results_list <- list()
+
+for (alpha in alphas) {
+  alpha_col <- alpha_config_lstm_transformer$columns[[ as.character(alpha) ]]
+  es_col    <- es_config_lstm_transformer$columns   [[ as.character(alpha)  ]]
+  
+  cat("\n=== ?? =", alpha, "(", alpha_col, "/", es_col, ") ===\n")
+  
+  for (sym in symbols) {
+    cat("  ???", sym, "??? ")
+    
+    # grab + align
+    returns <- return_df %>%
+      filter(Symbol == sym) %>%
+      select(Date, LogReturn) %>%
+      arrange(Date)
+    
+    preds <- model_df %>%
+      filter(Symbol == sym) %>%
+      select(Date, all_of(c(alpha_col, es_col))) %>%
+      arrange(Date)
+    
+    joint <- inner_join(returns, preds, by = "Date")
+    if (nrow(joint) == 0) {
+      cat("no dates ??? skip\n")
+      next
+    }
+    
+    # run ESR
+    res <- tryCatch(
+      esr_backtest(
+        r     = joint$LogReturn,
+        q     = joint[[alpha_col]],
+        e     = joint[[es_col]],
+        alpha = alpha,
+        version = 1,
+        cov_config = list(sparsity="nid", sigma_est="scl_sp", misspec=TRUE)
+      ),
+      error = function(e) NULL
+    )
+    
+    if (is.null(res) || is.null(res$pvalue_twosided_asymptotic)) {
+      cat("error/NA p-val\n")
+      next
+    }
+    
+    pval   <- res$pvalue_twosided_asymptotic
+    passed <- pval >= 0.05
+    cat("p-val=", round(pval, 3),
+        ifelse(passed, "[PASS]\n", "[FAIL]\n"))
+    
+    # store
+    results_list[[ length(results_list) + 1 ]] <- data.frame(
+      Alpha   = alpha,
+      Symbol  = sym,
+      p_value = pval,
+      Passed  = passed,
+      stringsAsFactors = FALSE
+    )
+  }
+}
+
+# combine & display
+library(knitr)
+all_sym_results <- do.call(rbind, results_list)
+kable(all_sym_results, digits=3, caption="ESR p-values")
+
