@@ -709,30 +709,92 @@ for version in [
     except Exception as e:
         print(f"Issue loading LSTM MDN {version} predictions: {e}")
 
-# Transformer MDN
+# # Transformer MDN
+# for version in [
+#     # 3,
+#     "time",
+#     # "time-2",
+#     # "mini",
+#     # "tuned",
+#     # "tuned-2",
+#     # "time-step-attention",
+#     # "last-time-step",
+#     # "tuned-overridden",
+#     # "w-fred",
+#     "tuned-8-mixtures",
+#     "tuned-calibration",
+#     "ivol-only",
+#     "rv-only",
+#     "rv-and-ivol",
+#     "rv_test_ensemble",
+#     "ivol_test_ensemble",
+#     "rv-and-ivol_test_ensemble",
+# ]:
+#     try:
+#         transformer_df = pd.read_csv(
+#             f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
+#         )
+#         transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
+#         transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
+#         transformer_df = transformer_df.set_index(["Date", "Symbol"])
+#         transformer_dates = transformer_df.index.get_level_values("Date")
+#         transformer_df = transformer_df[
+#             (
+#                 (transformer_dates >= TRAIN_VALIDATION_SPLIT)
+#                 & (transformer_dates < VALIDATION_TEST_SPLIT)
+#                 if TEST_SET == "validation"
+#                 else (transformer_dates >= VALIDATION_TEST_SPLIT)
+#             )
+#         ]
+#         if np.isnan(transformer_df["Mean_SP"]).all():
+#             raise FileNotFoundError(
+#                 f"All Transformer MDN {version} predictions are NaN"
+#             )
+#         combined_df = df_validation.join(
+#             transformer_df, how="left", rsuffix="_Transformer_MDN"
+#         )
+#         ece_col = combined_df.get("ECE")
+#         entry = {
+#             "name": f"Transformer MDN {version}",
+#             "mean_pred": combined_df["Mean_SP"].values,
+#             "volatility_pred": combined_df["Vol_SP"].values,
+#             "epistemic_var": combined_df.get("EpistemicVarMean"),
+#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+#             "dates": combined_df.index.get_level_values("Date"),
+#             "symbols": combined_df.index.get_level_values("Symbol"),
+#             "crps": (
+#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
+#             ),
+#             "p_up": combined_df.get("Prob_Increase"),
+#             "ece": ece_col.median() if ece_col is not None else None,
+#         }
+#         for cl in ALL_CONFIDENCE_LEVELS:
+#             lb = combined_df.get(f"LB_{format_cl(cl)}")
+#             ub = combined_df.get(f"UB_{format_cl(cl)}")
+#             if lb is None or ub is None:
+#                 print(
+#                     f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
+#                 )
+#             entry[f"LB_{format_cl(cl)}"] = lb
+#             entry[f"UB_{format_cl(cl)}"] = ub
+#             alpha = 1 - (1 - cl) / 2
+#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+#         preds_per_model.append(entry)
+#         nans = combined_df["Mean_SP"].isnull().sum()
+#         if nans > 0:
+#             print(f"Transformer MDN {version} has {nans} NaN predictions")
+#     except FileNotFoundError:
+#         print(f"Transformer MDN {version} predictions not found")
+
+# Transformer MDN, new naming convention
 for version in [
-    # 3,
-    "time",
-    # "time-2",
-    # "mini",
-    # "tuned",
-    # "tuned-2",
-    # "time-step-attention",
-    # "last-time-step",
-    # "tuned-overridden",
-    # "w-fred",
-    "tuned-8-mixtures",
-    "tuned-calibration",
-    "ivol-only",
-    "rv-only",
-    "rv-and-ivol",
-    "rv_test_ensemble",
-    "ivol_test_ensemble",
-    "rv-and-ivol_test_ensemble",
+    "rvol",
+    "ivol",
+    "rvol-ivol",
 ]:
     try:
         transformer_df = pd.read_csv(
-            f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
+            f"transformer_mdn_ensemble_{version}_test_expanding.csv"
         )
         transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
         transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
@@ -755,7 +817,7 @@ for version in [
         )
         ece_col = combined_df.get("ECE")
         entry = {
-            "name": f"Transformer MDN {version}",
+            "name": f"Transformer MDN {version} expanding",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
             "epistemic_var": combined_df.get("EpistemicVarMean"),
@@ -773,7 +835,7 @@ for version in [
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
                 print(
-                    f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
+                    f"Missing {format_cl(cl)}% interval for Transformer MDN {version} expanding"
                 )
             entry[f"LB_{format_cl(cl)}"] = lb
             entry[f"UB_{format_cl(cl)}"] = ub
@@ -782,9 +844,9 @@ for version in [
         preds_per_model.append(entry)
         nans = combined_df["Mean_SP"].isnull().sum()
         if nans > 0:
-            print(f"Transformer MDN {version} has {nans} NaN predictions")
+            print(f"Transformer MDN {version} expanding has {nans} NaN predictions")
     except FileNotFoundError:
-        print(f"Transformer MDN {version} predictions not found")
+        print(f"Transformer MDN {version} expanding predictions not found")
 
 # Ensemble MDN
 for version in ["rv-iv"]:

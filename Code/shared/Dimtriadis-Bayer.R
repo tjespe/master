@@ -29,9 +29,9 @@ transformer_IV_ensemble     <- read.csv(file.path(base_path_predictions, "transf
 transformer_RV_IV_ensemble  <- read.csv(file.path(base_path_predictions, "transformer_mdn_predictions_stocks_vrv-and-ivol_test_ensemble.csv"))
 
 # rolling
-#transformer_RV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vrv-final-rolling_ensemble_test.csv"))
+transformer_RV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_rvol_test_expanding.csv"))
 #transformer_IV_ensemble_rolling     <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vivol-final-rolling_ensemble_test.csv"))
-#transformer_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_stocks_vrv-and-ivol-final-rolling_ensemble_test.csv"))
+transformer_RV_IV_ensemble_rolling  <- read.csv(file.path(base_path_predictions, "transformer_mdn_ensemble_rvol-ivol_test_expanding.csv"))
 
 ############ LSTM ###################
 
@@ -101,9 +101,9 @@ harq  <- read.csv(file.path(base_path_predictions, "HARQ_R.csv"))
 transformer_RV_ensemble <- transformer_RV_ensemble[transformer_RV_ensemble$Symbol != "DOW", ]
 transformer_IV_ensemble <- transformer_IV_ensemble[transformer_IV_ensemble$Symbol != "DOW", ]
 transformer_RV_IV_ensemble <- transformer_RV_IV_ensemble[transformer_RV_IV_ensemble$Symbol != "DOW", ]
-# transformer_RV_ensemble_rolling <- transformer_RV_ensemble_rolling[transformer_RV_ensemble_rolling$Symbol != "DOW", ]
+transformer_RV_ensemble_rolling <- transformer_RV_ensemble_rolling[transformer_RV_ensemble_rolling$Symbol != "DOW", ]
 # transformer_IV_ensemble_rolling <- transformer_IV_ensemble_rolling[transformer_IV_ensemble_rolling$Symbol != "DOW", ]
-# transformer_RV_IV_ensemble_rolling <- transformer_RV_IV_ensemble_rolling[transformer_RV_IV_ensemble_rolling$Symbol != "DOW", ]
+transformer_RV_IV_ensemble_rolling <- transformer_RV_IV_ensemble_rolling[transformer_RV_IV_ensemble_rolling$Symbol != "DOW", ]
 lstm_RV_ensemble <- lstm_RV_ensemble[lstm_RV_ensemble$Symbol != "DOW", ]
 lstm_IV_ensemble <- lstm_IV_ensemble[lstm_IV_ensemble$Symbol != "DOW", ]
 lstm_RV_IV_ensemble <- lstm_RV_IV_ensemble[lstm_RV_IV_ensemble$Symbol != "DOW", ]
@@ -156,7 +156,10 @@ model_list_lstm_transformer <- list(
  # "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
   "LSTM_RV_ensemble_rolling" = lstm_RV_ensemble_rolling,
   "LSTM_IV_ensemble_rolling" = lstm_IV_ensemble_rolling,
-  "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling
+  "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling,
+  "Transformer_RV_ensemble_rolling" = transformer_RV_ensemble_rolling,
+  #"Transformer_IV_ensemble_rolling" = transformer_IV_ensemble_rolling,
+  "Transformer_RV_IV_ensemble_rolling" = transformer_RV_IV_ensemble_rolling
 )
 
 
