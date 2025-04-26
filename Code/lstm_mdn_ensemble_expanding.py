@@ -2,6 +2,7 @@
 # Define parameters (based on settings)
 import subprocess
 from typing import Optional
+from lstm_mdn_ensemble import build_lstm_mdn
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
 from settings import (
@@ -11,7 +12,7 @@ from settings import (
 )
 import multiprocessing as mp
 
-VERSION = "ivol-final-rolling"
+VERSION = "rv-and-ivol-final-rolling"
 
 # %%
 # Feature selection
@@ -28,10 +29,10 @@ INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_TICKERS = False
 INCLDUE_FRED_MD = False
-INCLUDE_10_DAY_IVOL = True
-INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = False
-INCLUDE_5MIN_RV = False
+INCLUDE_10_DAY_IVOL = "ivol" in VERSION
+INCLUDE_30_DAY_IVOL = "ivol" in VERSION
+INCLUDE_1MIN_RV = "rv" in VERSION
+INCLUDE_5MIN_RV = "rv" in VERSION
 
 # %%
 # Model settings
@@ -101,86 +102,6 @@ from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
-
-
-# %%
-def build_lstm_mdn(
-    num_features: int,
-    ticker_ids_dim: Optional[int],
-):
-    """
-    Creates a lstm-based encoder for sequences of shape:
-      (lookback_days, num_features)
-    Then outputs 3*n_mixtures for MDN (univariate).
-    """
-    # Sequence input (time series)
-    seq_input = Input(shape=(LOOKBACK_DAYS, num_features), name="seq_input")
-
-    inputs = [seq_input]  # We'll append ticker_input if we have tickers
-
-    # If we have ticker IDs, embed them
-    if ticker_ids_dim is not None:
-        ticker_input = Input(shape=(), dtype="int32", name="ticker_input")
-        inputs.append(ticker_input)
-
-        # 1) Embed the ticker ID -> shape: (batch, embed_dim)
-        ticker_embed = Embedding(
-            input_dim=ticker_ids_dim,
-            output_dim=EMBEDDING_DIMENSIONS,
-            name="ticker_embedding",
-        )(
-            ticker_input
-        )  # shape: (batch, 1, embed_dim)
-
-        ticker_embed = Flatten()(ticker_embed)  # shape: (batch, embed_dim)
-
-        # 2) Repeat the embedding across time -> shape: (batch, lookback_days, embed_dim)
-        ticker_embed = RepeatVector(LOOKBACK_DAYS)(ticker_embed)
-
-        # 3) Concatenate with the input features -> shape: (batch, lookback_days, num_features + embed_dim)
-        x = Concatenate(axis=-1, name="concat_seq_ticker")([seq_input, ticker_embed])
-    else:
-        # No ticker input
-        x = seq_input
-
-    # 4) Pass through LSTM
-    x = LSTM(
-        units=HIDDEN_UNITS,
-        activation="tanh",
-        kernel_regularizer=l2(1e-3),
-        name="lstm_layer",
-    )(x)
-
-    if DROPOUT > 0:
-        x = Dropout(DROPOUT, name="dropout_lstm")(x)
-
-    # 5) Optionally pass through additional Dense layers
-    for i in range(NUM_HIDDEN_LAYERS):
-        x = Dense(
-            units=HIDDEN_UNITS,
-            activation="relu",
-            kernel_regularizer=l2(1e-3),
-            name=f"dense_layer_{i}",
-        )(x)
-        if DROPOUT > 0:
-            x = Dropout(DROPOUT, name=f"dropout_layer_{i}")(x)
-
-    # MDN output layer: 3 * n_mixtures (for [logits_pi, mu, log_var])
-    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
-    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
-    mdn_output = Dense(
-        3 * N_MIXTURES,
-        activation=None,
-        kernel_initializer=mdn_kernel_init,
-        bias_initializer=mdn_bias_init,
-        name="mdn_output",
-    )(x)
-
-    model = Model(
-        inputs=[seq_input, ticker_input] if ticker_ids_dim is not None else [seq_input],
-        outputs=mdn_output,
-    )
-    return model
 
 
 # %%
@@ -427,65 +348,6 @@ if __name__ == "__main__":
     intervals = calculate_intervals_vectorized(
         pi_pred, mu_pred, sigma_pred, confidence_levels
     )
-
-    # %%
-    # 12) Plot time series with mean, volatility and actual returns for last X days
-    mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-    for ticker in example_tickers:
-        ticker_mean = filter_ndarray(ticker, mean)
-        ticker_intervals = filter_ndarray(ticker, intervals)
-        ticker_dates = filter_ndarray(ticker, dates)
-        actual_return = filter_ndarray(ticker, true_y)
-
-        plt.figure(figsize=(12, 6))
-        plt.plot(
-            ticker_dates,
-            actual_return,
-            label="Actual Returns",
-            color="black",
-            alpha=0.5,
-        )
-        plt.plot(ticker_dates, ticker_mean, label="Predicted Mean", color="red")
-        median = ticker_intervals[:, 0, 0]
-        plt.plot(ticker_dates, median, label="Median", color="green")
-        for i, cl in enumerate(confidence_levels):
-            if cl == 0:
-                continue
-            plt.fill_between(
-                ticker_dates,
-                ticker_intervals[:, i, 0],
-                ticker_intervals[:, i, 1],
-                color="blue",
-                alpha=0.7 - i * 0.07,
-                label=f"{100*cl:.1f}% Interval",
-            )
-            # Mark violations
-            violations = np.logical_or(
-                actual_return < ticker_intervals[:, i, 0],
-                actual_return > ticker_intervals[:, i, 1],
-            )
-            plt.scatter(
-                np.array(ticker_dates)[violations],
-                actual_return[violations],
-                marker="x",
-                label=f"Violations ({100*cl:.1f}%)",
-            )
-        plt.axhline(
-            actual_return.mean(),
-            color="red",
-            linestyle="--",
-            label="True mean return across time",
-            alpha=0.5,
-        )
-        plt.gca().set_yticklabels(
-            ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
-        )
-        plt.title(f"LSTM w MDN predictions for {ticker}, test data")
-        plt.xlabel("Date")
-        plt.ylabel("LogReturn")
-        # Place legend outside of plot
-        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(f"results/time_series/{ticker}_{MODEL_NAME}.svg")
 
     # %%
     # 13) Make data frame for signle pass predictions

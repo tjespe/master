@@ -4,6 +4,7 @@ from shared.adequacy import (
     christoffersen_test,
     pooled_bayer_dimitriadis_test,
 )
+from shared.jupyter import is_notebook
 from shared.mdn import calculate_es_for_quantile
 from shared.conf_levels import format_cl
 from shared.loss import (
@@ -31,8 +32,12 @@ from arch.bootstrap import MCS
 
 
 # %%
-# Defined which confidence level to use for prediction intervals
+# Define which confidence levels to look at in tests
 CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+
+# %%
+# Define all confidence levels that we want to read from the files
+ALL_CONFIDENCE_LEVELS = CONFIDENCE_LEVELS + [0.99, 0.995]
 
 # %%
 # Select whether to only filter on important tickers
@@ -148,7 +153,7 @@ for garch_type in ["GARCH", "EGARCH"]:
             "ece": ece_gaussian(y_true, mus, log_vars),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * garch_vol_pred
@@ -227,6 +232,67 @@ try:
         print(f"GARCH Student-t has {nans} NaN predictions")
 except FileNotFoundError:
     print("GARCH Student-t predictions not found")
+
+# GARCH Skewed-t Model
+try:
+    garch_skewt_vol_pred = pd.read_csv("predictions/garch_predictions_skewt.csv")
+    garch_skewt_vol_pred["Date"] = pd.to_datetime(garch_skewt_vol_pred["Date"])
+    garch_skewt_vol_pred = garch_skewt_vol_pred.set_index(["Date", "Symbol"])
+    garch_skewt_dates = garch_skewt_vol_pred.index.get_level_values("Date")
+    garch_skewt_vol_pred = garch_skewt_vol_pred[
+        (
+            (garch_skewt_dates >= TRAIN_VALIDATION_SPLIT)
+            & (garch_skewt_dates < VALIDATION_TEST_SPLIT)
+            if TEST_SET == "validation"
+            else (garch_skewt_dates >= VALIDATION_TEST_SPLIT)
+        )
+    ]
+    if np.isnan(garch_skewt_vol_pred).all().all():
+        raise FileNotFoundError("All GARCH Skewed-t predictions are NaN")
+    combined_df = df_validation.join(
+        garch_skewt_vol_pred, how="left", rsuffix="_GARCH_skewt"
+    )
+    garch_skewt_vol_pred = combined_df["GARCH_skewt_Vol"].values
+    y_true = combined_df["LogReturn"].values
+    mus = np.zeros_like(garch_skewt_vol_pred)
+    nus = combined_df["GARCH_skewt_Nu"].values
+    skew = combined_df["GARCH_skewt_Skew"].values
+    crps = combined_df["GARCH_skewt_CRPS"].values
+
+    entry = {
+        "name": "GARCH Skewed-t",
+        "mean_pred": mus,
+        "volatility_pred": garch_skewt_vol_pred,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "dates": combined_df.index.get_level_values("Date"),
+        # "nll": student_t_nll( must make a new function for this
+        #     y_true,
+        #     mus,
+        #     garch_skewt_vol_pred,
+        #     nus,
+        #     skew=skew
+        # ),
+        "crps": crps,
+        # "ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
+        "LB_67": combined_df["LB_67"].values,
+        "UB_67": combined_df["UB_67"].values,
+        "LB_90": combined_df["LB_90"].values,
+        "UB_90": combined_df["UB_90"].values,
+        "LB_95": combined_df["LB_95"].values,
+        "UB_95": combined_df["UB_95"].values,
+        "LB_98": combined_df["LB_98"].values,
+        "UB_98": combined_df["UB_98"].values,
+        "ES_83.5": combined_df["ES_83.5"].values,
+        "ES_95": combined_df["ES_95"].values,
+        "ES_97.5": combined_df["ES_97.5"].values,
+        "ES_99": combined_df["ES_99"].values,
+    }
+    preds_per_model.append(entry)
+    nans = np.isnan(garch_skewt_vol_pred).sum()
+    if nans > 0:
+        print(f"GARCH Skewed-t has {nans} NaN predictions")
+except FileNotFoundError:
+    print("GARCH Skewed-t predictions not found")
 
 # AR GARCH Model
 for version in [
@@ -347,7 +413,7 @@ for version in [
             "ece": ece_gaussian(y_true, mus, np.log(har_vol_pred**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * har_vol_pred
@@ -406,7 +472,7 @@ for version in ["R"]:  # "python",
             "ece": ece_gaussian(y_true, mus, np.log(harq_vol_pred**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * harq_vol_pred
@@ -471,7 +537,7 @@ for version in ["norm", "std"]:
             "ece": ece_gaussian(y_true, mus, np.log(realized_garch_preds**2)),
         }
 
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             alpha = 1 - cl
             z_alpha = norm.ppf(1 - alpha / 2)
             lb = mus - z_alpha * realized_garch_preds
@@ -494,106 +560,104 @@ for version in ["norm", "std"]:
         print("Realized GARCH predictions not found")
 
 
-# LSTM MDN
-for version in [
-    # "quick",
-    # "fe",
-    # "pireg",
-    # "dynamic",
-    # "dynamic-weighted",
-    # "embedded",
-    # "l2",
-    # "embedded-2",
-    # "embedded-small",
-    # "crps",
-    # "crps-2",
-    # "nll-crps-mix",
-    # 3,
-    # "basic",
-    # "basic-w-tickers",
-    # "rv-data",
-    "rv-data-2",
-    # "rv-data-3",
-    # "w-egarch",
-    # "w-egarch-2",
-    "ffnn",
-    # "tuned",
-    # "tuned-w-fred",
-    "ivol-only",
-    "rv-only",
-    "rv-5-only",
-    "rv-and-ivol",
-    ###################
-    # Ensemble models #
-    ###################
-    "ivol-only_ensemble",
-    "ivol-only-2_ensemble",
-    "rv-only_ensemble",
-    "rv-and-ivol_ensemble",
-    ####################
-    # Test data models #
-    ####################
-    "ivol-final_ensemble",
-    "rv-final_ensemble",
-    "rv-and-ivol-final_ensemble",
-]:
-    try:
-        lstm_mdn_df = pd.read_csv(
-            f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
-        )
-        lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
-        lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
-        lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
-        lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
-        lstm_mdn_df = lstm_mdn_df[
-            (
-                (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
-                & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
-                if TEST_SET == "validation"
-                else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
-            )
-        ]
-        if np.isnan(lstm_mdn_df["Mean_SP"]).all():
-            raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
-        combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
-        ece_col = combined_df.get("ECE")
-        entry = {
-            "name": f"LSTM MDN {version}",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            "dates": combined_df.index.get_level_values("Date"),
-            "crps": (
-                crps.values if (crps := combined_df.get("CRPS")) is not None else None
-            ),
-            "p_up": combined_df.get("Prob_Increase"),
-            "ece": ece_col.median() if ece_col is not None else None,
-        }
-        for cl in CONFIDENCE_LEVELS:
-            lb = combined_df.get(f"LB_{format_cl(cl)}")
-            ub = combined_df.get(f"UB_{format_cl(cl)}")
-            if lb is None or ub is None:
-                print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
-            entry[f"LB_{format_cl(cl)}"] = lb
-            entry[f"UB_{format_cl(cl)}"] = ub
-            alpha = 1 - (1 - cl) / 2
-            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
-        preds_per_model.append(entry)
-        nans = combined_df["Mean_SP"].isnull().sum()
-        if nans > 0:
-            print(f"LSTM MDN {version} has {nans} NaN predictions")
-    except FileNotFoundError:
-        print(f"LSTM MDN {version} predictions not found")
+# LSTM MDN (not with expanding window, so no longer in use)
+# for version in [
+#     # "quick",
+#     # "fe",
+#     # "pireg",
+#     # "dynamic",
+#     # "dynamic-weighted",
+#     # "embedded",
+#     # "l2",
+#     # "embedded-2",
+#     # "embedded-small",
+#     # "crps",
+#     # "crps-2",
+#     # "nll-crps-mix",
+#     # 3,
+#     # "basic",
+#     # "basic-w-tickers",
+#     # "rv-data",
+#     "rv-data-2",
+#     # "rv-data-3",
+#     # "w-egarch",
+#     # "w-egarch-2",
+#     "ffnn",
+#     # "tuned",
+#     # "tuned-w-fred",
+#     "ivol-only",
+#     "rv-only",
+#     "rv-5-only",
+#     "rv-and-ivol",
+#     ###################
+#     # Ensemble models #
+#     ###################
+#     "ivol-only_ensemble",
+#     "ivol-only-2_ensemble",
+#     "rv-only_ensemble",
+#     "rv-and-ivol_ensemble",
+#     ####################
+#     # Test data models #
+#     ####################
+#     "ivol-final_ensemble",
+#     "rv-final_ensemble",
+#     "rv-and-ivol-final_ensemble",
+# ]:
+#     try:
+#         lstm_mdn_df = pd.read_csv(
+#             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
+#         )
+#         lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
+#         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
+#         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
+#         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
+#         lstm_mdn_df = lstm_mdn_df[
+#             (
+#                 (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
+#                 & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+#                 if TEST_SET == "validation"
+#                 else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
+#             )
+#         ]
+#         if np.isnan(lstm_mdn_df["Mean_SP"]).all():
+#             raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
+#         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
+#         ece_col = combined_df.get("ECE")
+#         entry = {
+#             "name": f"LSTM MDN {version}",
+#             "mean_pred": combined_df["Mean_SP"].values,
+#             "volatility_pred": combined_df["Vol_SP"].values,
+#             "epistemic_var": combined_df.get("EpistemicVarMean"),
+#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+#             "symbols": combined_df.index.get_level_values("Symbol"),
+#             "dates": combined_df.index.get_level_values("Date"),
+#             "crps": (
+#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
+#             ),
+#             "p_up": combined_df.get("Prob_Increase"),
+#             "ece": ece_col.median() if ece_col is not None else None,
+#         }
+#         for cl in ALL_CONFIDENCE_LEVELS:
+#             lb = combined_df.get(f"LB_{format_cl(cl)}")
+#             ub = combined_df.get(f"UB_{format_cl(cl)}")
+#             if lb is None or ub is None:
+#                 print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
+#             entry[f"LB_{format_cl(cl)}"] = lb
+#             entry[f"UB_{format_cl(cl)}"] = ub
+#             alpha = 1 - (1 - cl) / 2
+#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+#         preds_per_model.append(entry)
+#         nans = combined_df["Mean_SP"].isnull().sum()
+#         if nans > 0:
+#             print(f"LSTM MDN {version} has {nans} NaN predictions")
+#     except FileNotFoundError:
+#         print(f"LSTM MDN {version} predictions not found")
 
 # LSTM MDN, new naming convention
 for version in [
     "ivol-final-rolling",
     "rv-final-rolling",
     "rv-and-ivol-final-rolling",
-    # Diagnostic models
-    # "rv-and-ivol-final-diagnostic",
-    # "rv-and-ivol-final-rolling-diagnostic",
 ]:
     try:
         fname = f"predictions/lstm_mdn_ensemble{SUFFIX}_v{version}_{TEST_SET}.csv"
@@ -627,7 +691,7 @@ for version in [
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -694,6 +758,7 @@ for version in [
             "name": f"Transformer MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "dates": combined_df.index.get_level_values("Date"),
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -703,7 +768,7 @@ for version in [
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -749,6 +814,7 @@ for version in ["rv-iv"]:
             "name": f"Ensemble MDN {version}",
             "mean_pred": combined_df["Mean_SP"].values,
             "volatility_pred": combined_df["Vol_SP"].values,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
             "dates": combined_df.index.get_level_values("Date"),
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -758,7 +824,7 @@ for version in ["rv-iv"]:
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
         }
-        for cl in CONFIDENCE_LEVELS:
+        for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
             ub = combined_df.get(f"UB_{format_cl(cl)}")
             if lb is None or ub is None:
@@ -821,7 +887,7 @@ for version in [4]:
                 "p_up": combined_df.get("Prob_Increase"),
                 "ece": ece_col.median() if ece_col is not None else None,
             }
-            for cl in CONFIDENCE_LEVELS:
+            for cl in ALL_CONFIDENCE_LEVELS:
                 lb = combined_df.get(f"LB_{format_cl(cl)}")
                 ub = combined_df.get(f"UB_{format_cl(cl)}")
                 if lb is None or ub is None:
@@ -1812,6 +1878,7 @@ for cl in CONFIDENCE_LEVELS:
         f"[{es_str}] AL Loss"
     ].idxmin()
 results_df = results_df.T
+adequate_df = adequate_df.T
 
 passing_models = [
     entry for entry in preds_per_model if entry["name"] in results_df.columns
@@ -1846,7 +1913,7 @@ results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
 plt.figure(figsize=(12, 6))
 for name in [
     "GARCH",
-    "LSTM MDN rv-and-ivol-final_ensemble",
+    # "LSTM MDN rv-and-ivol-final_ensemble",
     "LSTM MDN rv-and-ivol-final-rolling",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
@@ -1870,7 +1937,7 @@ from_date = "2024-01-01"
 to_date = "2024-06-30"
 for name in [
     "GARCH",
-    "LSTM MDN rv-and-ivol-final_ensemble",
+    # "LSTM MDN rv-and-ivol-final_ensemble",
     "LSTM MDN rv-and-ivol-final-rolling",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
@@ -2186,9 +2253,9 @@ styled_df
 # %%
 # Generate tables for Latex document
 our = [
-    ("LSTM-MDN-RV", "LSTM MDN rv-final_ensemble"),
-    ("LSTM-MDN-IV", "LSTM MDN ivol-final_ensemble"),
-    ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final_ensemble"),
+    ("LSTM-MDN-RV", "LSTM MDN rv-final-rolling"),
+    ("LSTM-MDN-IV", "LSTM MDN ivol-final-rolling"),
+    ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final-rolling"),
     ("Transformer-MDN-RV", "Transformer MDN rv_ensemble"),
     ("Transformer-MDN-IV", "Transformer MDN ivol_ensemble"),
     ("Transformer-MDN-RV-IV", "Transformer MDN rv-and-ivol_ensemble"),
@@ -2225,6 +2292,27 @@ ml_benchmarks = [
 print("======================================================")
 print("TABLE 2: Distribution Accuracy and Calibration Metrics")
 print("======================================================")
+res_df_keys = [
+    "NLL",
+    "ECE",
+    "CRPS",
+    "[67] PICP Miss",
+    "[90] PICP Miss",
+    "[95] PICP Miss",
+    "[98] PICP Miss",
+]
+# Values for all benchmark models, shape: [num_models, num_metrics]
+benchmark_vals = np.array(
+    [
+        [results_df.get(model_name, {}).get(key) for key in res_df_keys]
+        for _, model_name in [*traditional, *ml_benchmarks]
+    ],
+    dtype=float,
+)
+# Take the absolute value of the PICP Miss values
+benchmark_vals[:, 3:] = np.abs(benchmark_vals[:, 3:])
+# Set NaNs to inf so that they are not considered in the comparison
+benchmark_vals[np.isnan(benchmark_vals)] = np.inf
 for model_set in [our, traditional, ml_benchmarks]:
     print("")
     for display_name, model_name in model_set:
@@ -2234,34 +2322,24 @@ for model_set in [our, traditional, ml_benchmarks]:
         if entry is None:
             print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
             continue
-        metrics = [
+
+        conf_levels = [0.67, 0.90, 0.95, 0.98]
+        numbers = [
             (
-                f"{nll.mean():.4f}"
+                nll.mean()
                 if (nll := entry.get("nll")) is not None and not np.isnan(nll).any()
-                else "-"
+                else None
             ),
-            f"{ece:.4f}" if (ece := entry.get("ece")) is not None else "-",
-            f"{np.mean(crps):.4f}" if (crps := entry.get("crps")) is not None else "-",
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_67")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_90")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_95")) is not None
-                else "-"
-            ),
-            (
-                f"{picp * 100:.2f}\\%"
-                if (picp := entry.get("picp_98")) is not None
-                else "-"
-            ),
+            ece if (ece := entry.get("ece")) is not None else None,
+            np.mean(crps) if (crps := entry.get("crps")) is not None else None,
+            *(entry.get(f"picp_{format_cl(cl)}") for cl in conf_levels),
+        ]
+        comp_numbers = np.array(numbers, dtype=float)
+        for i, cl in enumerate(conf_levels):
+            comp_numbers[i + 3] = np.abs(cl - comp_numbers[i + 3])
+
+        metrics = [f"{val:.4f}" if val is not None else "-" for val in numbers[:3]] + [
+            f"{val * 100:.2f}\\%" if val is not None else "-" for val in numbers[3:]
         ]
         results_df_keys = [
             "NLL",
@@ -2272,18 +2350,18 @@ for model_set in [our, traditional, ml_benchmarks]:
             "[95] PICP",
             "[98] PICP",
         ]
-        bolden = []
+        underline = []
         for k, row in results_df.loc[results_df_keys].iterrows():
-            bolden.append(row.get(model_name) == row[row["Winner"]])
-        print(
-            display_name,
-            "&",
-            " & ".join(
-                f"\\textbf{{{val}}}" if bold else val
-                for val, bold in zip(metrics, bolden)
-            ),
-            "\\\\",
-        )
+            underline.append(row.get(model_name) == row[row["Winner"]])
+        bold = (comp_numbers < benchmark_vals).all(axis=0)
+        print(display_name, end=" ")
+        for val, under, b in zip(metrics, underline, bold):
+            if under:
+                val = f"\\underline{{{val}}}"
+            if b:
+                val = f"\\textbf{{{val}}}"
+            print("&", val, end=" ")
+        print("\\\\")
 
 # %%
 # Table 3: Model Confidence Set Analysis
@@ -2378,7 +2456,27 @@ for model_set in [our, traditional, ml_benchmarks]:
 print("======================================")
 print("TABLE 5: Interval Score and Mean Width")
 print("======================================")
-
+table_cls = [0.90, 0.95, 0.98]
+res_df_keys = [
+    f"[{format_cl(cl)}] {key}"
+    for cl in table_cls
+    for key in ["Interval Score", "Mean width (MPIW)"]
+]
+# Values for all benchmark models, shape: [num_models, num_metrics]
+benchmark_vals = np.array(
+    [
+        [adequate_df.get(model_name, {}).get(key) for key in res_df_keys]
+        for _, model_name in traditional
+    ],
+    dtype=float,
+)
+# Set NaNs to inf so that they are not considered in the comparison
+benchmark_vals[np.isnan(benchmark_vals)] = np.inf
+# Get best values for each metric to decide underlining
+best_vals = np.array(
+    [results_df.loc[key][results_df.loc[key, "Winner"]] for key in res_df_keys],
+    dtype=float,
+)
 for model_set in [our, traditional]:
     print("")
     for display_name, model_name in model_set:
@@ -2392,32 +2490,22 @@ for model_set in [our, traditional]:
             continue
 
         # Calculate the interval score and mean width for each confidence level
-        for cl in [0.90, 0.95, 0.98]:
-            cl_str = format_cl(cl)
-            interval_score = entry.get(f"interval_score_{cl_str}")
-            mean_width = entry.get(f"mpiw_{cl_str}")
-            if interval_score is None or mean_width is None:
-                print("&", " & ".join(["-"] * 2), end="")
-                continue
-            res_df_keys = [
-                f"[{cl_str}] Interval Score",
-                f"[{cl_str}] Mean width (MPIW)",
+        numbers = np.array(
+            [
+                entry.get(f"{key}_{format_cl(cl)}")
+                for cl in table_cls
+                for key in ["interval_score", "mpiw"]
             ]
-            bolden = []
-            for k, row in results_df.loc[res_df_keys].iterrows():
-                bolden.append(row.get(model_name) == row[row["Winner"]])
-            metrics = [
-                f"{interval_score:.4f}",
-                f"{mean_width:.4f}",
-            ]
-            print(
-                "&",
-                " & ".join(
-                    f"\\textbf{{{val}}}" if bold else val
-                    for val, bold in zip(metrics, bolden)
-                ),
-                end=" ",
-            )
+        )
+        bold = (numbers < benchmark_vals).all(axis=0)
+        underline = numbers == best_vals
+        for val, u, b in zip(numbers, underline, bold):
+            val = f"{val:.4f}"
+            if u:
+                val = f"\\underline{{{val}}}"
+            if b and model_set == our:
+                val = f"\\textbf{{{val}}}"
+            print("&", val, end=" ")
 
         print("\\\\")
 
@@ -2551,6 +2639,147 @@ for model_set in [our, traditional, ml_benchmarks]:
 
         print("\\\\")
 
+
+# %%
+# Table 9: Aleatoric and Epistemic variance
+# Columns:
+# Model,	Average aleatoric variance,	Average epistemic variance,	Average total variance
+print("=========================================================")
+print("TABLE 9: Aleatoric and Epistemic variance (average across symbols)")
+print("=========================================================")
+print("")
+
+
+def sci_notation_latex(val, decimals=1):
+    """Return val in the form 5.8 \\times $10^-9$, or '-' if val is NaN."""
+    if np.isnan(val):
+        return "-"
+    # format into standard Python 1e format, e.g. '5.8e-09'
+    s = f"{val:.{decimals}e}"
+    mantissa, exp_str = s.split("e")
+    exp = int(exp_str)  # convert e.g. '-09' -> -9
+    # build the desired string, e.g. '5.8 \times $10^-9$'
+    return f"{mantissa} \\times $10^{exp}$"
+
+
+for display_name, model_name in our:
+    entry = next(
+        (entry for entry in preds_per_model if entry["name"] == model_name), None
+    )
+    if entry is None:
+        print(display_name, "&", " & ".join(["-"] * 3), "\\\\")
+        continue
+
+    # Calculate the average aleatoric and epistemic variance
+    aleatoric_var = entry.get("volatility_pred") ** 2
+    epistemic_var = entry.get("epistemic_var")
+    avg_aleatoric_var = np.mean(aleatoric_var) if aleatoric_var is not None else np.nan
+    avg_epistemic_var = np.mean(epistemic_var) if epistemic_var is not None else np.nan
+    avg_total_var = avg_aleatoric_var + avg_epistemic_var
+
+    print(display_name, end=" ")
+    if avg_aleatoric_var > 1:
+        break
+
+    for val in [avg_aleatoric_var, avg_epistemic_var, avg_total_var]:
+        print("&", sci_notation_latex(val), end=" ")
+
+    print("\\\\")
+
+# %%
+# Generate time series chart with confidence intervals for each model
+example_tickers = ["AAPL", "WMT"]
+# Include more conf levels here because it is interesting to see
+conf_levels = CONFIDENCE_LEVELS + [0.99, 0.995]
+import shared.styling_guidelines_graphs
+
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(f"Model {model_name} not found in preds_per_model")
+            continue
+        model_name = entry["name"]
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        for cl in conf_levels:
+            log_df[f"LB_{format_cl(cl)}"] = np.array(entry.get(f"LB_{format_cl(cl)}"))
+            log_df[f"UB_{format_cl(cl)}"] = np.array(entry.get(f"UB_{format_cl(cl)}"))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            plt.figure(figsize=(12, 6))
+            plt.plot(
+                true_ret,
+                label="Actual Returns",
+                color="black",
+                alpha=0.5,
+            )
+            plt.plot(ticker_df["Mean"], label="Predicted Mean", color="red")
+            for i, cl in enumerate(conf_levels):
+                lb = ticker_df[f"LB_{format_cl(cl)}"]
+                ub = ticker_df[f"UB_{format_cl(cl)}"]
+                if lb.isnull().any() or ub.isnull().any():
+                    # Skip if any of the bounds are NaN
+                    print(
+                        f"Skipping {model_name} for {ticker} at {cl} due to NaN values in bounds"
+                    )
+                    continue
+                alpha = 0.75 - i * 0.14
+                plt.fill_between(
+                    lb.index,
+                    lb,
+                    ub,
+                    color="blue",
+                    alpha=alpha,
+                    label=f"{format_cl(cl)}% Interval",
+                )
+                # Mark violations
+                violations = np.logical_or(
+                    true_log_ret < lb,
+                    true_log_ret > ub,
+                )
+                mark_color = (0.3 + i * 0.1,) * 3
+                # Commented out now because it is too crowded
+                # plt.scatter(
+                #     true_log_ret[violations].index,
+                #     true_log_ret[violations],
+                #     marker="x",
+                #     label=f"Exceedances",
+                #     color=mark_color,
+                #     s=100,
+                #     zorder=20 - i,
+                # )
+            plt.ylim(-0.2, 0.2)
+            plt.xlim(ticker_df.index.min(), ticker_df.index.max())
+            plt.gca().set_yticklabels(
+                ["{:.1f}%".format(n * 100) for n in plt.gca().get_yticks()]
+            )
+            plt.title(f"{display_name} predictions for {ticker} on holdout data")
+            # Place legend below plot
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=4,
+                fontsize=10,
+                frameon=False,
+            )
+            # Ensure everything fits in the figure
+            plt.tight_layout()
+            plt.savefig(f"results/time_series/{ticker}_{model_name}.pdf")
+            if is_notebook():
+                plt.show()
+            plt.close()
+
+
+# %%
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock

@@ -554,60 +554,6 @@ intervals = calculate_intervals_vectorized(
 )
 
 # %%
-# 12) Plot time series with mean, volatility and actual returns for last X days
-days = 150
-shift = 1
-mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-for ticker in example_tickers:
-    from_idx, to_idx = data.validation.get_range(ticker)
-    ticker_mean = mean[from_idx:to_idx]
-    filtered_mean = ticker_mean[-days - shift : -shift]
-    ticker_intervals = intervals[from_idx:to_idx]
-    filtered_intervals = ticker_intervals[-days - shift : -shift]
-    s = data.validation.sets[ticker]
-    dates = s.y_dates[-days - shift : -shift]
-    actual_return = s.y[-days - shift : -shift]
-
-    plt.figure(figsize=(12, 6))
-    plt.plot(
-        dates,
-        actual_return,
-        label="Actual Returns",
-        color="black",
-        alpha=0.5,
-    )
-    plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
-    median = filtered_intervals[:, 0, 0]
-    plt.plot(dates, median, label="Median", color="green")
-    for i, cl in enumerate(confidence_levels):
-        if cl == 0:
-            continue
-        plt.fill_between(
-            dates,
-            filtered_intervals[:, i, 0],
-            filtered_intervals[:, i, 1],
-            color="blue",
-            alpha=0.7 - i * 0.07,
-            label=f"{100*cl:.1f}% Interval",
-        )
-    plt.axhline(
-        actual_return.mean(),
-        color="red",
-        linestyle="--",
-        label="True mean return across time",
-        alpha=0.5,
-    )
-    plt.gca().set_yticklabels(
-        ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
-    )
-    plt.title(f"Transformer w MDN predictions for {ticker}, {days} days")
-    plt.xlabel("Date")
-    plt.ylabel("LogReturn")
-    plt.legend()
-    plt.savefig(f"results/time_series/{ticker}_transformer_mdn_v{VERSION}.svg")
-    plt.show()
-
-# %%
 # 13) Make data frame for signle pass predictions
 df_validation = pd.DataFrame(
     np.vstack([data.validation.dates, data.validation.tickers]).T,

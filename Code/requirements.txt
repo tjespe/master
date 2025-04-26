@@ -10,3 +10,5 @@ optuna
 optuna-dashboard
 black
 jinja2
+shap
+seaborn

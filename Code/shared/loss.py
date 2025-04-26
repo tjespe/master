@@ -3,6 +3,7 @@ import tensorflow as tf
 from scipy.special import gammaln
 from scipy.stats import t
 from scipy.integrate import quad
+from arch.univariate.distribution import SkewStudent
 
 
 def mdn_nll_numpy(num_mixtures):
@@ -193,6 +194,61 @@ def student_t_nll(y_true, means, vols, nu):
     return nll
 
 
+def skewt_nll(y_true, means, vols, nu, skew):
+    """
+    Compute the negative log-likelihood (NLL) for a skewed t-distribution
+    forecast (Hansen skew-t). This function applies the change-of-variable
+    correction when moving from the standardized residuals to the original scale.
+
+    Parameters:
+    -----------
+    y_true : array-like, shape (B,)
+        The observed values.
+    means : array-like, shape (B,)
+        The forecasted means.
+    vols : array-like, shape (B,)
+        The forecasted volatility (scale parameter).
+    nu : array-like or scalar
+        Degrees-of-freedom parameter.
+    skew : array-like or scalar
+        Skewness parameter.
+
+    Returns:
+    --------
+    nll : array-like, shape (B,)
+        The negative log-likelihood for each observation.
+    """
+    # Ensure inputs are numpy arrays of appropriate shape
+    y_true = np.squeeze(np.array(y_true))
+    means = np.squeeze(np.array(means))
+    vols = np.squeeze(np.array(vols))
+
+    # If nu or skew are scalar, promote them to arrays of appropriate shape.
+    if np.isscalar(nu):
+        nu = np.full_like(y_true, nu)
+    else:
+        nu = np.squeeze(np.array(nu))
+    if np.isscalar(skew):
+        skew = np.full_like(y_true, skew)
+    else:
+        skew = np.squeeze(np.array(skew))
+
+    # Standardize the residuals.
+    z = (y_true - means) / vols
+
+    # Initialize the skewed Student-t distribution object.
+    skewt = SkewStudent()
+
+    # Evaluate the log pdf for the standardized residuals using the skew-t.
+    # The pdf is computed on the standardized scale, so we subtract log(vols)
+    # to account for the change-of-variable from x to z = (x - mu) / sigma.
+    log_pdf = skewt.logpdf(z, nu=nu, lam=skew) - np.log(vols)
+
+    # The negative log-likelihood for each observation.
+    nll = -log_pdf
+    return nll
+
+
 def mdn_nll_tf(num_mixtures, add_pi_penalty=False):
     """
     Negative log-likelihood for a mixture of Gaussians (univariate).
@@ -330,8 +386,8 @@ def mdn_crps_tf(
     add_mu_penalty=False,
     add_sigma_penalty=False,
     npts=16,
-    tmin=-0.08,
-    tmax=0.08,
+    tmin=-0.5,
+    tmax=0.5,
 ):
     """
     Mixture of Gaussians CRPS:
@@ -386,7 +442,7 @@ def mdn_crps_tf(
     return loss_fn
 
 
-def crps_normal_univariate(y_true, mus, sigmas, npts=16, tmin=-0.08, tmax=0.08):
+def crps_normal_univariate(y_true, mus, sigmas, npts=16, tmin=-0.5, tmax=0.5):
     """
     Compute the CRPS for a univariate Normal distribution by leveraging
     the MDN-CRPS implementation with a single mixture component.
@@ -428,8 +484,8 @@ def mean_mdn_crps_tf(
     add_mu_penalty=False,
     add_sigma_penalty=False,
     npts=16,
-    tmin=-0.08,
-    tmax=0.08,
+    tmin=-0.5,
+    tmax=0.5,
 ):
     """
     Mixture of Gaussians CRPS:
@@ -514,6 +570,46 @@ def crps_student_t(x, mu, sigma, nu):
     # Perform numerical integration over the real line.
     crps_value, _ = quad(integrand, -np.inf, np.inf)
     return crps_value
+
+
+def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
+    """
+    Compute the Continuous Ranked Probability Score (CRPS) for a skewed t forecast using
+    Monte Carlo simulation.
+
+    Parameters:
+    -----------
+    x : float
+        Observed value.
+    mu : float
+        Forecasted mean.
+    sigma : float
+        Forecasted volatility (scale parameter).
+    nu : float
+        Degrees of freedom of the skewed t distribution.
+    lam : float
+        Skewness parameter.
+    nsim : int, optional
+        Number of simulation draws (default is 1000).
+    random_state : int or None, optional
+        Seed for the random number generator.
+
+    Returns:
+    --------
+    crps : float
+        The CRPS score.
+    """
+    # Standardize the observed value
+    z_obs = (x - mu) / sigma
+    skewt = SkewStudent()
+    # Generate samples from the standardized skewed t distribution
+    z_samples = skewt.rvs(nsim, nu=nu, lam=lam, random_state=random_state)
+    # CRPS: sigma * [ E|z - z_obs| - 0.5 E|z - z'| ]
+    term1 = np.mean(np.abs(z_samples - z_obs))
+    # Compute the pairwise differences (using broadcasting)
+    diff_matrix = np.abs(z_samples[:, None] - z_samples[None, :])
+    term2 = 0.5 * np.mean(diff_matrix)
+    return sigma * (term1 - term2)
 
 
 ##############################################################################
@@ -619,6 +715,72 @@ def ece_student_t(y_true, means, vols, nu, n_bins=20):
     cdf_vals = t.cdf(standardized, df=nu)  # shape (B,)
 
     # 2) Bin-based ECE
+    bin_centers = (np.arange(n_bins) + 0.5) / n_bins
+    ece = 0.0
+    for q in bin_centers:
+        p_emp = np.mean(cdf_vals <= q)
+        ece += abs(p_emp - q)
+    ece /= n_bins
+
+    return ece
+
+
+def ece_skewt(y_true, means, vols, nu, skew, n_bins=20):
+    """
+    Compute an approximate Expected Calibration Error (ECE) for forecasts
+    under the skewed t-distribution. The idea is to evaluate how well the
+    predictive distribution, via its CDF, is calibrated compared to the
+    empirical distribution of the observations.
+
+    This is achieved by:
+      1) Standardizing the residuals.
+      2) Computing the CDF values for each observation using the skew-t CDF.
+      3) Binning the CDF values and comparing the proportion in each bin
+         to the expected probability.
+
+    Parameters:
+    -----------
+    y_true : array-like, shape (B,)
+        Observed values.
+    means : array-like, shape (B,)
+        Forecasted means.
+    vols : array-like, shape (B,)
+        Forecasted volatility (scale parameter).
+    nu : array-like or scalar
+        Degrees-of-freedom parameter.
+    skew : array-like or scalar
+        Skewness parameter.
+    n_bins : int, optional
+        Number of bins to use for calibration (default: 20).
+
+    Returns:
+    --------
+    ece : float
+        The approximate Expected Calibration Error.
+    """
+    y_true = np.squeeze(np.array(y_true))
+    means = np.squeeze(np.array(means))
+    vols = np.squeeze(np.array(vols))
+
+    if np.isscalar(nu):
+        nu = np.full_like(y_true, nu)
+    else:
+        nu = np.squeeze(np.array(nu))
+    if np.isscalar(skew):
+        skew = np.full_like(y_true, skew)
+    else:
+        skew = np.squeeze(np.array(skew))
+
+    # Compute standardized residuals.
+    standardized = (y_true - means) / (vols + 1e-12)
+
+    # Initialize the skew-t distribution.
+    skewt = SkewStudent()
+
+    # Compute the CDF values for each standardized observation.
+    cdf_vals = skewt.cdf(standardized, nu=nu, lam=skew)
+
+    # Define the bin centers for ECE evaluation.
     bin_centers = (np.arange(n_bins) + 0.5) / n_bins
     ece = 0.0
     for q in bin_centers:

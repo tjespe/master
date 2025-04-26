@@ -1,5 +1,6 @@
 # %%
 # Define parameters (based on settings)
+from datetime import date
 import subprocess
 from typing import Optional
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
@@ -64,6 +65,7 @@ from shared.mdn import (
     plot_sample_days,
     univariate_mixture_mean_and_var_approx,
 )
+from transformer_mdn_ensemble import FixedLearningRateSchedule, build_transformer_mdn
 from shared.loss import (
     ece_mdn,
     mdn_crps_tf,
@@ -102,143 +104,6 @@ from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
-
-
-# %%
-def transformer_encoder(inputs):
-    """
-    A single block of Transformer encoder:
-      1) MHA + residual + LayerNorm
-      2) FFN + residual + LayerNorm
-    """
-    # Multi-head self-attention
-    attn_output = MultiHeadAttention(num_heads=NUM_HEADS, key_dim=D_MODEL)(
-        inputs, inputs
-    )
-    attn_output = Dropout(DROPOUT)(attn_output)
-    out1 = LayerNormalization(epsilon=1e-6)(inputs + attn_output)
-
-    # Feed-forward
-    ffn = Dense(
-        HIDDEN_UNITS_FF,
-        activation="relu",
-        kernel_regularizer=l2(L2_REGULARIZATION),
-    )(out1)
-    ffn = Dropout(DROPOUT)(ffn)
-    ffn = Dense(
-        D_MODEL,
-        kernel_regularizer=l2(L2_REGULARIZATION),
-    )(ffn)
-    ffn = Dropout(DROPOUT)(ffn)
-
-    out2 = LayerNormalization(epsilon=1e-6)(out1 + ffn)
-    return out2
-
-
-# %%
-def add_day_indices(tensor):
-    """
-    Adds day indices to sequential input.
-    tensor: shape (batch, LOOKBACK_DAYS, ?)
-    We'll create a new dimension with tf.range(LOOKBACK_DAYS) and concatenate it.
-    """
-    batch_size = tf.shape(tensor)[0]  # dynamic batch size
-    indices = tf.range(LOOKBACK_DAYS, dtype=tf.float32)  # shape=(LOOKBACK_DAYS,)
-    indices = tf.expand_dims(indices, axis=0)  # shape=(1, LOOKBACK_DAYS)
-    indices = tf.tile(indices, [batch_size, 1])  # shape=(batch, LOOKBACK_DAYS)
-    indices = tf.expand_dims(indices, axis=-1)  # shape=(batch, LOOKBACK_DAYS, 1)
-
-    # Concatenate to existing features: now we have one extra dimension for day index
-    return tf.concat([tensor, indices], axis=-1)
-
-
-# %%
-def build_transformer_mdn(
-    num_features: int,
-    ticker_ids_dim: Optional[int],
-):
-    """
-    Creates a Transformer-based encoder for sequences of shape:
-      (lookback_days, num_features)
-    Then outputs 3*n_mixtures for MDN (univariate).
-    """
-    # Input layers
-    feature_inputs = Input(shape=(LOOKBACK_DAYS, num_features), name="feature_inputs")
-
-    if ticker_ids_dim is not None:
-        ticker_inputs = Input(
-            shape=(), dtype=tf.int32, name="ticker_inputs"
-        )  # Scalar ID
-
-        # Ticker embedding
-        ticker_embedding = Embedding(
-            input_dim=ticker_ids_dim,  # Number of unique tickers
-            output_dim=D_TICKER_EMBEDDING,  # Size of the embedding vector
-            name="ticker_embedding",
-        )(ticker_inputs)
-
-        # Expand and concatenate with input features
-        ticker_embedding_broadcast = RepeatVector(LOOKBACK_DAYS)(ticker_embedding)
-        x = Concatenate(axis=-1)([feature_inputs, ticker_embedding_broadcast])
-    else:
-        x = feature_inputs
-
-    # Append day indices automatically via a Lambda layer
-    x = Lambda(add_day_indices)(x)
-
-    # Project inputs to d_model
-    x = Dense(D_MODEL, activation=None)(x)
-
-    # Stack multiple Transformer encoder blocks
-    for _ in range(NUM_ENCODERS):
-        x = transformer_encoder(x)
-
-    # Global average pooling (or take last time step)
-    x = GlobalAveragePooling1D()(x)
-
-    # Create initializers for MDN output layer
-    mdn_kernel_init = get_mdn_kernel_initializer(N_MIXTURES)
-    mdn_bias_init = get_mdn_bias_initializer(N_MIXTURES)
-
-    # Output layer: 3*n_mixtures => [logits_pi, mu, log_var]
-    mdn_output = Dense(
-        3 * N_MIXTURES,
-        activation=None,
-        name="mdn_output",
-        kernel_initializer=mdn_kernel_init,
-        bias_initializer=mdn_bias_init,
-    )(x)
-
-    model = Model(
-        inputs=(
-            [feature_inputs, ticker_inputs]
-            if ticker_ids_dim is not None
-            else feature_inputs
-        ),
-        outputs=mdn_output,
-    )
-    return model
-
-
-class FixedLearningRateSchedule(tf.keras.callbacks.Callback):
-    """
-    Fixed learning rate based on results from validation.
-    This is only used for the final training phase.
-    """
-
-    def on_epoch_begin(self, epoch, logs=None):
-        # Piecewise schedule
-        if epoch < 10:
-            lr = 5e-5
-        elif epoch < 20:
-            lr = 2.5e-5
-        elif epoch < 25:
-            lr = 1e-5
-        else:
-            lr = 5e-6  # 0.5e-5
-
-        self.model.optimizer.learning_rate.assign(lr)
-        print(f"Epoch {epoch + 1} - Setting learning rate to {lr:.6g}")
 
 
 # %%
@@ -331,6 +196,12 @@ if __name__ == "__main__":
     dates = []
     true_y = []
     while (test := data.get_test_set_for_date(first_test_date, end_date())).y.shape[0]:
+        # if first_test_date < pd.to_datetime(date(2022, 10, 1)):
+        #     # Skip this for now because it runs on another machine
+        #     print("Skipping", first_test_date.date().isoformat())
+        #     first_test_date = end_date() + pd.DateOffset(days=1)
+        #     continue
+
         train = data.get_training_set_for_date(first_test_date)
 
         # 1) Inspect shapes
@@ -486,65 +357,6 @@ if __name__ == "__main__":
     intervals = calculate_intervals_vectorized(
         pi_pred, mu_pred, sigma_pred, confidence_levels
     )
-
-    # %%
-    # 12) Plot time series with mean, volatility and actual returns for last X days
-    mean = (pi_pred * mu_pred).numpy().sum(axis=1)
-    for ticker in example_tickers:
-        ticker_mean = filter_ndarray(ticker, mean)
-        ticker_intervals = filter_ndarray(ticker, intervals)
-        ticker_dates = filter_ndarray(ticker, dates)
-        actual_return = filter_ndarray(ticker, true_y)
-
-        plt.figure(figsize=(12, 6))
-        plt.plot(
-            ticker_dates,
-            actual_return,
-            label="Actual Returns",
-            color="black",
-            alpha=0.5,
-        )
-        plt.plot(ticker_dates, ticker_mean, label="Predicted Mean", color="red")
-        median = ticker_intervals[:, 0, 0]
-        plt.plot(ticker_dates, median, label="Median", color="green")
-        for i, cl in enumerate(confidence_levels):
-            if cl == 0:
-                continue
-            plt.fill_between(
-                ticker_dates,
-                ticker_intervals[:, i, 0],
-                ticker_intervals[:, i, 1],
-                color="blue",
-                alpha=0.7 - i * 0.07,
-                label=f"{100*cl:.1f}% Interval",
-            )
-            # Mark violations
-            violations = np.logical_or(
-                actual_return < ticker_intervals[:, i, 0],
-                actual_return > ticker_intervals[:, i, 1],
-            )
-            plt.scatter(
-                np.array(ticker_dates)[violations],
-                actual_return[violations],
-                marker="x",
-                label=f"Violations ({100*cl:.1f}%)",
-            )
-        plt.axhline(
-            actual_return.mean(),
-            color="red",
-            linestyle="--",
-            label="True mean return across time",
-            alpha=0.5,
-        )
-        plt.gca().set_yticklabels(
-            ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
-        )
-        plt.title(f"Transformer w MDN predictions for {ticker}, test data")
-        plt.xlabel("Date")
-        plt.ylabel("LogReturn")
-        # Place legend outside of plot
-        plt.legend(loc="center left", bbox_to_anchor=(1, 0.5))
-        plt.savefig(f"results/time_series/{ticker}_{MODEL_NAME}.svg")
 
     # %%
     # 13) Make data frame for signle pass predictions
