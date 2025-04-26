@@ -152,7 +152,7 @@ model_list_lstm_transformer <- list(
  #"LSTM_RV_IV" = lstm_RV_IV_ensemble,
  #"Transformer_RV" = transformer_RV_ensemble,
 #"Transformer_IV" = transformer_IV_ensemble,
- #"Transformer_RV_IV" = transformer_RV_IV_ensemble,
+ "Transformer_RV_IV" = transformer_RV_IV_ensemble,
  # "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
   "LSTM_RV_ensemble_rolling" = lstm_RV_ensemble_rolling,
   "LSTM_IV_ensemble_rolling" = lstm_IV_ensemble_rolling,
