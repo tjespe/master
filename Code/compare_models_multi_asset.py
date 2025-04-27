@@ -1311,7 +1311,12 @@ for version in [
 if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
     keep = []
     for model in preds_per_model:
-        nans = pd.Series(model["volatility_pred"]).isnull().sum()
+        # if the model name does not contain "Benchmark"
+        if "Benchmark" in model["name"]:
+            nans = 0
+        else:
+            nans = pd.Series(model["volatility_pred"]).isnull().sum()
+
         if nans > 0:
             print(f"Excluding {model['name']} because it has {nans} NaN predictions")
             continue
