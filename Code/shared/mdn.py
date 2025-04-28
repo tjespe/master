@@ -79,6 +79,10 @@ def parse_mdn_output(mdn_out, n_mixtures):
     pi = tf.nn.softmax(logits_pi, axis=-1)
     sigma = tf.exp(0.5 * log_var)
 
+    # Remove weights lower than 1e-6
+    pi = tf.where(pi < 1e-6, tf.zeros_like(pi), pi)
+    pi = pi / tf.reduce_sum(pi, axis=-1, keepdims=True)
+
     return pi, mu, sigma
 
 
