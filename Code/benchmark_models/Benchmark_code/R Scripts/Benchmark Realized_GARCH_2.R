@@ -1,3 +1,4 @@
+# %%
 # USING THE RUGARCH PACKAGE TO FIT A REALIZED GARCH MODEL TO THE DATA
 # (Not the same approach as in Hansen et al. 2012, but a more traditional GARCH model with realized volatility as an external regressor)
 # Load libraries #
@@ -10,8 +11,10 @@ library(future.apply) # For parallel processing
 plan(multisession, workers = parallel::detectCores() - 1)
 
 # Load data #
-capire_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
-return_data <- read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
+repo_path = "C:///Users/tordjes/Github/master"
+setwd(repo_path)
+capire_data <- read.csv("Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
+return_data <- read.csv("Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # define what distribution assumption we would like to use
 dist_assumption <- "std"  # set "norm" for normal and "std" for student-t
@@ -54,6 +57,7 @@ test_data <- data[data$Date >= as.Date("2022-12-31"),]
 
 
 ############################################
+# %%
 # Loop trough symbols and fit model
 symbols <- unique(data$Symbol)
 
@@ -140,7 +144,7 @@ results_list <- future_lapply(symbols, fit_symbol_garch)
 final_results <- rbindlist(results_list)
 
 # Save results to CSV
-write.csv(final_results, paste0("~/Masterv3/master/Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"), row.names = FALSE)
+write.csv(final_results, paste0("Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"), row.names = FALSE)
 
 print("Done")
 
