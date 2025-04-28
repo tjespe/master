@@ -3,10 +3,8 @@
 # %%
 # Define parameters
 from settings import (
-    LOOKBACK_DAYS,
     TEST_ASSET,
     DATA_PATH,
-    TRAIN_VALIDATION_SPLIT,
     VALIDATION_TEST_SPLIT,
 )
 
@@ -19,7 +17,6 @@ from arch.univariate.distribution import SkewStudent
 from shared.loss import crps_skewt
 from tqdm import tqdm
 from joblib import Parallel, delayed
-from shared.skew_t import rvs_skewt
 
 warnings.filterwarnings("ignore")
 
@@ -136,6 +133,15 @@ def format_cl(cl):
     return f"{100*cl:1f}".rstrip("0").rstrip(".")
 
 
+skewt = SkewStudent()
+
+
+def estimate_quantile(mu, sigma, nu, lam, q):
+    return mu + sigma * np.array(
+        [skewt.ppf(q, parameters=[nu, lam]) for nu, lam in zip(nu, lam)]
+    )
+
+
 confidence_levels = (
     # The ones used in the paper
     [0.67, 0.90, 0.95, 0.98]
@@ -147,48 +153,81 @@ confidence_levels = (
 for cl in confidence_levels:
     alpha = (1 - cl) / 2
 
-    nsim_es = 10000
+    lb = estimate_quantile(
+        df_test["GARCH_skewt_Mean"],
+        df_test["GARCH_skewt_Vol"],
+        df_test["GARCH_skewt_Nu"],
+        df_test["GARCH_skewt_Skew"],
+        alpha,
+    )
 
-    all_samples = np.vstack(
-        [
-            mu + sigma * rvs_skewt(nsim_es, nu=nu, lam=lam)
-            for mu, sigma, nu, lam in zip(
+    ub = estimate_quantile(
+        df_test["GARCH_skewt_Mean"],
+        df_test["GARCH_skewt_Vol"],
+        df_test["GARCH_skewt_Nu"],
+        df_test["GARCH_skewt_Skew"],
+        1 - alpha,
+    )
+
+    # To calculate ES, estimate several quantiles below the lower bound and take the mean
+    n_quantiles = 100
+    quantiles = np.linspace(0, alpha, n_quantiles + 1)[1:-1]  # Exclude 0 and alpha
+
+    quantile_values = np.array(
+        Parallel(n_jobs=-1)(
+            delayed(estimate_quantile)(
                 df_test["GARCH_skewt_Mean"],
                 df_test["GARCH_skewt_Vol"],
                 df_test["GARCH_skewt_Nu"],
                 df_test["GARCH_skewt_Skew"],
+                q,
             )
-        ]
+            for q in quantiles
+        )
     )
 
-    var_levels = np.percentile(all_samples, alpha * 100, axis=1)
+    # Add lb to quantile_values
+    quantile_values = np.array(lb)[np.newaxis, :] + quantile_values
 
-    es_values = np.array(
-        [
-            samples[samples <= var_level].mean()
-            for samples, var_level in zip(all_samples, var_levels)
-        ]
-    )
+    # Calculate ES as the mean of the quantiles
+    es_values = np.mean(quantile_values, axis=0)
 
-    # Then quantiles (bounds) still from SkewStudent.ppf
-    skewt = SkewStudent()
-    lb = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * np.array(
-        [
-            skewt.ppf(alpha, parameters=[eta, lam])
-            for eta, lam in zip(df_test["GARCH_skewt_Nu"], df_test["GARCH_skewt_Skew"])
-        ]
-    )
-
-    ub = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * np.array(
-        [
-            skewt.ppf(1 - alpha, parameters=[eta, lam])
-            for eta, lam in zip(df_test["GARCH_skewt_Nu"], df_test["GARCH_skewt_Skew"])
-        ]
-    )
+    assert (
+        es_values < lb
+    ).all(), f"ES breaches lower bound for CL {cl} (ES {format_cl(1-alpha)})"
 
     df_test[f"LB_{format_cl(cl)}"] = lb
     df_test[f"UB_{format_cl(cl)}"] = ub
-    df_test[f"ES_{format_cl(1 - alpha/2)}"] = es_values
+    df_test[f"ES_{format_cl(1 - alpha)}"] = es_values
 
 # %%
-df_valid.to_csv("predictions/garch_predictions_skewed_t.csv", index=False)
+# Sense-check the results
+for cl in confidence_levels:
+    VaR = df_test[f"LB_{format_cl(cl)}"]
+    alpha = (1 - cl) / 2
+    ES = df_test[f"ES_{format_cl(1 - alpha)}"]
+    breaches = df_test[ES > VaR]
+    assert (
+        len(breaches) == 0
+    ), f"ES breaches VaR for {len(breaches)} samples at {cl}: {breaches}"
+
+# %%
+# Make a little plot to evaluate correctness
+df_test.set_index(["Date", "Symbol"]).xs("AAPL", level="Symbol").sort_index()[
+    ["LB_90", "ES_95", "LB_98", "ES_99"]
+].rename(
+    columns={
+        "LB_90": "95% VaR",
+        "ES_95": "95% ES",
+        "LB_98": "99% VaR",
+        "ES_99": "99% ES",
+    }
+).plot(
+    title="99% VaR and ES for AAPL",
+    # Color appropriately
+    color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
+    figsize=(12, 6),
+)
+
+# %%
+df_test.to_csv("predictions/garch_predictions_skewed_t.csv", index=False)
