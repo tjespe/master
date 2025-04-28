@@ -19,6 +19,7 @@ from arch.univariate.distribution import SkewStudent
 from shared.loss import crps_skewt
 from tqdm import tqdm
 from joblib import Parallel, delayed
+from shared.skew_t import rvs_skewt
 
 warnings.filterwarnings("ignore")
 
@@ -102,8 +103,8 @@ results = Parallel(n_jobs=-1)(delayed(process_symbol)(symbol) for symbol in symb
 df_test = pd.concat(results, ignore_index=True)
 
 # %%
-crps_values = [
-    crps_skewt(x, mu, sigma, nu, lam)
+crps_values = Parallel(n_jobs=-1)(
+    delayed(crps_skewt)(x, mu, sigma, nu, lam)
     for x, mu, sigma, nu, lam in tqdm(
         zip(
             df_test["LogReturn"],
@@ -115,7 +116,7 @@ crps_values = [
         total=len(df_test),
         desc="Computing CRPS",
     )
-]
+)
 df_test["GARCH_skewt_CRPS"] = crps_values
 
 
@@ -147,7 +148,7 @@ for cl in confidence_levels:
 
         # Estimate Expected Shortfall (ES) via Monte Carlo: Doing this because analytical solution is not available for skewed t
         nsim_es = 1000  # number of draws to estimate ES
-        z_samples = skewt.rvs(nsim_es, nu=nu, lam=lam)
+        z_samples = rvs_skewt(nsim_es, nu=nu, lam=lam)
         samples = mu + sigma * z_samples
         var_level = np.percentile(samples, (alpha / 2) * 100)
         es = np.mean(samples[samples <= var_level])

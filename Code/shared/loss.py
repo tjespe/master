@@ -5,6 +5,8 @@ from scipy.stats import t
 from scipy.integrate import quad
 from arch.univariate.distribution import SkewStudent
 
+from shared.skew_t import rvs_skewt
+
 
 def mdn_nll_numpy(num_mixtures):
     """
@@ -601,9 +603,8 @@ def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
     """
     # Standardize the observed value
     z_obs = (x - mu) / sigma
-    skewt = SkewStudent()
     # Generate samples from the standardized skewed t distribution
-    z_samples = skewt.rvs(nsim, nu=nu, lam=lam, random_state=random_state)
+    z_samples = rvs_skewt(nsim, nu=nu, lam=lam, random_state=random_state)
     # CRPS: sigma * [ E|z - z_obs| - 0.5 E|z - z'| ]
     term1 = np.mean(np.abs(z_samples - z_obs))
     # Compute the pairwise differences (using broadcasting)
