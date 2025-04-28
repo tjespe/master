@@ -94,8 +94,8 @@ df_test = pd.concat(results, ignore_index=True)
 # %%
 from tqdm import tqdm
 
-crps_values = [
-    crps_student_t(x, mu, sigma, nu)
+crps_values = Parallel(n_jobs=-1)(
+    delayed(crps_student_t)(x, mu, sigma, nu)
     for x, mu, sigma, nu in tqdm(
         zip(
             df_test["LogReturn"],
@@ -106,7 +106,7 @@ crps_values = [
         total=len(df_test),
         desc="Computing CRPS",
     )
-]
+)
 df_test["GARCH_t_CRPS"] = crps_values
 
 
