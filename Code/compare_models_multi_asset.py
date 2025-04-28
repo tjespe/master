@@ -709,82 +709,82 @@ for version in [
     except Exception as e:
         print(f"Issue loading LSTM MDN {version} predictions: {e}")
 
-# Transformer MDN
-for version in [
-    # 3,
-    "time",
-    # "time-2",
-    # "mini",
-    # "tuned",
-    # "tuned-2",
-    # "time-step-attention",
-    # "last-time-step",
-    # "tuned-overridden",
-    # "w-fred",
-    "tuned-8-mixtures",
-    "tuned-calibration",
-    "ivol-only",
-    "rv-only",
-    "rv-and-ivol",
-    "rv_test_ensemble",
-    "ivol_test_ensemble",
-    "rv-and-ivol_test_ensemble",
-]:
-    try:
-        transformer_df = pd.read_csv(
-            f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
-        )
-        transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
-        transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
-        transformer_df = transformer_df.set_index(["Date", "Symbol"])
-        transformer_dates = transformer_df.index.get_level_values("Date")
-        transformer_df = transformer_df[
-            (
-                (transformer_dates >= TRAIN_VALIDATION_SPLIT)
-                & (transformer_dates < VALIDATION_TEST_SPLIT)
-                if TEST_SET == "validation"
-                else (transformer_dates >= VALIDATION_TEST_SPLIT)
-            )
-        ]
-        if np.isnan(transformer_df["Mean_SP"]).all():
-            raise FileNotFoundError(
-                f"All Transformer MDN {version} predictions are NaN"
-            )
-        combined_df = df_validation.join(
-            transformer_df, how="left", rsuffix="_Transformer_MDN"
-        )
-        ece_col = combined_df.get("ECE")
-        entry = {
-            "name": f"Transformer MDN {version}",
-            "mean_pred": combined_df["Mean_SP"].values,
-            "volatility_pred": combined_df["Vol_SP"].values,
-            "epistemic_var": combined_df.get("EpistemicVarMean"),
-            "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-            "dates": combined_df.index.get_level_values("Date"),
-            "symbols": combined_df.index.get_level_values("Symbol"),
-            "crps": (
-                crps.values if (crps := combined_df.get("CRPS")) is not None else None
-            ),
-            "p_up": combined_df.get("Prob_Increase"),
-            "ece": ece_col.median() if ece_col is not None else None,
-        }
-        for cl in ALL_CONFIDENCE_LEVELS:
-            lb = combined_df.get(f"LB_{format_cl(cl)}")
-            ub = combined_df.get(f"UB_{format_cl(cl)}")
-            if lb is None or ub is None:
-                print(
-                    f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
-                )
-            entry[f"LB_{format_cl(cl)}"] = lb
-            entry[f"UB_{format_cl(cl)}"] = ub
-            alpha = 1 - (1 - cl) / 2
-            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
-        preds_per_model.append(entry)
-        nans = combined_df["Mean_SP"].isnull().sum()
-        if nans > 0:
-            print(f"Transformer MDN {version} has {nans} NaN predictions")
-    except FileNotFoundError:
-        print(f"Transformer MDN {version} predictions not found")
+# # Transformer MDN
+# for version in [
+#     # 3,
+#     "time",
+#     # "time-2",
+#     # "mini",
+#     # "tuned",
+#     # "tuned-2",
+#     # "time-step-attention",
+#     # "last-time-step",
+#     # "tuned-overridden",
+#     # "w-fred",
+#     "tuned-8-mixtures",
+#     "tuned-calibration",
+#     "ivol-only",
+#     "rv-only",
+#     "rv-and-ivol",
+#     "rv_test_ensemble",
+#     "ivol_test_ensemble",
+#     "rv-and-ivol_test_ensemble",
+# ]:
+#     try:
+#         transformer_df = pd.read_csv(
+#             f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
+#         )
+#         transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
+#         transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
+#         transformer_df = transformer_df.set_index(["Date", "Symbol"])
+#         transformer_dates = transformer_df.index.get_level_values("Date")
+#         transformer_df = transformer_df[
+#             (
+#                 (transformer_dates >= TRAIN_VALIDATION_SPLIT)
+#                 & (transformer_dates < VALIDATION_TEST_SPLIT)
+#                 if TEST_SET == "validation"
+#                 else (transformer_dates >= VALIDATION_TEST_SPLIT)
+#             )
+#         ]
+#         if np.isnan(transformer_df["Mean_SP"]).all():
+#             raise FileNotFoundError(
+#                 f"All Transformer MDN {version} predictions are NaN"
+#             )
+#         combined_df = df_validation.join(
+#             transformer_df, how="left", rsuffix="_Transformer_MDN"
+#         )
+#         ece_col = combined_df.get("ECE")
+#         entry = {
+#             "name": f"Transformer MDN {version}",
+#             "mean_pred": combined_df["Mean_SP"].values,
+#             "volatility_pred": combined_df["Vol_SP"].values,
+#             "epistemic_var": combined_df.get("EpistemicVarMean"),
+#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
+#             "dates": combined_df.index.get_level_values("Date"),
+#             "symbols": combined_df.index.get_level_values("Symbol"),
+#             "crps": (
+#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
+#             ),
+#             "p_up": combined_df.get("Prob_Increase"),
+#             "ece": ece_col.median() if ece_col is not None else None,
+#         }
+#         for cl in ALL_CONFIDENCE_LEVELS:
+#             lb = combined_df.get(f"LB_{format_cl(cl)}")
+#             ub = combined_df.get(f"UB_{format_cl(cl)}")
+#             if lb is None or ub is None:
+#                 print(
+#                     f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
+#                 )
+#             entry[f"LB_{format_cl(cl)}"] = lb
+#             entry[f"UB_{format_cl(cl)}"] = ub
+#             alpha = 1 - (1 - cl) / 2
+#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+#         preds_per_model.append(entry)
+#         nans = combined_df["Mean_SP"].isnull().sum()
+#         if nans > 0:
+#             print(f"Transformer MDN {version} has {nans} NaN predictions")
+#     except FileNotFoundError:
+#         print(f"Transformer MDN {version} predictions not found")
 
 # Transformer MDN, new naming convention
 for version in [
@@ -1984,8 +1984,8 @@ results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
 plt.figure(figsize=(12, 6))
 for name in [
     "GARCH",
-    # "LSTM MDN rv-and-ivol-final_ensemble",
     "LSTM MDN rv-and-ivol-final-rolling",
+    "Transformer MDN rvol-ivol expanding",
 ]:
     entry = next(entry for entry in passing_models if entry["name"] == name)
     nll_df = pd.DataFrame(
@@ -1999,33 +1999,6 @@ for name in [
     plt.plot(
         nll_df.groupby("Date")["NLL"].mean().rolling(30).mean(), label=entry["name"]
     )
-plt.legend()
-
-# %%
-# Look NLL in the first period
-plt.figure(figsize=(12, 6))
-from_date = "2024-01-01"
-to_date = "2024-06-30"
-for name in [
-    "GARCH",
-    # "LSTM MDN rv-and-ivol-final_ensemble",
-    "LSTM MDN rv-and-ivol-final-rolling",
-]:
-    entry = next(entry for entry in passing_models if entry["name"] == name)
-    nll_df = pd.DataFrame(
-        {
-            "Date": entry["dates"],
-            "Symbol": entry["symbols"],
-            "NLL": entry["nll"],
-            "Model": entry["name"],
-        }
-    ).set_index(["Date", "Symbol"])
-    nll_df = nll_df.loc[
-        (from_date <= nll_df.index.get_level_values("Date"))
-        & (nll_df.index.get_level_values("Date") <= to_date)
-    ]
-    plt.plot(nll_df.groupby("Date")["NLL"].mean(), label=entry["name"])
-plt.title("NLL")
 plt.legend()
 
 # %%
@@ -2327,9 +2300,9 @@ our = [
     ("LSTM-MDN-RV", "LSTM MDN rv-final-rolling"),
     ("LSTM-MDN-IV", "LSTM MDN ivol-final-rolling"),
     ("LSTM-MDN-RV-IV", "LSTM MDN rv-and-ivol-final-rolling"),
-    ("Transformer-MDN-RV", "Transformer MDN rv_ensemble"),
-    ("Transformer-MDN-IV", "Transformer MDN ivol_ensemble"),
-    ("Transformer-MDN-RV-IV", "Transformer MDN rv-and-ivol_ensemble"),
+    ("Transformer-MDN-RV", "Transformer MDN rvol expanding"),
+    ("Transformer-MDN-IV", "Transformer MDN ivol expanding"),
+    ("Transformer-MDN-RV-IV", "Transformer MDN rvol-ivol expanding"),
 ]
 traditional = [
     ("GARCH", "GARCH"),
@@ -2548,7 +2521,7 @@ best_vals = np.array(
     [results_df.loc[key][results_df.loc[key, "Winner"]] for key in res_df_keys],
     dtype=float,
 )
-for model_set in [our, traditional]:
+for model_set in [our, traditional, ml_benchmarks]:
     print("")
     for display_name, model_name in model_set:
         entry = next(
@@ -2779,8 +2752,10 @@ for model_set in [our, traditional, ml_benchmarks]:
         log_df.index.names = ["Symbol", "Date"]
         log_df["Mean"] = entry.get("mean_pred")
         for cl in conf_levels:
-            log_df[f"LB_{format_cl(cl)}"] = np.array(entry.get(f"LB_{format_cl(cl)}"))
-            log_df[f"UB_{format_cl(cl)}"] = np.array(entry.get(f"UB_{format_cl(cl)}"))
+            if (lb := entry.get(f"LB_{format_cl(cl)}")) is not None:
+                log_df[f"LB_{format_cl(cl)}"] = np.array(lb)
+            if (ub := entry.get(f"UB_{format_cl(cl)}")) is not None:
+                log_df[f"UB_{format_cl(cl)}"] = np.array(ub)
         df = np.exp(log_df) - 1
         for ticker in example_tickers:
             true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
@@ -2795,9 +2770,9 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
             plt.plot(ticker_df["Mean"], label="Predicted Mean", color="red")
             for i, cl in enumerate(conf_levels):
-                lb = ticker_df[f"LB_{format_cl(cl)}"]
-                ub = ticker_df[f"UB_{format_cl(cl)}"]
-                if lb.isnull().any() or ub.isnull().any():
+                lb = ticker_df.get(f"LB_{format_cl(cl)}")
+                ub = ticker_df.get(f"UB_{format_cl(cl)}")
+                if lb is None or ub is None or lb.isnull().any() or ub.isnull().any():
                     # Skip if any of the bounds are NaN
                     print(
                         f"Skipping {model_name} for {ticker} at {cl} due to NaN values in bounds"

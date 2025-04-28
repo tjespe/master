@@ -302,6 +302,12 @@ if __name__ == "__main__":
     filter_ndarray = lambda ticker, ndarr: np.array(ndarr)[symbols_arr == ticker]
 
     # %%
+    # Remove low-weight mixtures to avoid crazy tails
+    pi_pred = np.where(pi_pred < (0.001 / N_ENSEMBLE_MEMBERS) / 100, 0, pi_pred)
+    pi_pred = pi_pred / np.sum(pi_pred, axis=1, keepdims=True)
+    pi_pred = np.clip(pi_pred, 0, 1)
+
+    # %%
     # 6) Plot 10 charts with the distributions for 10 random days
     example_tickers = ["AAPL", "WMT", "GS"]
     for ticker in example_tickers:
@@ -428,6 +434,10 @@ if __name__ == "__main__":
     df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
         pi_pred, mu_pred, sigma_pred
     )
+
+    # %%
+    # Add epistemic variance
+    df_validation["EpistemicVarMean"] = epistemic_var
 
     # %%
     # Save
