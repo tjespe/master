@@ -1,7 +1,7 @@
 # %%
-# Define version paramaters 
+# Define version paramaters
 AR_LAGS = 1
-DIST = "normal" # "normal" or "t"
+DIST = "normal"  # "normal" or "t"
 
 VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
@@ -24,6 +24,7 @@ from scipy.stats import t
 from shared.loss import crps_student_t, crps_normal_univariate
 from scipy.stats import norm
 from shared.mdn import calculate_es_for_quantile
+
 warnings.filterwarnings("ignore")
 
 # %%
@@ -49,7 +50,7 @@ df = df[~df["LogReturn"].isnull()]
 df["SquaredReturn"] = df["LogReturn"] ** 2
 
 # remove .O at the end of all symbols
-df['Symbol'] = df['Symbol'].str.replace('.O', '')
+df["Symbol"] = df["Symbol"].str.replace(".O", "")
 # Set date and symbol as index
 df: pd.DataFrame = df.set_index(["Date", "Symbol"])
 df
@@ -77,7 +78,9 @@ for symbol in symbols:
     returns_train = returns_train * 100  # Scale to percentages
 
     # Test data
-    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:] #(skip first row)
+    returns_validation = df_filtered["LogReturn"].loc[
+        VALIDATION_TEST_SPLIT:
+    ]  # (skip first row)
 
     scaled_returns_test = returns_validation * 100  # Scale to percentages
 
@@ -96,7 +99,9 @@ for symbol in symbols:
         returns_sample = returns_combined.iloc[:end]
 
         # Fit the GARCH model
-        am = arch_model(returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=AR_LAGS)
+        am = arch_model(
+            returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=AR_LAGS
+        )
         res = am.fit(disp="off")
 
         # Store the nu value for this iteration
@@ -144,11 +149,11 @@ from tqdm import tqdm
 # Compute CRPS for each observation with a progress bar based on what distribution is used
 if DIST == "normal":
     crps_values = crps_normal_univariate(
-    df_validation["LogReturn"].values.astype(np.float32),
-    df_validation["AR_GARCH_Mean"].values.astype(np.float32),
-    df_validation["AR_GARCH_Vol"].values.astype(np.float32)
+        df_validation["LogReturn"].values.astype(np.float32),
+        df_validation["AR_GARCH_Mean"].values.astype(np.float32),
+        df_validation["AR_GARCH_Vol"].values.astype(np.float32),
     ).numpy()
-    
+
 elif DIST == "t":
     crps_values = [
         crps_student_t(x, mu, sigma, nu)
@@ -160,40 +165,48 @@ elif DIST == "t":
                 df_validation["AR_GARCH_Nu"],
             ),
             total=len(df_validation),
-            desc="Computing CRPS"
+            desc="Computing CRPS",
         )
     ]
 
 df_validation["AR_GARCH_CRPS"] = crps_values
 df_validation
 
+
 # %%
 # calculate upper and lower bounds for given quantiles
 def format_cl(cl):
     return f"{100*cl:1f}".rstrip("0").rstrip(".")
+
 
 confidence_levels = [0.67, 0.90, 0.95, 0.98]
 for cl in confidence_levels:
     alpha = 1 - cl
     if DIST == "normal":
         # Calculate the lower and upper quantiles based on Normal
-        lb = df_validation["AR_GARCH_Mean"] - norm.ppf(1- alpha / 2) * garch_vol_pred
+        lb = df_validation["AR_GARCH_Mean"] - norm.ppf(1 - alpha / 2) * garch_vol_pred
         ub = df_validation["AR_GARCH_Mean"] + norm.ppf(1 - alpha / 2) * garch_vol_pred
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
         es_alpha = alpha / 2
         df_validation[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
-                np.ones_like(df_validation["AR_GARCH_Mean"]).reshape(-1, 1),
-                df_validation["AR_GARCH_Mean"].values.reshape(-1, 1),
-                df_validation["AR_GARCH_Vol"].values.reshape(-1, 1),
-                lb.to_numpy(),
-            )
+            np.ones_like(df_validation["AR_GARCH_Mean"]).reshape(-1, 1),
+            df_validation["AR_GARCH_Mean"].values.reshape(-1, 1),
+            df_validation["AR_GARCH_Vol"].values.reshape(-1, 1),
+            lb.to_numpy(),
+        )
 
     elif DIST == "t":
         # Calculate the lower and upper quantiles based on Student-t
-        lb = df_validation["AR_GARCH_Mean"] + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
-        ub = df_validation["AR_GARCH_Mean"] + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+        lb = (
+            df_validation["AR_GARCH_Mean"]
+            + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
+        )
+        ub = (
+            df_validation["AR_GARCH_Mean"]
+            + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+        )
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
@@ -202,7 +215,9 @@ for cl in confidence_levels:
         # ES = mu - sigma * [ (nu + z^2)/(nu-1) ] * [ t.pdf(z) / p ], where z = t.ppf(p, df=nu)
         z_p = t.ppf(es_alpha, df=nu_values)
         t_pdf_z = t.pdf(z_p, df=nu_values)
-        es = df_validation["AR_GARCH_Mean"] - garch_vol_pred * ((nu_values + z_p**2) / (nu_values - 1)) * (t_pdf_z / es_alpha)
+        es = df_validation["AR_GARCH_Mean"] - garch_vol_pred * (
+            (nu_values + z_p**2) / (nu_values - 1)
+        ) * (t_pdf_z / es_alpha)
         df_validation[f"ES_{format_cl(1 - es_alpha)}"] = es
 
 
