@@ -104,7 +104,11 @@ df_test = pd.concat(results, ignore_index=True)
 
 # %%
 crps_values = Parallel(n_jobs=-1)(
-    delayed(crps_skewt)(x, mu, sigma, nu, lam)
+    (
+        delayed(crps_skewt)(x, mu, sigma, nu, lam)
+        if np.isfinite(nu) and np.isfinite(lam)
+        else np.nan
+    )
     for x, mu, sigma, nu, lam in tqdm(
         zip(
             df_test["LogReturn"],

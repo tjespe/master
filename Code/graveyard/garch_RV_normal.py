@@ -1,7 +1,13 @@
 # %%
 # Define parameters
 import sys
-from settings import LOOKBACK_DAYS, TEST_ASSET, DATA_PATH, TRAIN_VALIDATION_SPLIT, BASEDIR
+from settings import (
+    LOOKBACK_DAYS,
+    TEST_ASSET,
+    DATA_PATH,
+    TRAIN_VALIDATION_SPLIT,
+    BASEDIR,
+)
 
 # %%
 import numpy as np
@@ -19,7 +25,7 @@ if DATA_PATH.startswith(f"{BASEDIR}/data/dow_jones"):
         f"{BASEDIR}/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv"
     )
     print("✅ Successfully loaded capire data")
-#%%
+# %%
 capire_df
 # %%
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
@@ -42,7 +48,9 @@ return_df = return_df.sort_values(["Symbol", "Date"])
 
 # Calculate log returns for each instrument separately using groupby
 return_df["LogReturn"] = (
-    return_df.groupby("Symbol")["Close"].apply(lambda x: np.log(x / x.shift(1))).droplevel(0)
+    return_df.groupby("Symbol")["Close"]
+    .apply(lambda x: np.log(x / x.shift(1)))
+    .droplevel(0)
 )
 
 # Drop rows where LogReturn is NaN (i.e., the first row for each instrument)
@@ -75,12 +83,15 @@ df
 # %% GET ALL UNIQUE SYMBOLS
 # Ensure "Symbol" is in the index
 if "Symbol" not in df.index.names:
-    df = df.set_index(["Date", "Symbol"])  # Make sure "Date" and "Symbol" are multi-indexed
+    df = df.set_index(
+        ["Date", "Symbol"]
+    )  # Make sure "Date" and "Symbol" are multi-indexed
 
 symbols = df.index.get_level_values("Symbol").unique()
 
 # Create an empty DataFrame to store all predictions
 df_all_predictions = pd.DataFrame()
+
 
 # %% FUNCTION: Define Realized GARCH Log-Likelihood Function
 def realized_garch_loglik(params, r, rv, return_h=False):
@@ -91,7 +102,7 @@ def realized_garch_loglik(params, r, rv, return_h=False):
       - omega, beta, alpha, gamma: volatility dynamics
       - xi, phi, tau1, tau2, sigma_eta: measurement equation
       - return_h: If True, returns variance estimates h instead of log-likelihood.
-      
+
     The model equations are:
       - h_t = omega + beta * h_{t-1} + alpha * r_{t-1}^2 + gamma * (rv_{t-1} - h_{t-1})
       - log(rv_t) = xi + phi * log(h_t) + tau1 * z_t + tau2 * (z_t^2 - 1) + eta_t, eta_t ~ N(0, sigma_eta^2)
@@ -110,7 +121,13 @@ def realized_garch_loglik(params, r, rv, return_h=False):
 
     # Iterate through time
     for t in range(1, T):
-        h[t] = max(1e-6, omega + beta * h[t-1] + alpha * r[t-1]**2 + gamma * (rv[t-1] - h[t-1]))
+        h[t] = max(
+            1e-6,
+            omega
+            + beta * h[t - 1]
+            + alpha * r[t - 1] ** 2
+            + gamma * (rv[t - 1] - h[t - 1]),
+        )
         if h[t] <= 0:  # Prevent non-positive variance
             return 1e6
 
@@ -122,11 +139,14 @@ def realized_garch_loglik(params, r, rv, return_h=False):
 
         # Log-likelihood contributions
         nll -= norm.logpdf(r[t], loc=0, scale=np.sqrt(h[t]))  # Return equation
-        nll -= norm.logpdf(np.log(rv[t]), loc=m_t, scale=sigma_eta)  # Measurement equation
+        nll -= norm.logpdf(
+            np.log(rv[t]), loc=m_t, scale=sigma_eta
+        )  # Measurement equation
 
     if return_h:
         return h  # Return estimated variance values
     return nll  # Return negative log-likelihood
+
 
 # %% TRAIN & PREDICT REALIZED GARCH FOR ALL SYMBOLS
 for symbol in symbols:
@@ -155,8 +175,6 @@ for symbol in symbols:
         if i % 20 == 0:
             print(f"Progress {symbol}: {i/len(returns_test):.2%}", end="\r")
             sys.stdout.flush()  # Force immediate update
-        
-
 
         # Update the model with available data
         end = len(returns_train) + i
@@ -167,40 +185,54 @@ for symbol in symbols:
         init_params = [0.05, 0.8, 0.02, 0.01, 0.0, 0.5, 0.0, 0.0, 0.05]
 
         # Parameter bounds
-        bounds = [(1e-6, None),    # omega > 0
-                  (1e-6, 1),       # beta in (0,1)
-                  (1e-6, None),    # alpha > 0
-                  (None, None),    # gamma can be pos/neg
-                  (None, None),    # xi unbounded
-                  (None, None),    # phi unbounded
-                  (None, None),    # tau1 unbounded
-                  (None, None),    # tau2 unbounded
-                  (1e-6, None)]    # sigma_eta > 0
+        bounds = [
+            (1e-6, None),  # omega > 0
+            (1e-6, 1),  # beta in (0,1)
+            (1e-6, None),  # alpha > 0
+            (None, None),  # gamma can be pos/neg
+            (None, None),  # xi unbounded
+            (None, None),  # phi unbounded
+            (None, None),  # tau1 unbounded
+            (None, None),  # tau2 unbounded
+            (1e-6, None),
+        ]  # sigma_eta > 0
         print(f"Initial parameters: {init_params}")
         print(f"Bounds: {bounds}")
         print(f"First 5 returns: {returns_sample.head().values}")
         print(f"First 5 realized volatilities: {realized_vol_sample.head().values}")
 
-        test_loglik = realized_garch_loglik(init_params, returns_sample, realized_vol_sample)
+        test_loglik = realized_garch_loglik(
+            init_params, returns_sample, realized_vol_sample
+        )
         print(f"Initial log-likelihood: {test_loglik}")
-
-
-
 
         print("BEFORE MINIMIZER \n")
         # Optimize parameters using MLE
-        res = minimize(realized_garch_loglik, init_params, args=(returns_sample, realized_vol_sample),
-               bounds=bounds, method='TNC', options={'disp': True, 'maxiter': 20})
+        res = minimize(
+            realized_garch_loglik,
+            init_params,
+            args=(returns_sample, realized_vol_sample),
+            bounds=bounds,
+            method="TNC",
+            options={"disp": True, "maxiter": 20},
+        )
         print("AFTER MINIMIZER")
 
         # Extract estimated parameters
         omega, beta, alpha, gamma, xi, phi, tau1, tau2, sigma_eta = res.x
 
         # Compute estimated variances using the optimized parameters
-        h_estimated = realized_garch_loglik(res.x, returns_sample, realized_vol_sample, return_h=True)
+        h_estimated = realized_garch_loglik(
+            res.x, returns_sample, realized_vol_sample, return_h=True
+        )
 
         # Predict next step variance using the last estimated variance value
-        h_next = omega + beta * h_estimated[-1] + alpha * returns_sample.iloc[-1]**2 + gamma * (realized_vol_sample.iloc[-1] - h_estimated[-1])
+        h_next = (
+            omega
+            + beta * h_estimated[-1]
+            + alpha * returns_sample.iloc[-1] ** 2
+            + gamma * (realized_vol_sample.iloc[-1] - h_estimated[-1])
+        )
         forecast_vol = np.sqrt(h_next) / 100  # Scale back
 
         realized_garch_vol_pred.append(forecast_vol)
@@ -218,7 +250,9 @@ for symbol in symbols:
     df_all_predictions = pd.concat([df_all_predictions, df_validation])
 
 # %% SAVE ALL PREDICTIONS TO A SINGLE FILE
-df_all_predictions.to_csv(f"predictions/realized_garch_predictions_all_assets_{LOOKBACK_DAYS}_days.csv")
+df_all_predictions.to_csv(
+    f"predictions/realized_garch_predictions_all_assets_{LOOKBACK_DAYS}_days.csv"
+)
 
 print("✅ All predictions saved successfully!")
 
