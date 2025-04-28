@@ -24,6 +24,8 @@ from scipy.stats import t
 from shared.loss import crps_student_t, crps_normal_univariate
 from scipy.stats import norm
 from shared.mdn import calculate_es_for_quantile
+from joblib import Parallel, delayed
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -51,6 +53,7 @@ df["SquaredReturn"] = df["LogReturn"] ** 2
 
 # remove .O at the end of all symbols
 df["Symbol"] = df["Symbol"].str.replace(".O", "")
+
 # Set date and symbol as index
 df: pd.DataFrame = df.set_index(["Date", "Symbol"])
 df
@@ -59,93 +62,74 @@ df
 # Filter away data before 1990
 df = df[df.index.get_level_values("Date") >= "1990-01-01"]
 df
+
 # %%
 # FIT THE AR GARCH MODEL AND PREDICT
 symbols = df.index.get_level_values("Symbol").unique()
-# initialize an empty list to store forecasts
-garch_vol_pred = []
-garch_mean_pred = []
 
-if DIST == "t":
-    nu_values = []
+# %% FUNCTION: process one symbol
 
-for symbol in symbols:
+
+def process_symbol(symbol):
     print(f"Processing {symbol}")
     df_filtered = df.xs(symbol, level="Symbol")
 
-    # Training data
-    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT]
-    returns_train = returns_train * 100  # Scale to percentages
+    returns_train = df_filtered["LogReturn"].loc[:VALIDATION_TEST_SPLIT] * 100
+    returns_validation = df_filtered["LogReturn"].loc[VALIDATION_TEST_SPLIT:]
+    scaled_returns_test = returns_validation * 100
 
-    # Test data
-    returns_validation = df_filtered["LogReturn"].loc[
-        VALIDATION_TEST_SPLIT:
-    ]  # (skip first row)
-
-    scaled_returns_test = returns_validation * 100  # Scale to percentages
-
-    # Initialize an empty list to store forecasts
-
-    # Combine the training and test data
     returns_combined = pd.concat([returns_train, scaled_returns_test])
 
-    # Perform rolling forecasts
+    garch_vol_pred = []
+    garch_mean_pred = []
+    nu_values = [] if DIST == "t" else None
+
     for i in range(len(scaled_returns_test)):
         if i % 20 == 0:
-            print(f"Progress: {i/len(scaled_returns_test):.2%}", end="\r")
+            print(f"Progress {symbol}: {i/len(scaled_returns_test):.2%}", end="\r")
 
-        # Update the model with data up to the current point in time
         end = len(returns_train) + i
         returns_sample = returns_combined.iloc[:end]
 
-        # Fit the GARCH model
         am = arch_model(
             returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=AR_LAGS
         )
         res = am.fit(disp="off")
 
-        # Store the nu value for this iteration
         if DIST == "t":
             nu_value = res.params.get("nu")
             nu_values.append(nu_value)
 
-        # Forecast the next time point
         forecast = res.forecast(horizon=1)
         forecast_var = forecast.variance.iloc[-1].values[0]
-        forecast_vol = np.sqrt(forecast_var) / 100  # Adjust scaling
+        forecast_vol = np.sqrt(forecast_var) / 100
         forecast_mean = forecast.mean.iloc[-1].values[0] / 100
+
         garch_vol_pred.append(forecast_vol)
         garch_mean_pred.append(forecast_mean)
 
-    # Convert the list to a numpy array
+    df_validation_symbol = df_filtered.loc[VALIDATION_TEST_SPLIT:].copy()
+    df_validation_symbol = df_validation_symbol.reset_index()
+    df_validation_symbol = df_validation_symbol[
+        ["Symbol", "Date", "LogReturn", "SquaredReturn"]
+    ]
 
-garch_vol_pred = np.array(garch_vol_pred)
-garch_mean_pred = np.array(garch_mean_pred)
+    df_validation_symbol["AR_GARCH_Vol"] = np.array(garch_vol_pred)
+    if DIST == "t":
+        df_validation_symbol["AR_GARCH_Nu"] = np.array(nu_values)
+    df_validation_symbol["AR_GARCH_Mean"] = np.zeros_like(garch_vol_pred)
 
-if DIST == "t":
-    nu_values = np.array(nu_values)
+    return df_validation_symbol
 
+
+# %% RUN IN PARALLEL
+
+results = Parallel(n_jobs=-1)(delayed(process_symbol)(symbol) for symbol in symbols)
+
+# Combine all results
+df_validation = pd.concat(results)
 
 # %%
-# Save GARCH predictions to file
-df_validation = df[df.index.get_level_values("Date") >= VALIDATION_TEST_SPLIT]
-df_validation.reset_index(inplace=True)
-# remove all coloumns except Symbol, Date, LogReturn, SquaredReturn
-df_validation = df_validation[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
-df_validation
-
-# %%
-# check if length of garch_vol_pred and df_validation is the same
-len(garch_vol_pred), len(df_validation)
-# %%
-df_validation["AR_GARCH_Vol"] = garch_vol_pred
-if DIST == "t":
-    df_validation["AR_GARCH_Nu"] = nu_values
-df_validation["AR_GARCH_Mean"] = 0
-df_validation
-# %%
-from tqdm import tqdm
-
 # Compute CRPS for each observation with a progress bar based on what distribution is used
 if DIST == "normal":
     crps_values = crps_normal_univariate(
@@ -170,7 +154,6 @@ elif DIST == "t":
     ]
 
 df_validation["AR_GARCH_CRPS"] = crps_values
-df_validation
 
 
 # %%
@@ -183,9 +166,14 @@ confidence_levels = [0.67, 0.90, 0.95, 0.98]
 for cl in confidence_levels:
     alpha = 1 - cl
     if DIST == "normal":
-        # Calculate the lower and upper quantiles based on Normal
-        lb = df_validation["AR_GARCH_Mean"] - norm.ppf(1 - alpha / 2) * garch_vol_pred
-        ub = df_validation["AR_GARCH_Mean"] + norm.ppf(1 - alpha / 2) * garch_vol_pred
+        lb = (
+            df_validation["AR_GARCH_Mean"]
+            - norm.ppf(1 - alpha / 2) * df_validation["AR_GARCH_Vol"]
+        )
+        ub = (
+            df_validation["AR_GARCH_Mean"]
+            + norm.ppf(1 - alpha / 2) * df_validation["AR_GARCH_Vol"]
+        )
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
@@ -198,30 +186,27 @@ for cl in confidence_levels:
         )
 
     elif DIST == "t":
-        # Calculate the lower and upper quantiles based on Student-t
         lb = (
             df_validation["AR_GARCH_Mean"]
-            + t.ppf(alpha / 2, df=nu_values) * garch_vol_pred
+            + t.ppf(alpha / 2, df=df_validation["AR_GARCH_Nu"])
+            * df_validation["AR_GARCH_Vol"]
         )
         ub = (
             df_validation["AR_GARCH_Mean"]
-            + t.ppf(1 - alpha / 2, df=nu_values) * garch_vol_pred
+            + t.ppf(1 - alpha / 2, df=df_validation["AR_GARCH_Nu"])
+            * df_validation["AR_GARCH_Vol"]
         )
         df_validation[f"LB_{format_cl(cl)}"] = lb
         df_validation[f"UB_{format_cl(cl)}"] = ub
 
         es_alpha = alpha / 2
-        # Compute Expected Shortfall (ES) for the lower tail using the closed-form formula:
-        # ES = mu - sigma * [ (nu + z^2)/(nu-1) ] * [ t.pdf(z) / p ], where z = t.ppf(p, df=nu)
-        z_p = t.ppf(es_alpha, df=nu_values)
-        t_pdf_z = t.pdf(z_p, df=nu_values)
-        es = df_validation["AR_GARCH_Mean"] - garch_vol_pred * (
-            (nu_values + z_p**2) / (nu_values - 1)
+        z_p = t.ppf(es_alpha, df=df_validation["AR_GARCH_Nu"])
+        t_pdf_z = t.pdf(z_p, df=df_validation["AR_GARCH_Nu"])
+        es = df_validation["AR_GARCH_Mean"] - df_validation["AR_GARCH_Vol"] * (
+            (df_validation["AR_GARCH_Nu"] + z_p**2) / (df_validation["AR_GARCH_Nu"] - 1)
         ) * (t_pdf_z / es_alpha)
         df_validation[f"ES_{format_cl(1 - es_alpha)}"] = es
 
-
-df_validation
 # %%
 df_validation.to_csv(f"predictions/predictions_{VERSION}.csv")
 
