@@ -145,29 +145,23 @@ confidence_levels = (
 )
 # For each confidence level, compute lower/upper bounds and expected shortfall using simulation
 for cl in confidence_levels:
-    alpha = 1 - cl
+    alpha = (1 - cl) / 2
 
-    nsim_es = 1000
-
-    mask_valid = (~df_test["GARCH_skewt_Nu"].isna()) & (
-        ~df_test["GARCH_skewt_Skew"].isna()
-    )
-
-    df_valid = df_test[mask_valid]
+    nsim_es = 10000
 
     all_samples = np.vstack(
         [
             mu + sigma * rvs_skewt(nsim_es, nu=nu, lam=lam)
             for mu, sigma, nu, lam in zip(
-                df_valid["GARCH_skewt_Mean"],
-                df_valid["GARCH_skewt_Vol"],
-                df_valid["GARCH_skewt_Nu"],
-                df_valid["GARCH_skewt_Skew"],
+                df_test["GARCH_skewt_Mean"],
+                df_test["GARCH_skewt_Vol"],
+                df_test["GARCH_skewt_Nu"],
+                df_test["GARCH_skewt_Skew"],
             )
         ]
     )
 
-    var_levels = np.percentile(all_samples, (alpha / 2) * 100, axis=1)
+    var_levels = np.percentile(all_samples, alpha * 100, axis=1)
 
     es_values = np.array(
         [
@@ -178,16 +172,23 @@ for cl in confidence_levels:
 
     # Then quantiles (bounds) still from SkewStudent.ppf
     skewt = SkewStudent()
-    lb = df_valid["GARCH_skewt_Mean"] + df_valid["GARCH_skewt_Vol"] * skewt.ppf(
-        alpha / 2, df=df_valid["GARCH_skewt_Nu"], lam=df_valid["GARCH_skewt_Skew"]
-    )
-    ub = df_valid["GARCH_skewt_Mean"] + df_valid["GARCH_skewt_Vol"] * skewt.ppf(
-        1 - alpha / 2, df=df_valid["GARCH_skewt_Nu"], lam=df_valid["GARCH_skewt_Skew"]
+    lb = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * np.array(
+        [
+            skewt.ppf(alpha, parameters=[eta, lam])
+            for eta, lam in zip(df_test["GARCH_skewt_Nu"], df_test["GARCH_skewt_Skew"])
+        ]
     )
 
-    df_valid[f"LB_{format_cl(cl)}"] = lb
-    df_valid[f"UB_{format_cl(cl)}"] = ub
-    df_valid[f"ES_{format_cl(1 - alpha/2)}"] = es_values
+    ub = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * np.array(
+        [
+            skewt.ppf(1 - alpha, parameters=[eta, lam])
+            for eta, lam in zip(df_test["GARCH_skewt_Nu"], df_test["GARCH_skewt_Skew"])
+        ]
+    )
+
+    df_test[f"LB_{format_cl(cl)}"] = lb
+    df_test[f"UB_{format_cl(cl)}"] = ub
+    df_test[f"ES_{format_cl(1 - alpha/2)}"] = es_values
 
 # %%
 df_valid.to_csv("predictions/garch_predictions_skewed_t.csv", index=False)
