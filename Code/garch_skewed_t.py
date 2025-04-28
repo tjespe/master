@@ -102,13 +102,20 @@ results = Parallel(n_jobs=-1)(delayed(process_symbol)(symbol) for symbol in symb
 # %%
 df_test = pd.concat(results, ignore_index=True)
 
+
 # %%
+def safe_crps(x, mu, sigma, nu, lam):
+    def is_real_number(v):
+        return isinstance(v, (int, float)) and np.isfinite(v)
+
+    if is_real_number(nu) and is_real_number(lam):
+        return crps_skewt(x, mu, sigma, nu, lam)
+    else:
+        return np.nan
+
+
 crps_values = Parallel(n_jobs=-1)(
-    (
-        delayed(crps_skewt)(x, mu, sigma, nu, lam)
-        if np.isfinite(nu) and np.isfinite(lam)
-        else np.nan
-    )
+    delayed(safe_crps)(x, mu, sigma, nu, lam)
     for x, mu, sigma, nu, lam in tqdm(
         zip(
             df_test["LogReturn"],
