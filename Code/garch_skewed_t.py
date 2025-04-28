@@ -16,7 +16,7 @@ import pandas as pd
 from arch import arch_model
 import warnings
 from arch.univariate.distribution import SkewStudent
-from shared.loss import crps_skewed_t
+from shared.loss import crps_skewt
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
@@ -102,7 +102,7 @@ df_test = pd.concat(results, ignore_index=True)
 
 # %%
 crps_values = [
-    crps_skewed_t(x, mu, sigma, nu, lam)
+    crps_skewt(x, mu, sigma, nu, lam)
     for x, mu, sigma, nu, lam in tqdm(
         zip(
             df_test["LogReturn"],
