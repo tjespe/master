@@ -361,9 +361,11 @@ esr_results <- run_esr_backtests(
   return_data = return_data
 )
 
+# %%
 library(knitr)
 library(kableExtra)
 
+# %%
 # Displaying each version, significance combination
 for (key in names(esr_results)) {
   cat("\n### Results for", key, "\n")
