@@ -1,3 +1,4 @@
+# %%
 import numpy as np
 
 
@@ -35,3 +36,30 @@ def rvs_skewt(n, nu, lam, random_state=None):
     samples = c * u
 
     return samples
+
+
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
+    # Test settings
+    n_samples = 100000
+    nu = 8
+    lam = 0.5
+
+    # Generate samples
+    samples = rvs_skewt(n_samples, nu=nu, lam=lam, random_state=42)
+
+    # Plot histogram
+    plt.hist(samples, bins=100, density=True, alpha=0.6, color="g")
+    plt.title(f"Skewed t-distribution samples\nnu={nu}, lambda={lam}")
+    plt.xlabel("Value")
+    plt.ylabel("Density")
+    plt.grid(True)
+    plt.show()
+
+    # Simple sanity checks
+    print(f"Sample mean: {np.mean(samples):.4f}")
+    print(f"Sample std dev: {np.std(samples):.4f}")
+    print(
+        f"Sample skewness: {((samples - np.mean(samples))**3).mean() / np.std(samples)**3:.4f}"
+    )

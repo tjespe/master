@@ -1,10 +1,11 @@
+# %%
 # install.packages("esback")  # Only once
 library(esback)
 library(dplyr)
 
 # UPDATE BASEPATH TO YOUR FILE PATH
-base_path_return_data <- "~/Masterv4/master/Code/data/dow_jones/processed_data"
-base_path_predictions <- "~/Masterv4/master/Code/predictions"
+base_path_return_data <- "C:///Users/tordjes/Github/master/Code/data/dow_jones/processed_data"
+base_path_predictions <- "C:///Users/tordjes/Github/master/Code/predictions"
 
 test_set_start_date <- "2019-12-31"
 
