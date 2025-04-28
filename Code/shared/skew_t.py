@@ -1,39 +1,39 @@
 # %%
 import numpy as np
+import numpy as np
 
 
 def rvs_skewt(n, nu, lam, random_state=None):
     """
-    Draws random samples from a Hansen (1994) skewed Student-t distribution.
+    Generate random variates from Hansen's (1994) skewed Student-t distribution.
 
-    Parameters:
+    Parameters
     ----------
     n : int
-        Number of samples.
+        Number of samples
     nu : float
-        Degrees of freedom (> 2).
+        Degrees of freedom (>2)
     lam : float
-        Skewness parameter (-1 < lam < 1).
+        Skewness parameter (-1 < lam < 1)
     random_state : int, RandomState instance or None
-        Controls randomness (for reproducibility).
 
-    Returns:
+    Returns
     -------
-    samples : np.ndarray
-        Random samples from skewed t distribution.
+    samples : ndarray
     """
     rng = np.random.default_rng(random_state)
 
-    # Generate standard Student-t
+    # Constants from Hansen (1994)
+    c = (nu - 2) / nu
+    omega = np.sqrt(1 + 3 * lam**2 - (4 * lam**2) / (1 + lam**2))
+    alpha = 2 / (1 + lam**2)
+    beta = -lam / np.sqrt(1 + lam**2)
+
+    # Generate standard t samples
     z = rng.standard_t(df=nu, size=n)
 
-    # Apply skewness transformation
-    delta = lam / np.sqrt(1 + lam**2)
-    u = delta * z + np.sqrt(1 - delta**2) * rng.standard_normal(size=n)
-
-    # Scale correction for skewed-t
-    c = np.sqrt(nu / (nu - 2))
-    samples = c * u
+    # Warp according to skewness
+    samples = omega * (alpha * (beta + z) / np.sqrt(1 + beta**2 + (z + beta) ** 2 * c))
 
     return samples
 
@@ -63,3 +63,8 @@ if __name__ == "__main__":
     print(
         f"Sample skewness: {((samples - np.mean(samples))**3).mean() / np.std(samples)**3:.4f}"
     )
+
+    for lam in [-0.9, -0.5, 0, 0.5, 0.9]:
+        samples = rvs_skewt(n_samples, nu=nu, lam=lam, random_state=42)
+        skewness = ((samples - np.mean(samples)) ** 3).mean() / np.std(samples) ** 3
+        print(f"Lambda {lam:+.1f}: Sample skewness {skewness:.4f}")

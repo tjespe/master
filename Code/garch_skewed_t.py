@@ -136,37 +136,51 @@ def format_cl(cl):
     return f"{100*cl:1f}".rstrip("0").rstrip(".")
 
 
-confidence_levels = [0.67, 0.90, 0.95, 0.98]
+confidence_levels = (
+    # The ones used in the paper
+    [0.67, 0.90, 0.95, 0.98]
+    +
+    # Not used in the paper but are useful for testing
+    [0.99, 0.995]
+)
 # For each confidence level, compute lower/upper bounds and expected shortfall using simulation
 for cl in confidence_levels:
     alpha = 1 - cl
-    lower_quantiles = []
-    upper_quantiles = []
-    es_values = []
 
-    for mu, sigma, nu, lam in zip(
-        df_test["GARCH_skewt_Mean"],
-        df_test["GARCH_skewt_Vol"],
-        df_test["GARCH_skewt_Nu"],
-        df_test["GARCH_skewt_Skew"],
-    ):
-        skewt = SkewStudent()
-        # Calculate lower and upper quantiles using the skewed t percent point function (ppf)
-        lb = mu + sigma * skewt.ppf(alpha / 2, nu=nu, lam=lam)
-        ub = mu + sigma * skewt.ppf(1 - alpha / 2, nu=nu, lam=lam)
-        lower_quantiles.append(lb)
-        upper_quantiles.append(ub)
+    nsim_es = 1000
 
-        # Estimate Expected Shortfall (ES) via Monte Carlo: Doing this because analytical solution is not available for skewed t
-        nsim_es = 1000  # number of draws to estimate ES
-        z_samples = rvs_skewt(nsim_es, nu=nu, lam=lam)
-        samples = mu + sigma * z_samples
-        var_level = np.percentile(samples, (alpha / 2) * 100)
-        es = np.mean(samples[samples <= var_level])
-        es_values.append(es)
+    all_samples = np.array(
+        [
+            mu + sigma * rvs_skewt(nsim_es, nu=nu, lam=lam)
+            for mu, sigma, nu, lam in zip(
+                df_test["GARCH_skewt_Mean"],
+                df_test["GARCH_skewt_Vol"],
+                df_test["GARCH_skewt_Nu"],
+                df_test["GARCH_skewt_Skew"],
+            )
+        ]
+    )
 
-    df_test[f"LB_{format_cl(cl)}"] = lower_quantiles
-    df_test[f"UB_{format_cl(cl)}"] = upper_quantiles
+    var_levels = np.percentile(all_samples, (alpha / 2) * 100, axis=1)
+
+    es_values = np.array(
+        [
+            samples[samples <= var_level].mean()
+            for samples, var_level in zip(all_samples, var_levels)
+        ]
+    )
+
+    # Then quantiles (bounds) still from SkewStudent.ppf
+    skewt = SkewStudent()
+    lb = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * skewt.ppf(
+        alpha / 2, df=df_test["GARCH_skewt_Nu"], lam=df_test["GARCH_skewt_Skew"]
+    )
+    ub = df_test["GARCH_skewt_Mean"] + df_test["GARCH_skewt_Vol"] * skewt.ppf(
+        1 - alpha / 2, df=df_test["GARCH_skewt_Nu"], lam=df_test["GARCH_skewt_Skew"]
+    )
+
+    df_test[f"LB_{format_cl(cl)}"] = lb
+    df_test[f"UB_{format_cl(cl)}"] = ub
     df_test[f"ES_{format_cl(1 - alpha/2)}"] = es_values
 
 # %%
