@@ -9,7 +9,7 @@ from settings import LOOKBACK_DAYS, SUFFIX, VALIDATION_TEST_SPLIT, TEST_SET
 import multiprocessing as mp
 
 
-VERSION = "rvol"
+VERSION = "rvol-ivol"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}_expanding"
 
 # %%
@@ -27,10 +27,10 @@ INCLUDE_GARCH = False
 INCLUDE_BETA = False
 INCLUDE_OTHERS = False
 INCLUDE_FRED_MD = False
-INCLUDE_10_DAY_IVOL = True
-INCLUDE_30_DAY_IVOL = True
-INCLUDE_1MIN_RV = False
-INCLUDE_5MIN_RV = False
+INCLUDE_10_DAY_IVOL = "ivol" in VERSION
+INCLUDE_30_DAY_IVOL = "ivol" in VERSION
+INCLUDE_1MIN_RV = "rv" in VERSION
+INCLUDE_5MIN_RV = "rv" in VERSION
 INCLUDE_TICKERS = False
 
 # %%
