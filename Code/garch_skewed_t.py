@@ -69,7 +69,7 @@ def process_symbol(symbol):
             )
             res = am.fit(disp="off")
 
-            nu_value = res.params.get("nu")
+            nu_value = res.params.get("eta")  # nu is called eta
             skew_value = res.params.get("lambda")
 
             forecast = res.forecast(horizon=1)
