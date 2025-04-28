@@ -110,9 +110,8 @@ def process_symbol(symbol):
 
     df_validation_symbol = df_filtered.loc[VALIDATION_TEST_SPLIT:].copy()
     df_validation_symbol = df_validation_symbol.reset_index()
-    df_validation_symbol = df_validation_symbol[
-        ["Symbol", "Date", "LogReturn", "SquaredReturn"]
-    ]
+    df_validation_symbol = df_validation_symbol[["Date", "LogReturn", "SquaredReturn"]]
+    df_validation_symbol["Symbol"] = symbol
 
     df_validation_symbol["AR_GARCH_Vol"] = np.array(garch_vol_pred)
     if DIST == "t":
