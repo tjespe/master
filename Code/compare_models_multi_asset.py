@@ -1069,7 +1069,7 @@ for version in ["v1"]:
 #############################################
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        catboost_preds = pd.read_csv(f"predictions/CatBoost_{version}.csv")
+        catboost_preds = pd.read_csv(f"predictions/CatBoost_{version}_4y.csv")
         catboost_preds["Date"] = pd.to_datetime(catboost_preds["Date"])
         catboost_preds = catboost_preds.set_index(["Date", "Symbol"])
         catboost_dates = catboost_preds.index.get_level_values("Date")
@@ -1082,9 +1082,9 @@ for version in ["RV", "IV", "RV_IV"]:
             )
         ]
         if np.isnan(catboost_preds).all().all():
-            raise FileNotFoundError(f"All Catboost {version} predictions are NaN")
+            raise FileNotFoundError(f"All Catboost {version} _4y predictions are NaN")
         combined_df = df_validation.join(
-            catboost_preds, how="left", rsuffix="_Catboost"
+            catboost_preds, how="left", rsuffix="_Catboost_4y"
         )
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
@@ -1122,13 +1122,13 @@ for version in ["RV", "IV", "RV_IV"]:
         # nans = combined_df["Mean_SP"].isnull().sum()
         nans = 0
         if nans > 0:
-            print(f"Catboost has {nans} NaN predictions")
+            print(f"Catboost_4y has {nans} NaN predictions")
     except FileNotFoundError:
-        print("Catboost predictions not found")
+        print("Catboost_4y predictions not found")
 
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        lightGBMpreds = pd.read_csv(f"predictions/LightGBM_{version}.csv")
+        lightGBMpreds = pd.read_csv(f"predictions/LightGBM_{version}_4y.csv")
         lightGBMpreds["Date"] = pd.to_datetime(lightGBMpreds["Date"])
         lightGBMpreds = lightGBMpreds.set_index(["Date", "Symbol"])
         lightGBM_dates = lightGBMpreds.index.get_level_values("Date")
@@ -1141,8 +1141,10 @@ for version in ["RV", "IV", "RV_IV"]:
             )
         ]
         if np.isnan(lightGBMpreds).all().all():
-            raise FileNotFoundError(f"All LightGBM {version} predictions are NaN")
-        combined_df = df_validation.join(lightGBMpreds, how="left", rsuffix="_LIGHTGBM")
+            raise FileNotFoundError(f"All LightGBM_4y {version} predictions are NaN")
+        combined_df = df_validation.join(
+            lightGBMpreds, how="left", rsuffix="_LIGHTGBM_4y"
+        )
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
         # same for Vol_SP
@@ -1179,13 +1181,13 @@ for version in ["RV", "IV", "RV_IV"]:
         # nans = combined_df["Mean_SP"].isnull().sum()
         nans = 0
         if nans > 0:
-            print(f"LightGBM has {nans} NaN predictions")
+            print(f"LightGBM_4y has {nans} NaN predictions")
     except FileNotFoundError:
-        print("LightGBM predictions not found")
+        print("LightGBM_4y predictions not found")
 
 for version in ["RV", "IV", "RV_IV"]:
     try:
-        xg_boost_preds = pd.read_csv(f"predictions/XGBoost_{version}.csv")
+        xg_boost_preds = pd.read_csv(f"predictions/XGBoost_{version}_4y.csv")
         xg_boost_preds["Date"] = pd.to_datetime(xg_boost_preds["Date"])
         xg_boost_preds = xg_boost_preds.set_index(["Date", "Symbol"])
         xg_boost_dates = xg_boost_preds.index.get_level_values("Date")
@@ -1198,8 +1200,10 @@ for version in ["RV", "IV", "RV_IV"]:
             )
         ]
         if np.isnan(xg_boost_preds).all().all():
-            raise FileNotFoundError(f"All XGBoost {version} predictions are NaN")
-        combined_df = df_validation.join(xg_boost_preds, how="left", rsuffix="_XGBoost")
+            raise FileNotFoundError(f"All XGBoost_4y {version} predictions are NaN")
+        combined_df = df_validation.join(
+            xg_boost_preds, how="left", rsuffix="_XGBoost_4y"
+        )
         # make a Mean_SP column full of 0s for now
         combined_df["Mean_SP"] = np.nan
         # same for Vol_SP
@@ -1236,9 +1240,9 @@ for version in ["RV", "IV", "RV_IV"]:
         # nans = combined_df["Mean_SP"].isnull().sum()
         nans = 0
         if nans > 0:
-            print(f"XGBoost has {nans} NaN predictions")
+            print(f"XGBoost_4y has {nans} NaN predictions")
     except FileNotFoundError:
-        print("XGBoost predictions not found")
+        print("XGBoost_4y predictions not found")
 
 for version in [
     # "RV",
@@ -1307,7 +1311,12 @@ for version in [
 if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
     keep = []
     for model in preds_per_model:
-        nans = pd.Series(model["volatility_pred"]).isnull().sum()
+        # if the model name does not contain "Benchmark"
+        if "Benchmark" in model["name"]:
+            nans = 0
+        else:
+            nans = pd.Series(model["volatility_pred"]).isnull().sum()
+
         if nans > 0:
             print(f"Excluding {model['name']} because it has {nans} NaN predictions")
             continue
