@@ -77,7 +77,8 @@ def process_symbol(symbol):
 
     df_result = df_filtered.loc[df_filtered.index >= VALIDATION_TEST_SPLIT].copy()
     df_result = df_result.reset_index()
-    df_result = df_result[["Symbol", "Date", "LogReturn", "SquaredReturn"]]
+    df_result = df_result[["Date", "LogReturn", "SquaredReturn"]]
+    df_result["Symbol"] = symbol
     df_result["GARCH_t_Vol"] = garch_vol_pred
     df_result["GARCH_t_Nu"] = nu_values
     df_result["GARCH_t_Mean"] = 0
