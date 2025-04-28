@@ -155,7 +155,7 @@ for cl in confidence_levels:
 
     df_valid = df_test[mask_valid]
 
-    all_samples = np.array(
+    all_samples = np.vstack(
         [
             mu + sigma * rvs_skewt(nsim_es, nu=nu, lam=lam)
             for mu, sigma, nu, lam in zip(
