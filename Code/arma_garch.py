@@ -138,8 +138,8 @@ if DIST == "normal":
     ).numpy()
 
 elif DIST == "t":
-    crps_values = [
-        crps_student_t(x, mu, sigma, nu)
+    crps_values = Parallel(n_jobs=-1)(
+        delayed(crps_student_t)(x, mu, sigma, nu)
         for x, mu, sigma, nu in tqdm(
             zip(
                 df_validation["LogReturn"],
@@ -150,7 +150,7 @@ elif DIST == "t":
             total=len(df_validation),
             desc="Computing CRPS",
         )
-    ]
+    )
 
 df_validation["AR_GARCH_CRPS"] = crps_values
 
