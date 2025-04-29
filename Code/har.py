@@ -6,7 +6,6 @@
 import pandas as pd
 import numpy as np
 import statsmodels.api as sm
-import multiprocessing as mp
 from tqdm import tqdm
 from joblib import Parallel, delayed
 
