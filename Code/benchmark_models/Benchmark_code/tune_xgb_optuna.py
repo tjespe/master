@@ -100,6 +100,14 @@ def objective(trial):
     quantile_losses = {}
 
     for alpha in all_quantiles:
+        print(
+            f"""
+            ======================================
+            = Training for quantile: {alpha:.3f} =
+            ======================================
+            """
+        )
+
         model = XGBRegressor(
             **params,
             objective="reg:quantileerror",
@@ -110,7 +118,7 @@ def objective(trial):
             X_train,
             y_train,
             eval_set=[(X_val, y_val)],
-            verbose=True,
+            verbose=False,
         )
 
         preds = model.predict(X_val)
