@@ -3,6 +3,9 @@
 # **NB** Update this path to your local repo path
 setwd("/Users/tordjes/Github/master/Code")
 
+# Install all necessary packages
+install.packages(c("data.table", "gridExtra", "tidyverse", "ggplot2", "hrbrthemes", "esreg", "rugarch", "xts", "parallel", "pbapply"))
+
 library(data.table)
 
 # define what variables we are working with
