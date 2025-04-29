@@ -62,7 +62,7 @@ cat_feature_index = [X_train.columns.get_loc(cat_feature)]
 
 print("Data loaded.")
 
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+CONFIDENCE_LEVELS = [0.90, 0.95, 0.98]
 lower_quantiles = [np.round((1 - cl) / 2, 5) for cl in CONFIDENCE_LEVELS]
 upper_quantiles = [1 - lq for lq in lower_quantiles]
 n_es_quantiles = 5
