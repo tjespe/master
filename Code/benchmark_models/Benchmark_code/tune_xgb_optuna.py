@@ -167,7 +167,7 @@ study = optuna.create_study(
 try:
     n_trials = int(sys.argv[1])
 except:
-    n_trials = 1
+    n_trials = 100
 study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
 # %%
