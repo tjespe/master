@@ -148,11 +148,8 @@ def forecast_symbol(symbol):
     print(f"Forecasting for symbol: {symbol}")
     symbol_data = combined_data[combined_data["Symbol"] == symbol].copy()
     symbol_data = symbol_data.reset_index(drop=True)
-    training_data_symbol = symbol_data[symbol_data["Date"] < TRAIN_VALIDATION_SPLIT]
-    validation_data_symbol = symbol_data[
-        (symbol_data["Date"] >= TRAIN_VALIDATION_SPLIT)
-        & (symbol_data["Date"] < VALIDATION_TEST_SPLIT)
-    ]
+    training_data_symbol = training_data[training_data["Symbol"] == symbol].copy()
+    validation_data_symbol = validation_data[validation_data["Symbol"] == symbol].copy()
 
     volatality_preds = []
 
