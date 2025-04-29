@@ -13,4 +13,6 @@
 cd /storage/users/tordjes/Git/master/Code
 module use /share/apps/modulefiles/all
 module load R/4.3.3-gfbf-2023b || echo "R module not found, using system R"
-R $@
+mkdir -p ~/Rlibs && Rscript -e 'install.packages(c("data.table", "gridExtra", "tidyverse", "ggplot2", "ggridges", "cowplot"), lib="~/Rlibs", repos="https://cloud.r-project.org")'
+export R_LIBS_USER=~/Rlibs
+Rscript $@
