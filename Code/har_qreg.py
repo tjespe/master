@@ -183,7 +183,7 @@ def forecast_symbol(symbol):
         es_preds = {}
         for alpha in ES_LEVELS:
             lower_q = 1 - alpha
-            es_qs = np.linspace(0, lower_q, n_es_points)
+            es_qs = np.linspace(0, lower_q, n_es_points + 1)[1:]
             es_vals = [
                 np.sqrt(quantile_models[q].predict(X_pred).iloc[0]) for q in es_qs
             ]
