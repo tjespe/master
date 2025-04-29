@@ -22,9 +22,8 @@ from settings import DATA_PATH, TEST_SET, TRAIN_VALIDATION_SPLIT, VALIDATION_TES
 # Import return data
 df = pd.read_csv(DATA_PATH)
 
-# remove all coloumns except: Date, Close, Symbol, Total Return
-df = df[["Date", "Close", "Symbol", "Total Return", "LogReturn"]]
-df["Total Return"] = df["Total Return"] / 100
+# remove all coloumns except: Date, Close, Symbol
+df = df[["Date", "Close", "Symbol", "LogReturn"]]
 
 # Ensure the Date column is in datetime format
 df["Date"] = pd.to_datetime(df["Date"])
@@ -34,10 +33,6 @@ df = df.sort_values(["Symbol", "Date"])
 
 # remove .O at the end of all symbols
 df["Symbol"] = df["Symbol"].str.replace(".O", "")
-
-df["Total Return Test"] = (
-    df.groupby("Symbol")["Close"].apply(lambda x: (x / x.shift(1)) - 1).droplevel(0)
-)
 
 # ungroup the dataframe
 df = df.reset_index(drop=True)
@@ -162,7 +157,7 @@ def forecast_symbol(symbol):
 
         X = sample_data[["RV_lag1", "RV_lag5", "RV_lag22"]]
         X = sm.add_constant(X)
-        y = sample_data["RV"]
+        y = sample_data["LogReturn"]
         X_pred = symbol_data[["RV_lag1", "RV_lag5", "RV_lag22"]].iloc[end : end + 1]
         X_pred = sm.add_constant(X_pred, has_constant="add")
 
