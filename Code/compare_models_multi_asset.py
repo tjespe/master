@@ -1884,7 +1884,13 @@ for model in results_df.index:
     #     results_df.drop(model, inplace=True)
 
 # Identify winners
-inadequate_models = {"HAR_R", "HARQ_R"}
+inadequate_models = {
+    "HAR_R",
+    "HARQ_R",
+    "Benchmark XGBoost RV",
+    "Benchmark LightGBM RV",
+    "Benchmark LightGBM RV_IV",
+}
 # For some metrics, it is very important that we only compare adequate models.
 # For others, we want to see how the inadequate models perform.
 adequate_df = results_df.drop(index=inadequate_models, errors="ignore")
@@ -2656,8 +2662,8 @@ for model_set in [our, traditional, ml_benchmarks]:
         # Calculate the number of wins for each scoring rule at each confidence level
         for alpha in [0.25, 0.05]:
             mcs = mcs_results[alpha]
-            if model_name not in mcs.index:
-                print("&", " & ".join(["-"] * 2), end="")
+            if model_name not in mcs.index or mcs.loc[model_name].isna().all():
+                print("&", " & ".join(["-"] * 7), end="")
                 continue
             row = mcs.loc[model_name].fillna(False)
             fz_wins = 0

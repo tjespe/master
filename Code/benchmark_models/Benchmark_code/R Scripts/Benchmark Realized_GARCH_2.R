@@ -52,8 +52,8 @@ data <- data[complete.cases(data),]
 
 
 # define training and validation data
-training_data <- data[data$Date < as.Date("2022-12-31"),]
-test_data <- data[data$Date >= as.Date("2022-12-31"),]
+training_data <- data[data$Date < as.Date("2019-12-31"),]
+test_data <- data[data$Date >= as.Date("2019-12-31"),]
 
 
 ############################################
@@ -113,7 +113,14 @@ fit_symbol_garch <- function(symbol) {
       distribution.model = dist_assumption
     )
 
-    fit <- ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
+    fit <- tryCatch({
+      ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
+    }, error = function(e) {
+      print(paste0("ugarchfit error for symbol", symbol, " at i = ", i, ": ", e$message))
+      return(NULL)
+    })
+
+    if (is.null(fit)) next
 
     logRV_forecast <- log(RV_train[length(RV_train)])
 
