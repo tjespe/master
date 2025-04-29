@@ -11,6 +11,43 @@
 # `qsub run_r.pbs lstm_mdn.py`
 
 cd /storage/users/tordjes/Git/master/Code
+
+## Add CMAKE to path
+export PATH=$HOME/local/cmake/bin:$PATH
+
+## Install CMAKE if it is not already installed
+if ! command -v cmake &>/dev/null; then
+    echo "CMake not found, installing..."
+    mkdir -p ~/local
+    cd ~/local
+    wget https://github.com/Kitware/CMake/releases/download/v3.29.2/cmake-3.29.2.tar.gz
+    tar -xzf cmake-3.29.2.tar.gz
+    cd cmake-3.29.2
+    ./bootstrap --prefix=$HOME/local/cmake
+    make -j$(nproc)
+    make install
+fi
+
+## Load R and install packages if not already installed
 module use /share/apps/modulefiles/all
 module load R/4.3.3-gfbf-2023b || echo "R module not found, using system R"
-R $@
+mkdir -p ~/Rlibs && Rscript -e '
+  pkgs <- c(
+    "data.table",
+    "gridExtra",
+    "tidyverse",
+    "ggplot2",
+    "hrbrthemes",
+    "esreg",
+    "rugarch",
+    "xts",
+    "parallel",
+    "pbapply"
+  )
+  missing <- pkgs[!sapply(pkgs, requireNamespace, quietly = TRUE)]
+  if (length(missing) > 0) {
+    install.packages(missing, lib="~/Rlibs", repos="https://cloud.r-project.org")
+  }
+'
+export R_LIBS_USER=~/Rlibs
+Rscript $@
