@@ -156,7 +156,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
     try:
         subprocess.run(["git", "pull", "--no-edit"], check=True)
         subprocess.run(["git", "add", "optuna"], check=True)
-        commit_header = f"Trial {trial.number} - Updated study DB"
+        commit_header = f"XGB tuning trial {trial.number} - Updated study DB"
         commit_body = (
             f"Trial {trial.number} finished with objective value: {trial.value}\n"
             f"Hyperparameters: {trial.params}\n"
@@ -181,7 +181,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 storage_url = "sqlite:///optuna/optuna.db"
 study = optuna.create_study(
     direction="minimize",
-    study_name="xgb_tuning_w_tickers",
+    study_name="xgb_tuning",
     storage=storage_url,
     load_if_exists=True,
 )
