@@ -356,11 +356,6 @@ def main_global_rolling_preds():
     return df_no_cross
 
 
-final_df = main_global_rolling_preds()
-# %%
-final_df
-
-
 # %%
 # =============================================================================
 # Estimate ES
@@ -395,12 +390,16 @@ def estimate_es_from_predictions(
     return df_out
 
 
-es_df = estimate_es_from_predictions(final_df, ES_quantiles, p)
-es_df
-
 # %%
-# Write to csv
-es_df.to_csv(f"../../predictions/XGBoost_{VERSION}_4y.csv", index=False)
+# Make predictions
+if __name__ == "__main__":
+    final_df = main_global_rolling_preds()
+    final_df
 
+    # %%
+    es_df = estimate_es_from_predictions(final_df, ES_quantiles, p)
+    es_df
 
-# %%
+    # %%
+    # Write to csv
+    es_df.to_csv(f"../../predictions/XGBoost_{VERSION}_4y.csv", index=False)

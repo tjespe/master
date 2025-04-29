@@ -509,8 +509,8 @@ try:
         )
     ]
     if np.isnan(har_qreg_preds["LB_67"]).all():
-        raise FileNotFoundError("All HARQ predictions are NaN")
-    combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HARQ")
+        raise FileNotFoundError("All HAR_QREG predictions are NaN")
+    combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HAR_QREG")
 
     entry = {
         "name": "HAR-QREG",
@@ -529,10 +529,12 @@ try:
             f"ES_{format_cl(1-es_alpha)}",
         ]:
             if key not in combined_df.columns:
-                print(f"Missing {key} for HARQ predictions")
+                print(f"Missing {key} for HAR_QREG predictions")
                 entry[key] = np.nan
             else:
                 entry[key] = combined_df[key].values
+
+    preds_per_model.append(entry)
 except FileNotFoundError:
     print("HAR QREG predictions not found")
 
@@ -1185,9 +1187,9 @@ if MAX_NAN_THRESH:
         if "Benchmark" in model["name"]:
             nans = 0
         else:
-            nans = pd.Series(model["volatility_pred"]).isnull().sum()
+            nans = pd.Series(model["LB_67"]).isnull().sum()
 
-        if nans > len(model["volatility_pred"]) * MAX_NAN_THRESH:
+        if nans > len(model["LB_67"]) * MAX_NAN_THRESH:
             print(f"Excluding {model['name']} because it has {nans} NaN predictions")
             continue
         keep.append(model)
