@@ -211,6 +211,10 @@ results_df = pd.concat(results, ignore_index=True)
 results_df["Mean"] = 0  # Assume mean is 0
 
 # %%
+# save the dataframe
+results_df.to_csv("predictions/HAR_python.csv", index=False)
+
+# %%
 # plot som example distributions
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -261,12 +265,9 @@ for symbol in results_df["Symbol"].unique()[:3]:
 results_df["Total Return Test"].corr(results_df["Total Return"])
 # %%
 # plot acutal RV_5 vs predicted HAR_var
-sns.scatterplot(x="RV_5", y="HAR_var", data=results_df)
-plt.title("Actual RV_5 vs Predicted HAR_var")
+sns.scatterplot(x="RV_5", y="HAR_vol_python", data=results_df)
+plt.title("Actual RV_5 vs Predicted vol")
 plt.show()
-# %%
-# save the dataframe
-results_df.to_csv("predictions/HAR_python.csv", index=False)
 # %%
 print(np.log(0.01))
 print(np.log(1.01))
