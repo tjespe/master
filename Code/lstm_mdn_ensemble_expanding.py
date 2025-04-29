@@ -421,6 +421,10 @@ if __name__ == "__main__":
     )
 
     # %%
+    # Add epistemic variance
+    df_validation["EpistemicVarMean"] = epistemic_var
+
+    # %%
     # Save
     df_validation.set_index(["Date", "Symbol"]).to_csv(f"predictions/{MODEL_NAME}.csv")
 

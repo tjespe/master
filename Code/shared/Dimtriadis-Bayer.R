@@ -57,7 +57,7 @@ garch_norm     <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriche
 garch_t        <- read.csv(file.path(base_path_predictions, "garch_predictions_student_t.csv"))
 #rv_garch       <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_norm.csv"))
 ar_garch_norm  <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-normal.csv"))
-# ar_garch_t   <- read.csv(file.path(base_path, ".csv"))  # Not included because file name is missing
+ar_garch_t   <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-t.csv"))  # Not included because file name is missing
 egarch         <- read.csv(file.path(base_path_predictions, "EGARCH_preds_enriched.csv"))
 
 
@@ -66,7 +66,7 @@ garch_norm <- garch_norm[garch_norm$Date >= test_set_start_date & garch_norm$Dat
 garch_t <- garch_t[garch_t$Date >= test_set_start_date & garch_t$Date <= "2024-03-28", ]
 #rv_garch <- rv_garch[rv_garch$Date >= test_set_start_date & rv_garch$Date <= "2024-03-28", ]
 ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= test_set_start_date & ar_garch_norm$Date <= "2024-03-28", ]
-#ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
+ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
 egarch <- egarch[egarch$Date >= test_set_start_date & egarch$Date <= "2024-03-28", ]
 
 # remove .O at the end of the Symbol for the garch models
@@ -74,7 +74,7 @@ garch_norm$Symbol <- gsub("\\.O$", "", garch_norm$Symbol)
 garch_t$Symbol <- gsub("\\.O$", "", garch_t$Symbol)
 # rv_garch$Symbol <- gsub("\\.O$", "", rv_garch$Symbol)
 ar_garch_norm$Symbol <- gsub("\\.O$", "", ar_garch_norm$Symbol)
-#ar_garch_t$Symbol <- gsub("\\.O$", "", ar_garch_t$Symbol)
+ar_garch_t$Symbol <- gsub("\\.O$", "", ar_garch_t$Symbol)
 egarch$Symbol <- gsub("\\.O$", "", egarch$Symbol)
 
 
@@ -89,13 +89,13 @@ harq  <- read.csv(file.path(base_path_predictions, "HARQ_R.csv"))
 #catboost_IV     <- read.csv(file.path(base_path_predictions, "CatBoost_IV.csv"))
 #catboost_RV_IV  <- read.csv(file.path(base_path_predictions, "CatBoost_RV_IV.csv"))
 
-xgboost_RV      <- read.csv(file.path(base_path_predictions, "XGBoost_RV.csv"))
-xgboost_IV    <- read.csv(file.path(base_path_predictions, "XGBoost_IV.csv"))
-# xgboost_RV_IV <- read.csv(file.path(base_path_predictions, "XGBoost_RV_IV.csv"))
+xgboost_RV      <- read.csv(file.path(base_path_predictions, "XGBoost_RV_4y.csv"))
+xgboost_IV    <- read.csv(file.path(base_path_predictions, "XGBoost_IV_4y.csv"))
+# xgboost_RV_IV <- read.csv(file.path(base_path_predictions, "XGBoost_RV_IV_4y.csv"))
 
-lightgbm_RV     <- read.csv(file.path(base_path_predictions, "LightGBM_RV.csv"))
-lightgbm_IV     <- read.csv(file.path(base_path_predictions, "LightGBM_IV.csv"))
-lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV.csv"))
+lightgbm_RV     <- read.csv(file.path(base_path_predictions, "LightGBM_RV_4y.csv"))
+lightgbm_IV     <- read.csv(file.path(base_path_predictions, "LightGBM_IV_4y.csv"))
+lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV_4y.csv"))
 
 ########## DB ###########
 # DB_RV     <- read.csv(file.path(base_path, ".csv"))
@@ -136,7 +136,7 @@ garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
 garch_t <- garch_t[garch_t$Symbol != "DOW", ]
 # rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
 ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
-# ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
+ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
 egarch <- egarch[egarch$Symbol != "DOW", ]
 #######################################################################################################
  # TEST MODELS
@@ -180,7 +180,7 @@ model_list_garch <- list(
   "EGARCH" = egarch,
   # "RV_GARCH" = rv_garch,
   "AR_GARCH" = ar_garch_norm,
-  # "AR_GARCH_t" = ar_garch_t,
+  "AR_GARCH_t" = ar_garch_t,
   "GARCH_t" = garch_t
 )
 
@@ -372,6 +372,31 @@ for (key in names(esr_results)) {
   df <- esr_results[[key]]
   df$Alpha <- factor(df$Alpha, levels = c(0.01, 0.025, 0.05), labels = c("1%", "2.5%", "5%"))
   print(kable(df, format = "pipe", digits = 2, align = 'c'))
+}
+
+
+# %%
+# Print as LaTeX table
+for (key in names(esr_results)) {
+  cat("\n\\begin{table}[H]\n")
+  cat("\\centering\n")
+  cat("\\caption{ESR p-values for", key, "}\n")
+  cat("\\begin{tabular}{|c|c|c|c|c|c|c|}\n")
+  cat("\\hline\n")
+  cat("Model & Alpha & TestVersion & Significance & SymbolsTested & Passed & Failed \\\\\n")
+  cat("\\hline\n")
+  
+  df <- esr_results[[key]]
+  df$Alpha <- factor(df$Alpha, levels = c(0.01, 0.025, 0.05), labels = c("1%", "2.5%", "5%"))
+  
+  for (i in 1:nrow(df)) {
+    row <- df[i, ]
+    cat(paste(row$Model, "&", row$Alpha, "&", row$TestVersion, "&", row$Significance, "&", row$SymbolsTested, "&", row$Passed, "&", row$Failed, "\\\\\n"))
+    cat("\\hline\n")
+  }
+  
+  cat("\\end{tabular}\n")
+  cat("\\end{table}\n")
 }
 
 
