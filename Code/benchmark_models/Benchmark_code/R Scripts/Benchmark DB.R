@@ -1,3 +1,8 @@
+# %%
+# Change working directory to Code folder in repo
+# **NB** Update this path to your local repo path
+setwd("/Users/tordjes/Github/master/Code")
+
 library(data.table)
 
 # define what variables we are working with
@@ -9,7 +14,8 @@ version = ifelse(include_rv & include_IV, "RV_IV", ifelse(include_rv, "RV", "IV"
 print(version)
 
 # filename based on version
-datapath <- paste0("~/Copy of data/processed_data_DB_", version, ".csv") # change datapath
+# cd to repo
+datapath <- paste0("data/processed_data_DB_", version, ".csv")
 print(datapath)
 # Load necessary libraries
 D <- read.csv(datapath)
@@ -56,8 +62,7 @@ ES <- c(0.01, 0.025, 0.05, 0.165, 0.835, 0.95, 0.975, 0.99)
 
 
 # Dimitriadis and Bayer model 
-DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, writefile="writefile") {
-  
+DB = function(dt = D, EW = 1500, ES = ES, nc = 16, run_all_variations = FALSE) {
   library(gridExtra)
   library(tidyverse);
   library(ggplot2);
@@ -308,15 +313,7 @@ DB = function(dt = D, EW = 1500, ES = ES, nc = 16,run_all_variations = FALSE, wr
       dt[, names(res)[-c(1:2)] := res[,-c(1:2)]]
       
       
-    }
-    
-    
-    # Specify the path where you want to save the Excel file
-    #filePath_DB <- "/Users/hansmagnusutne/Library/Mobile Documents/com~apple~CloudDocs/Documents/Dokumenter ??? Hanss MacBook Air/NTNU Dokumenter/Ind??k 5. klasse/Forskningsassistent/testFinalDB_2.xlsx"
-    
-    # Write the final dt to an Excel file
-    write.csv(dt, writefile)
-    
+    }  
   }
   
   return(dt)
@@ -345,8 +342,7 @@ for (ticker in tickers) {
                 EW = 1500, 
                 ES = ES, 
                 nc = 8, 
-                run_all_variations = FALSE, 
-                writefile=file_name) 
+                run_all_variations = FALSE) 
   
   # Add the Ticker column to the results
   results[, Symbol := ticker]
@@ -359,5 +355,5 @@ for (ticker in tickers) {
 final_results <- rbindlist(all_results)
 
 # write the final results to a csv file:
-final_file_path = paste0("~/Copy of data/DB_", version, ".csv")
+final_file_path = paste0("predictions/DB_", version, ".csv")
 write.csv(final_results, final_file_path)
