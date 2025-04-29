@@ -49,8 +49,8 @@ X_val = pd.DataFrame(X_val, columns=feature_cols)
 print("Data loaded.")
 
 # %%
-# Define the quantiles of interest
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+# Define the confidence levels and quantiles of interest
+CONFIDENCE_LEVELS = [0.90, 0.95, 0.98]
 lower_quantiles = [np.round((1 - cl) / 2, 5) for cl in CONFIDENCE_LEVELS]
 upper_quantiles = [1 - lq for lq in lower_quantiles]
 n_es_quantiles = 5  # We use 5 quantiles to approximate the expected shortfall
