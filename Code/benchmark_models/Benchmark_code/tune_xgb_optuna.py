@@ -35,18 +35,30 @@ data = get_lstm_train_test_new(
     ),
 )
 
+# %%
+# Convert to tabular
 # Extract train and validation sets
 X_train = data.train.X[:, -1, :]
 y_train = data.train.y
 X_val = data.validation.X[:, -1, :]
 y_val = data.validation.y
 
+# Add tickers to X_train and X_val
+X_train = np.concatenate([X_train, data.train.tickers.reshape(-1, 1)], axis=1)
+X_val = np.concatenate([X_val, data.validation.tickers.reshape(-1, 1)], axis=1)
+
 # Create feature column names based on actual names
-feature_cols = list(data.train.df.columns.drop("ActualReturn"))
+feature_cols = list(data.train.df.columns.drop("ActualReturn")) + ["Symbol"]
 
 # Create DataFrames
 X_train = pd.DataFrame(X_train, columns=feature_cols)
 X_val = pd.DataFrame(X_val, columns=feature_cols)
+
+dtypes = ["float64"] * (X_train.shape[1] - 1) + ["category"]
+for col, dtype in zip(X_train.columns, dtypes):
+    X_train[col] = X_train[col].astype(dtype)
+    X_val[col] = X_val[col].astype(dtype)
+
 print("Data loaded.")
 
 # %%
@@ -104,13 +116,7 @@ def objective(trial):
     quantile_losses = {}
 
     for alpha in all_quantiles:
-        print(
-            f"""
-            ======================================
-            = Training for quantile: {alpha:.3f} =
-            ======================================
-            """
-        )
+        print(f"Training for quantile: {alpha:.5f}")
 
         model = XGBRegressor(
             **params,
@@ -173,7 +179,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
 storage_url = "sqlite:///optuna/optuna.db"
 study = optuna.create_study(
     direction="minimize",
-    study_name="xgb_tuning",
+    study_name="xgb_tuning_w_tickers",
     storage=storage_url,
     load_if_exists=True,
 )
@@ -182,3 +188,5 @@ try:
 except:
     n_trials = 100
 study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
+
+# %%
