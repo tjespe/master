@@ -128,7 +128,12 @@ def objective(trial):
     for alpha, loss in quantile_losses.items():
         trial.set_user_attr(f"QL_{alpha:.3f}", loss)
 
-    avg_loss = np.mean(list(quantile_losses.values()))
+    avg_loss = np.mean(list(quantile_losses.values()))    
+    # Take some breaks because LightGBM is so much faster than the others
+    import time
+
+    time.sleep(60)
+    
     return avg_loss
 
 
