@@ -1,4 +1,6 @@
 # %%
+import os
+
 # Change to the directory where the script is located
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -11,7 +13,6 @@ import numpy as np
 import subprocess
 from xgboost import XGBRegressor
 import sys
-import os
 from xgboost.callback import EarlyStopping
 
 # Add shared path and import
