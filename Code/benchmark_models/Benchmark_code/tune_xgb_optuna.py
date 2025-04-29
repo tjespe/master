@@ -72,7 +72,9 @@ es_quantiles = [
     for q in lower_quantiles
     for small_q in np.linspace(0, q, n_es_quantiles + 1)[1:]
 ]
-all_quantiles = sorted(set(lower_quantiles + upper_quantiles + es_quantiles))
+all_quantiles = [
+    float(n) for n in sorted(set(lower_quantiles + upper_quantiles + es_quantiles))
+]
 print(f"Quantiles: {all_quantiles}")
 
 
