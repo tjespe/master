@@ -1,4 +1,5 @@
 # %%
+import json
 import os
 
 # Change to the directory where the script is located
@@ -60,6 +61,7 @@ es_quantiles = [
     for small_q in np.linspace(0, q, n_es_quantiles + 1)[1:]
 ]
 all_quantiles = sorted(set(lower_quantiles + upper_quantiles + es_quantiles))
+print(f"Quantiles: {all_quantiles}")
 
 
 # %%
@@ -96,6 +98,8 @@ def objective(trial):
         "enable_categorical": True,
         "random_state": 72,
     }
+
+    print(f"Hyperparameters: {json.dumps(params, indent=2)}")
 
     quantile_losses = {}
 
@@ -178,16 +182,3 @@ try:
 except:
     n_trials = 100
 study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
-
-# %%
-# =============================================================================
-# 6. Save and Print Results
-# =============================================================================
-print("Best parameters:")
-print(study.best_params)
-
-# Save best params to file
-best_params_df = pd.DataFrame([study.best_params])
-best_params_df.to_csv("results/best_xgb_params.csv", index=False)
-
-print("Done.")
