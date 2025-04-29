@@ -44,8 +44,8 @@ ALL_CONFIDENCE_LEVELS = CONFIDENCE_LEVELS + [0.99, 0.995]
 FILTER_ON_IMPORTANT_TICKERS = True
 
 # %%
-# Whether or not models with incomplete periods should be excluded
-EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS = True
+# Set threshold for how many NaN values are allowed in the predictions
+MAX_NAN_THRESH = 0.001  # 0.1%
 
 # %%
 # Select wheter or not to print all of the christoffersen tests while testing
@@ -523,7 +523,7 @@ for version in ["norm", "std"]:
         mus = combined_df["Mean"].values
 
         entry = {
-            "name": "Realized GARCH",
+            "name": f"Realized GARCH {version}",
             "mean_pred": mus,
             "volatility_pred": realized_garch_preds,
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -555,7 +555,7 @@ for version in ["norm", "std"]:
         preds_per_model.append(entry)
         nans = np.isnan(realized_garch_preds).sum()
         if nans > 0:
-            print(f"Realized GARCH has {nans} NaN predictions")
+            print(f"Realized GARCH {version} has {nans} NaN predictions")
     except FileNotFoundError:
         print("Realized GARCH predictions not found")
 
@@ -1308,7 +1308,7 @@ for version in [
 
 # %%
 # Exclude models with incomplete periods if requested
-if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
+if MAX_NAN_THRESH:
     keep = []
     for model in preds_per_model:
         # if the model name does not contain "Benchmark"
@@ -1317,7 +1317,7 @@ if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
         else:
             nans = pd.Series(model["volatility_pred"]).isnull().sum()
 
-        if nans > 0:
+        if nans > len(model["volatility_pred"]) * MAX_NAN_THRESH:
             print(f"Excluding {model['name']} because it has {nans} NaN predictions")
             continue
         keep.append(model)
@@ -1331,7 +1331,7 @@ if EXCLUDE_MODELS_WITH_INCOMPLETE_PERIODS:
 # Create function for inspecting entries
 def inspect_entry():
     for i, entry in enumerate(preds_per_model):
-        print(i, entry["name"])
+        print(i, entry["name"], flush=True)
     i = int(input("Enter index: "))
     m = preds_per_model[i]
     print("=========================")
