@@ -139,7 +139,7 @@ def objective(trial):
 
     # Store each quantile loss as a user attribute
     for alpha, loss in quantile_losses.items():
-        trial.set_user_attr(f"QL_{alpha:.3f}", loss)
+        trial.set_user_attr(f"QL_{alpha:.3f}", float(loss))
 
     avg_loss = np.mean(list(quantile_losses.values()))
     return avg_loss
