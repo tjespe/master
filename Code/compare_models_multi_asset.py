@@ -375,8 +375,8 @@ for version in [
 
 # HAR Model
 for version in [
-    # "python",
-    "R",
+    "python",
+    # "R",
 ]:
     try:
         har_preds = pd.read_csv(f"predictions/HAR_{version}.csv")
@@ -436,7 +436,7 @@ for version in [
         print(f"HAR_{version} predictions not found")
 
 # HARQ Model
-for version in ["R"]:  # "python",
+for version in ["python"]:
     try:
         harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
@@ -494,9 +494,50 @@ for version in ["R"]:  # "python",
     except FileNotFoundError:
         print(f"HARQ_{version} predictions not found")
 
+# HAR quantile regression model
+try:
+    har_qreg_preds = pd.read_csv(f"predictions/HAR_qreg_{TEST_SET}.csv")
+    har_qreg_preds["Date"] = pd.to_datetime(har_qreg_preds["Date"])
+    har_qreg_preds = har_qreg_preds.set_index(["Date", "Symbol"])
+    har_qreg_dates = har_qreg_preds.index.get_level_values("Date")
+    har_qreg_preds = har_qreg_preds[
+        (
+            (har_qreg_dates >= TRAIN_VALIDATION_SPLIT)
+            & (har_qreg_dates < VALIDATION_TEST_SPLIT)
+            if TEST_SET == "validation"
+            else (har_qreg_dates >= VALIDATION_TEST_SPLIT)
+        )
+    ]
+    if np.isnan(har_qreg_preds["LB_67"]).all():
+        raise FileNotFoundError("All HARQ predictions are NaN")
+    combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HARQ")
+
+    entry = {
+        "name": "HAR-QREG",
+        "mean_pred": np.nan,
+        "volatility_pred": np.nan,
+        "nll": np.nan,
+        "symbols": combined_df.index.get_level_values("Symbol"),
+        "dates": combined_df.index.get_level_values("Date"),
+    }
+
+    for cl in ALL_CONFIDENCE_LEVELS:
+        es_alpha = (1 - cl) / 2
+        for key in [
+            f"LB_{format_cl(cl)}",
+            f"UB_{format_cl(cl)}",
+            f"ES_{format_cl(1-es_alpha)}",
+        ]:
+            if key not in combined_df.columns:
+                print(f"Missing {key} for HARQ predictions")
+                entry[key] = np.nan
+            else:
+                entry[key] = combined_df[key].values
+except FileNotFoundError:
+    print("HAR QREG predictions not found")
+
 
 # Realized GARCH
-
 for version in ["norm", "std"]:
     try:
         realized_garch_preds = pd.read_csv(
@@ -559,100 +600,6 @@ for version in ["norm", "std"]:
     except FileNotFoundError:
         print("Realized GARCH predictions not found")
 
-
-# LSTM MDN (not with expanding window, so no longer in use)
-# for version in [
-#     # "quick",
-#     # "fe",
-#     # "pireg",
-#     # "dynamic",
-#     # "dynamic-weighted",
-#     # "embedded",
-#     # "l2",
-#     # "embedded-2",
-#     # "embedded-small",
-#     # "crps",
-#     # "crps-2",
-#     # "nll-crps-mix",
-#     # 3,
-#     # "basic",
-#     # "basic-w-tickers",
-#     # "rv-data",
-#     "rv-data-2",
-#     # "rv-data-3",
-#     # "w-egarch",
-#     # "w-egarch-2",
-#     "ffnn",
-#     # "tuned",
-#     # "tuned-w-fred",
-#     "ivol-only",
-#     "rv-only",
-#     "rv-5-only",
-#     "rv-and-ivol",
-#     ###################
-#     # Ensemble models #
-#     ###################
-#     "ivol-only_ensemble",
-#     "ivol-only-2_ensemble",
-#     "rv-only_ensemble",
-#     "rv-and-ivol_ensemble",
-#     ####################
-#     # Test data models #
-#     ####################
-#     "ivol-final_ensemble",
-#     "rv-final_ensemble",
-#     "rv-and-ivol-final_ensemble",
-# ]:
-#     try:
-#         lstm_mdn_df = pd.read_csv(
-#             f"predictions/lstm_mdn_predictions{SUFFIX}_v{version}.csv"
-#         )
-#         lstm_mdn_df["Symbol"] = lstm_mdn_df["Symbol"].str.replace(".O", "")
-#         lstm_mdn_df["Date"] = pd.to_datetime(lstm_mdn_df["Date"])
-#         lstm_mdn_df = lstm_mdn_df.set_index(["Date", "Symbol"])
-#         lstm_mdn_dates = lstm_mdn_df.index.get_level_values("Date")
-#         lstm_mdn_df = lstm_mdn_df[
-#             (
-#                 (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
-#                 & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
-#                 if TEST_SET == "validation"
-#                 else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
-#             )
-#         ]
-#         if np.isnan(lstm_mdn_df["Mean_SP"]).all():
-#             raise FileNotFoundError(f"All LSTM MDN {version} predictions are NaN")
-#         combined_df = df_validation.join(lstm_mdn_df, how="left", rsuffix="_LSTM_MDN")
-#         ece_col = combined_df.get("ECE")
-#         entry = {
-#             "name": f"LSTM MDN {version}",
-#             "mean_pred": combined_df["Mean_SP"].values,
-#             "volatility_pred": combined_df["Vol_SP"].values,
-#             "epistemic_var": combined_df.get("EpistemicVarMean"),
-#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-#             "symbols": combined_df.index.get_level_values("Symbol"),
-#             "dates": combined_df.index.get_level_values("Date"),
-#             "crps": (
-#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
-#             ),
-#             "p_up": combined_df.get("Prob_Increase"),
-#             "ece": ece_col.median() if ece_col is not None else None,
-#         }
-#         for cl in ALL_CONFIDENCE_LEVELS:
-#             lb = combined_df.get(f"LB_{format_cl(cl)}")
-#             ub = combined_df.get(f"UB_{format_cl(cl)}")
-#             if lb is None or ub is None:
-#                 print(f"Missing {format_cl(cl)}% interval for LSTM MDN {version}")
-#             entry[f"LB_{format_cl(cl)}"] = lb
-#             entry[f"UB_{format_cl(cl)}"] = ub
-#             alpha = 1 - (1 - cl) / 2
-#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
-#         preds_per_model.append(entry)
-#         nans = combined_df["Mean_SP"].isnull().sum()
-#         if nans > 0:
-#             print(f"LSTM MDN {version} has {nans} NaN predictions")
-#     except FileNotFoundError:
-#         print(f"LSTM MDN {version} predictions not found")
-
 # LSTM MDN, new naming convention
 for version in [
     "ivol-final-rolling",
@@ -708,83 +655,6 @@ for version in [
         print(f"LSTM MDN {version} predictions not found")
     except Exception as e:
         print(f"Issue loading LSTM MDN {version} predictions: {e}")
-
-# # Transformer MDN
-# for version in [
-#     # 3,
-#     "time",
-#     # "time-2",
-#     # "mini",
-#     # "tuned",
-#     # "tuned-2",
-#     # "time-step-attention",
-#     # "last-time-step",
-#     # "tuned-overridden",
-#     # "w-fred",
-#     "tuned-8-mixtures",
-#     "tuned-calibration",
-#     "ivol-only",
-#     "rv-only",
-#     "rv-and-ivol",
-#     "rv_test_ensemble",
-#     "ivol_test_ensemble",
-#     "rv-and-ivol_test_ensemble",
-# ]:
-#     try:
-#         transformer_df = pd.read_csv(
-#             f"predictions/transformer_mdn_predictions{SUFFIX}_v{version}.csv"
-#         )
-#         transformer_df["Symbol"] = transformer_df["Symbol"].str.replace(".O", "")
-#         transformer_df["Date"] = pd.to_datetime(transformer_df["Date"])
-#         transformer_df = transformer_df.set_index(["Date", "Symbol"])
-#         transformer_dates = transformer_df.index.get_level_values("Date")
-#         transformer_df = transformer_df[
-#             (
-#                 (transformer_dates >= TRAIN_VALIDATION_SPLIT)
-#                 & (transformer_dates < VALIDATION_TEST_SPLIT)
-#                 if TEST_SET == "validation"
-#                 else (transformer_dates >= VALIDATION_TEST_SPLIT)
-#             )
-#         ]
-#         if np.isnan(transformer_df["Mean_SP"]).all():
-#             raise FileNotFoundError(
-#                 f"All Transformer MDN {version} predictions are NaN"
-#             )
-#         combined_df = df_validation.join(
-#             transformer_df, how="left", rsuffix="_Transformer_MDN"
-#         )
-#         ece_col = combined_df.get("ECE")
-#         entry = {
-#             "name": f"Transformer MDN {version}",
-#             "mean_pred": combined_df["Mean_SP"].values,
-#             "volatility_pred": combined_df["Vol_SP"].values,
-#             "epistemic_var": combined_df.get("EpistemicVarMean"),
-#             "nll": combined_df.get("NLL", combined_df.get("loss")).values,
-#             "dates": combined_df.index.get_level_values("Date"),
-#             "symbols": combined_df.index.get_level_values("Symbol"),
-#             "crps": (
-#                 crps.values if (crps := combined_df.get("CRPS")) is not None else None
-#             ),
-#             "p_up": combined_df.get("Prob_Increase"),
-#             "ece": ece_col.median() if ece_col is not None else None,
-#         }
-#         for cl in ALL_CONFIDENCE_LEVELS:
-#             lb = combined_df.get(f"LB_{format_cl(cl)}")
-#             ub = combined_df.get(f"UB_{format_cl(cl)}")
-#             if lb is None or ub is None:
-#                 print(
-#                     f"Missing {format_cl(cl)}% interval for Transformer MDN {version}"
-#                 )
-#             entry[f"LB_{format_cl(cl)}"] = lb
-#             entry[f"UB_{format_cl(cl)}"] = ub
-#             alpha = 1 - (1 - cl) / 2
-#             entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
-#         preds_per_model.append(entry)
-#         nans = combined_df["Mean_SP"].isnull().sum()
-#         if nans > 0:
-#             print(f"Transformer MDN {version} has {nans} NaN predictions")
-#     except FileNotFoundError:
-#         print(f"Transformer MDN {version} predictions not found")
 
 # Transformer MDN, new naming convention
 for version in [
