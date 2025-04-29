@@ -169,8 +169,8 @@ def forecast_symbol(symbol):
         for cl in CONFIDENCE_LEVELS:
             lb_q = (1 - cl) / 2
             ub_q = (1 + cl) / 2
-            lb_pred = np.sqrt(quantile_models[lb_q].predict(X_pred).iloc[0])
-            ub_pred = np.sqrt(quantile_models[ub_q].predict(X_pred).iloc[0])
+            lb_pred = quantile_models[lb_q].predict(X_pred).iloc[0]
+            ub_pred = quantile_models[ub_q].predict(X_pred).iloc[0]
             var_preds[f"LB_{format_cl(cl)}"] = lb_pred
             var_preds[f"UB_{format_cl(cl)}"] = ub_pred
 
@@ -179,9 +179,7 @@ def forecast_symbol(symbol):
         for alpha in ES_LEVELS:
             lower_q = 1 - alpha
             es_qs = np.linspace(0, lower_q, n_es_points + 1)[1:]
-            es_vals = [
-                np.sqrt(quantile_models[q].predict(X_pred).iloc[0]) for q in es_qs
-            ]
+            es_vals = [(quantile_models[q].predict(X_pred).iloc[0]) for q in es_qs]
             es_preds[f"ES_{alpha * 100:.1f}".rstrip("0").rstrip(".")] = np.mean(es_vals)
 
         # Collect results
