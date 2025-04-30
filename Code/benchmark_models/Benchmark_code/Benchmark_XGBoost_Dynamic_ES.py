@@ -211,24 +211,37 @@ def combine_processed_data_into_df(window_size=1500):
 # =============================================================================
 # 2 Model Specification and Forecasting
 # =============================================================================
-def train_and_predict_xgb(X_train, y_train, X_val, y_val, X_test, quantile_alpha):
+def train_and_predict_xgb(
+    X_train, y_train, X_val, y_val, X_test, quantile_alpha, label=None
+):
     """Trains an XGBoost model for a specific quantile and predicts."""
     model = XGBRegressor(
-        n_estimators=400,  # Adjust hyperparameters as needed
-        max_depth=4,
-        learning_rate=0.03,
         quantile_alpha=quantile_alpha,
         objective="reg:quantileerror",
         verbosity=0,
-        reg_lambda=1,
         random_state=72,
         early_stopping_rounds=20,
         enable_categorical=True,  # Enable categorical features,
         tree_method="hist",
+        n_estimators=169,
+        max_depth=2,
+        learning_rate=0.21714914917425182,
+        reg_lambda=5.431533853816789,
+        min_child_weight=256.3743336159067,
+        subsample=0.9786341633008059,
+        colsample_bytree=0.9352284063335753,
+        gamma=0.0017916989650043633,
+        max_bin=128,
+        grow_policy="lossguide",
     )
 
     # Early stopping for better generalization
     model.fit(X_train, y_train, eval_set=[(X_val, y_val)], verbose=False)
+
+    # Save model if label is provided
+    if label is not None:
+        model.save_model(f"trained/xgb_{VERSION}_{label}_{quantile_alpha}.json")
+
     return model.predict(X_test)
 
 
@@ -300,6 +313,7 @@ def run_quantile_regression_rolling_window(
                 y_val=y_val,
                 X_test=X_test,
                 quantile_alpha=q,
+                label=test_date.strftime("%Y%m%d"),
             )
             pred_quantiles[q] = pred
 
