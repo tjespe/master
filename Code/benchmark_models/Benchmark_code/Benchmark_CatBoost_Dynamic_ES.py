@@ -5,7 +5,7 @@
 
 # %%
 # define what version to run
-INCLUDE_RV = True
+INCLUDE_RV = False
 INCLUDE_IV = True
 
 # version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
@@ -210,18 +210,23 @@ def train_and_predict_catboost(
     X_test,
     quantile_alpha,
     cat_features_indices: list[int],
+    label=None,
 ):
     """Trains a CatBoost model for a specific quantile and predicts on test data."""
     model = CatBoostRegressor(
-        iterations=400,
-        learning_rate=0.08,
-        depth=4,
-        l2_leaf_reg=3,
         loss_function=f"Quantile:alpha={quantile_alpha}",
         # loss_function='Quantile',
         # alpha=quantile_alpha,
         verbose=False,
         random_seed=72,
+        iterations=2997,
+        learning_rate=0.21591016133856566,
+        depth=2,
+        l2_leaf_reg=0.00023892623482550492,
+        random_strength=0.38151255272097445,
+        bagging_temperature=6.548495203655064,
+        border_count=453,
+        leaf_estimation_iterations=20,
     )
 
     model.fit(
@@ -232,7 +237,13 @@ def train_and_predict_catboost(
         cat_features=cat_features_indices,
     )
     preds = model.predict(X_test)
-    preds
+
+    if label:
+        model.save_model(
+            f"trained/cat_{VERSION}_{label}_{quantile_alpha}.cbm",
+            format="cbm",
+        )
+
     return preds
 
 
@@ -323,6 +334,7 @@ def run_quantile_regression_rolling_window(
                 X_test=X_test,
                 quantile_alpha=alpha,
                 cat_features_indices=cat_feature_index,
+                label=test_date_val.strftime("%Y-%m-%d"),
             )
             pred_quantiles[alpha] = y_pred
 

@@ -1,4 +1,7 @@
 # %%
+import json
+import os
+
 # Change to the directory where the script is located
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -11,7 +14,6 @@ import numpy as np
 import subprocess
 from xgboost import XGBRegressor
 import sys
-import os
 from xgboost.callback import EarlyStopping
 
 # Add shared path and import
@@ -33,23 +35,35 @@ data = get_lstm_train_test_new(
     ),
 )
 
+# %%
+# Convert to tabular
 # Extract train and validation sets
 X_train = data.train.X[:, -1, :]
 y_train = data.train.y
 X_val = data.validation.X[:, -1, :]
 y_val = data.validation.y
 
+# Add tickers to X_train and X_val
+X_train = np.concatenate([X_train, data.train.tickers.reshape(-1, 1)], axis=1)
+X_val = np.concatenate([X_val, data.validation.tickers.reshape(-1, 1)], axis=1)
+
 # Create feature column names based on actual names
-feature_cols = list(data.train.df.columns.drop("ActualReturn"))
+feature_cols = list(data.train.df.columns.drop("ActualReturn")) + ["Symbol"]
 
 # Create DataFrames
 X_train = pd.DataFrame(X_train, columns=feature_cols)
 X_val = pd.DataFrame(X_val, columns=feature_cols)
+
+dtypes = ["float64"] * (X_train.shape[1] - 1) + ["category"]
+for col, dtype in zip(X_train.columns, dtypes):
+    X_train[col] = X_train[col].astype(dtype)
+    X_val[col] = X_val[col].astype(dtype)
+
 print("Data loaded.")
 
 # %%
-# Define the quantiles of interest
-CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+# Define the confidence levels and quantiles of interest
+CONFIDENCE_LEVELS = [0.90, 0.95, 0.98]
 lower_quantiles = [np.round((1 - cl) / 2, 5) for cl in CONFIDENCE_LEVELS]
 upper_quantiles = [1 - lq for lq in lower_quantiles]
 n_es_quantiles = 5  # We use 5 quantiles to approximate the expected shortfall
@@ -58,7 +72,10 @@ es_quantiles = [
     for q in lower_quantiles
     for small_q in np.linspace(0, q, n_es_quantiles + 1)[1:]
 ]
-all_quantiles = sorted(set(lower_quantiles + upper_quantiles + es_quantiles))
+all_quantiles = [
+    float(n) for n in sorted(set(lower_quantiles + upper_quantiles + es_quantiles))
+]
+print(f"Quantiles: {all_quantiles}")
 
 
 # %%
@@ -96,9 +113,13 @@ def objective(trial):
         "random_state": 72,
     }
 
+    print(f"Hyperparameters: {json.dumps(params, indent=2)}")
+
     quantile_losses = {}
 
     for alpha in all_quantiles:
+        print(f"Training for quantile: {alpha:.5f}")
+
         model = XGBRegressor(
             **params,
             objective="reg:quantileerror",
@@ -109,7 +130,7 @@ def objective(trial):
             X_train,
             y_train,
             eval_set=[(X_val, y_val)],
-            verbose=True,
+            verbose=False,
         )
 
         preds = model.predict(X_val)
@@ -118,7 +139,11 @@ def objective(trial):
 
     # Store each quantile loss as a user attribute
     for alpha, loss in quantile_losses.items():
-        trial.set_user_attr(f"QL_{alpha:.3f}", loss)
+        trial.set_user_attr(f"QL_{alpha:.3f}", float(loss))
+
+    import time
+
+    time.sleep(60)
 
     avg_loss = np.mean(list(quantile_losses.values()))
     return avg_loss
@@ -135,7 +160,7 @@ def git_commit_callback(study: optuna.Study, trial: optuna.Trial):
     try:
         subprocess.run(["git", "pull", "--no-edit"], check=True)
         subprocess.run(["git", "add", "optuna"], check=True)
-        commit_header = f"Trial {trial.number} - Updated study DB"
+        commit_header = f"XGB tuning trial {trial.number} - Updated study DB"
         commit_body = (
             f"Trial {trial.number} finished with objective value: {trial.value}\n"
             f"Hyperparameters: {trial.params}\n"
@@ -171,14 +196,3 @@ except:
 study.optimize(objective, n_trials=n_trials, callbacks=[git_commit_callback])
 
 # %%
-# =============================================================================
-# 6. Save and Print Results
-# =============================================================================
-print("Best parameters:")
-print(study.best_params)
-
-# Save best params to file
-best_params_df = pd.DataFrame([study.best_params])
-best_params_df.to_csv("results/best_xgb_params.csv", index=False)
-
-print("Done.")

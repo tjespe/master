@@ -5,8 +5,8 @@
 
 # %%
 # define what version to run
-INCLUDE_RV = True
-INCLUDE_IV = False
+INCLUDE_RV = False
+INCLUDE_IV = True
 
 # version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
 VERSION = (
@@ -206,21 +206,36 @@ def combine_processed_data_into_df(window_size=1500):
 
 
 def train_and_predict_lgb(
-    X_train, y_train, X_val, y_val, X_test, quantile_alpha, cat_feature_index
+    X_train,
+    y_train,
+    X_val,
+    y_val,
+    X_test,
+    quantile_alpha,
+    cat_feature_index,
+    label=None,
 ):
     """Trains an LGBMRegressor model for a specific quantile and predicts on test data."""
     model = LGBMRegressor(
         objective="quantile",
         alpha=quantile_alpha,
         metric="quantile",
-        num_leaves=8,  # Adjust hyperparameters as needed
-        learning_rate=0.01,
-        n_estimators=600,
         boosting_type="gbdt",
-        lambda_l2=1,
         random_state=72,
-        categorical_feature=cat_feature_index,
         verbose=-1,
+        n_estimators=1219,
+        learning_rate=0.003152537601338287,
+        num_leaves=250,
+        min_child_samples=100,
+        reg_lambda=80.57060548296238,
+        colsample_bytree=0.9878684326581313,
+        subsample=0.6046058203254452,
+        subsample_freq=7,
+        max_bin=300,
+        cat_l2=75.99372448150835,
+        min_split_gain=0.11099620575758903,
+        feature_fraction=0.8707396180881973,
+        extra_trees=False,
     )
 
     model.fit(
@@ -228,7 +243,13 @@ def train_and_predict_lgb(
         y_train,
         eval_set=[(X_val, y_val)],
         callbacks=[early_stopping(stopping_rounds=50, verbose=False)],
+        categorical_feature=cat_feature_index,
     )
+
+    # Save model in case we need it later
+    if label:
+        model.booster_.save_model(f"trained/lgb_{VERSION}_{label}_{quantile_alpha}.txt")
+
     return model.predict(X_test)
 
 
@@ -305,6 +326,7 @@ def run_quantile_regression_rolling_window(
                 X_test=X_test,
                 quantile_alpha=alpha,
                 cat_feature_index=cat_feature_index,
+                label=test_date_val.strftime("%Y-%m-%d"),
             )
             pred_quantiles[alpha] = y_pred
 
