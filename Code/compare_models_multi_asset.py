@@ -495,48 +495,49 @@ for version in ["python"]:
         print(f"HARQ_{version} predictions not found")
 
 # HAR quantile regression model
-try:
-    har_qreg_preds = pd.read_csv(f"predictions/HAR_qreg_{TEST_SET}.csv")
-    har_qreg_preds["Date"] = pd.to_datetime(har_qreg_preds["Date"])
-    har_qreg_preds = har_qreg_preds.set_index(["Date", "Symbol"])
-    har_qreg_dates = har_qreg_preds.index.get_level_values("Date")
-    har_qreg_preds = har_qreg_preds[
-        (
-            (har_qreg_dates >= TRAIN_VALIDATION_SPLIT)
-            & (har_qreg_dates < VALIDATION_TEST_SPLIT)
-            if TEST_SET == "validation"
-            else (har_qreg_dates >= VALIDATION_TEST_SPLIT)
-        )
-    ]
-    if np.isnan(har_qreg_preds["LB_67"]).all():
-        raise FileNotFoundError("All HAR_QREG predictions are NaN")
-    combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HAR_QREG")
+for version in ["", "_IVOL"]:
+    try:
+        har_qreg_preds = pd.read_csv(f"predictions/HAR{version}_qreg_{TEST_SET}.csv")
+        har_qreg_preds["Date"] = pd.to_datetime(har_qreg_preds["Date"])
+        har_qreg_preds = har_qreg_preds.set_index(["Date", "Symbol"])
+        har_qreg_dates = har_qreg_preds.index.get_level_values("Date")
+        har_qreg_preds = har_qreg_preds[
+            (
+                (har_qreg_dates >= TRAIN_VALIDATION_SPLIT)
+                & (har_qreg_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (har_qreg_dates >= VALIDATION_TEST_SPLIT)
+            )
+        ]
+        if np.isnan(har_qreg_preds["LB_67"]).all():
+            raise FileNotFoundError(f"All HAR{version}_QREG predictions are NaN")
+        combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HAR_QREG")
 
-    entry = {
-        "name": "HAR-QREG",
-        "mean_pred": np.nan,
-        "volatility_pred": np.nan,
-        "nll": np.nan,
-        "symbols": combined_df.index.get_level_values("Symbol"),
-        "dates": combined_df.index.get_level_values("Date"),
-    }
+        entry = {
+            "name": f"HAR{version}-QREG",
+            "mean_pred": np.nan,
+            "volatility_pred": np.nan,
+            "nll": np.nan,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
+        }
 
-    for cl in ALL_CONFIDENCE_LEVELS:
-        es_alpha = (1 - cl) / 2
-        for key in [
-            f"LB_{format_cl(cl)}",
-            f"UB_{format_cl(cl)}",
-            f"ES_{format_cl(1-es_alpha)}",
-        ]:
-            if key not in combined_df.columns:
-                print(f"Missing {key} for HAR_QREG predictions")
-                entry[key] = np.nan
-            else:
-                entry[key] = combined_df[key].values
+        for cl in ALL_CONFIDENCE_LEVELS:
+            es_alpha = (1 - cl) / 2
+            for key in [
+                f"LB_{format_cl(cl)}",
+                f"UB_{format_cl(cl)}",
+                f"ES_{format_cl(1-es_alpha)}",
+            ]:
+                if key not in combined_df.columns:
+                    print(f"Missing {key} for HAR{version}_QREG predictions")
+                    entry[key] = np.nan
+                else:
+                    entry[key] = combined_df[key].values
 
-    preds_per_model.append(entry)
-except FileNotFoundError:
-    print("HAR QREG predictions not found")
+        preds_per_model.append(entry)
+    except FileNotFoundError:
+        print("HAR QREG predictions not found")
 
 
 # Realized GARCH
@@ -2189,11 +2190,12 @@ traditional = [
     ("GARCH", "GARCH"),
     ("GARCH-t", "GARCH Student-t"),
     ("EGARCH", "EGARCH"),
-    ("RV-GARCH", "Realized GARCH"),
+    ("RV-GARCH", "Realized GARCH std"),
     ("AR-GARCH", "AR(1)-GARCH(1,1)-normal"),
     ("AR-GARCH-t", "AR(1)-GARCH(1,1)-t"),
-    ("HAR", "HAR_R"),
-    ("HARQ", "HARQ_R"),
+    ("HAR", "HAR_python"),
+    ("HARQ", "HARQ_python"),
+    ("HAR-QREG", "HAR-QREG"),
     ("DB-RV", "DB-RV"),
     ("DB-IV", "DB-IV"),
     ("DB-RV-IV", "DB-RV-IV"),
