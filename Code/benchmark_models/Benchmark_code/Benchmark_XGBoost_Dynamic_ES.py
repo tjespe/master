@@ -5,7 +5,7 @@
 # %%
 # define what version to run
 INCLUDE_RV = True
-INCLUDE_IV = True
+INCLUDE_IV = False
 
 # version is RV if INCLUDE_RV is True, IV if INCLUDE_IV is True, RV_IV if both are True
 VERSION = (

@@ -1,7 +1,7 @@
 # %%
 # Change working directory to Code folder in repo
 # **NB** Update this path to your local repo path
-setwd("/Users/tordjes/Github/master/Code")
+# setwd("/Users/tordjes/Github/master/Code")
 
 library(data.table)
 
