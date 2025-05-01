@@ -1331,11 +1331,9 @@ for entry in preds_per_model:
         entry[f"interval_score_{cl_str}"] = interval_score
 
         # Calculate quantile loss
-        entry[f"quantile_loss_{cl_str}"] = np.nanmean(
-            np.maximum(
-                y_test_actual - entry[f"UB_{cl_str}"],
-                entry[f"LB_{cl_str}"] - y_test_actual,
-            )
+        entry[f"quantile_loss_{cl_str}"] = np.maximum(
+            y_test_actual - entry[f"UB_{cl_str}"],
+            entry[f"LB_{cl_str}"] - y_test_actual,
         )
 
         # Calculate Lopez loss function
@@ -1651,7 +1649,7 @@ for entry in preds_per_model:
         results[f"[{cl_str}] PICP Miss"].append(picp_miss)
         results[f"[{cl_str}] Mean width (MPIW)"].append(entry[f"mpiw_{cl_str}"])
         results[f"[{cl_str}] Interval Score"].append(entry[f"interval_score_{cl_str}"])
-        results[f"[{cl_str}] QL"].append(entry[f"quantile_loss_{cl_str}"])
+        results[f"[{cl_str}] QL"].append(np.nanmean(entry[f"quantile_loss_{cl_str}"]))
         results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
         pooled_results = entry[f"christoffersen_test_{cl_str}"]["p-value"]
         for i, test in enumerate(["UC", "Ind", "CC"]):
@@ -1858,6 +1856,12 @@ results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
     underline_winner, axis=0
 )
 
+# %%
+# Look at PICP for each model
+results_df.T[["[90] PICP", "[95] PICP", "[98] PICP"]].style.apply(
+    underline_winner, axis=0
+)
+
 
 # %%
 # Examine if failures are caused by wrong UC or failure of independence
@@ -1896,26 +1900,30 @@ results_df.T[
 ].style.apply(color_uc_ind_dominator, axis=1)
 
 # %%
-# Look at how NLL changes over time
-plt.figure(figsize=(12, 6))
-for name in [
-    "GARCH",
-    "LSTM MDN rv-and-ivol-final-rolling",
-    "Transformer MDN rvol-ivol expanding",
-]:
-    entry = next(entry for entry in passing_models if entry["name"] == name)
-    nll_df = pd.DataFrame(
-        {
-            "Date": entry["dates"],
-            "Symbol": entry["symbols"],
-            "NLL": entry["nll"],
-            "Model": entry["name"],
-        }
-    ).set_index(["Date", "Symbol"])
-    plt.plot(
-        nll_df.groupby("Date")["NLL"].mean().rolling(30).mean(), label=entry["name"]
-    )
-plt.legend()
+# Look at how different loss functions change over time for the best performing models of each type
+for loss_fn in ["nll", "FZ0_95", "FZ0_97.5", "quantile_loss_95", "quantile_loss_98"]:
+    plt.figure(figsize=(12, 6))
+    for name in [
+        "GARCH",
+        "LSTM MDN ivol-final-rolling",
+        "Transformer MDN rvol-ivol expanding",
+        "Benchmark LightGBM IV",
+    ]:
+        entry = next(entry for entry in passing_models if entry["name"] == name)
+        loss_df = pd.DataFrame(
+            {
+                "Date": entry["dates"],
+                "Symbol": entry["symbols"],
+                loss_fn: entry[loss_fn],
+                "Model": entry["name"],
+            }
+        ).set_index(["Date", "Symbol"])
+        plt.plot(
+            loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
+            label=entry["name"],
+        )
+    plt.title(loss_fn)
+    plt.legend()
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
@@ -2123,6 +2131,7 @@ for alpha in mcs_results.keys():
     for metric in loss_fns:
         # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
         df_losses = pd.DataFrame(index=df_validation.index)
+        nan_mask = np.array([False] * len(df_validation.index))
         for entry in preds_per_model:
             entry_df = pd.DataFrame(
                 index=[entry["symbols"], entry["dates"]],
@@ -2133,11 +2142,23 @@ for alpha in mcs_results.keys():
                 continue
             if not isinstance(loss_vals, np.ndarray):
                 loss_vals = np.array(loss_vals)
-            if np.isnan(loss_vals).any():
-                print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
-                continue
+            nans = np.isnan(loss_vals)
+            if nans.any():
+                print(
+                    f"NaNs found in {entry['name']} for {metric} ({100*np.round(np.mean(np.isnan(loss_vals)),4)}%)",
+                    end=", ",
+                )
+                if np.mean(nans) < MAX_NAN_THRESH:
+                    print("masking")
+                    nan_mask = np.logical_or(nan_mask, nans)
+                else:
+                    print("excluding from MCS")
+                    continue
             entry_df[entry["name"]] = loss_vals
             df_losses = df_losses.join(entry_df, how="left")
+
+        # Remove rows that have NaNs in any model's losses
+        df_losses = df_losses[~nan_mask]
 
         # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
         # We take the mean across symbols at each time index for each model
@@ -2235,6 +2256,7 @@ traditional = [
     ("HAR", "HAR_python"),
     ("HARQ", "HARQ_python"),
     ("HAR-QREG", "HAR-QREG"),
+    ("HAR-IV-QREG", "HAR_IVOL-QREG"),
     ("DB-RV", "DB-RV"),
     ("DB-IV", "DB-IV"),
     ("DB-RV-IV", "DB-RV-IV"),
@@ -2486,7 +2508,10 @@ for set_i, (set_name, model_set) in enumerate(
                 table_str += " ".join(["&", " & ".join(["-"] * 2)])
                 continue
             masked_df = chr_results_df[chr_results_df["cc_pass"] == False]
-            if masked_df.shape[0] <= 4:
+            fails = masked_df.shape[0]
+            passes = chr_results_df[chr_results_df["cc_pass"] == True].shape[0]
+            fail_rate = fails / (passes + fails) if (passes + fails) > 0 else 0
+            if fail_rate < 0.15:
                 table_str += " & * & *"
                 continue
             uc_fails = (masked_df["uc_pass"] == False).sum()
