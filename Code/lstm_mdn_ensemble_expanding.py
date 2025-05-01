@@ -412,6 +412,7 @@ if __name__ == "__main__":
         # Color appropriately
         color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
         figsize=(12, 6),
+        save_to=f"results/ES/AAPL_{MODEL_NAME}.pdf",
     )
 
     # %%
