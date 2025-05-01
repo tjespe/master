@@ -642,6 +642,7 @@ for version in [
             ),
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
         }
         for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
