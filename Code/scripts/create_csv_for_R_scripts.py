@@ -4,11 +4,15 @@
 
 # %%
 # Define what to include, RV and/or IV
-INCLUDE_RV = False
-INCLUDE_IV = True
+INCLUDE_RV = True
+INCLUDE_IV = False
 
 # version name is "RV" if only RV is included, "IV" if only IV is included, and "RV_IV" if both are included
-VERSION = "RV" if INCLUDE_RV and not INCLUDE_IV else "IV" if not INCLUDE_RV and INCLUDE_IV else "RV_IV"
+VERSION = (
+    "RV"
+    if INCLUDE_RV and not INCLUDE_IV
+    else "IV" if not INCLUDE_RV and INCLUDE_IV else "RV_IV"
+)
 print(f"Version name: {VERSION}")
 # %%
 # Import the necessary libraries
@@ -17,8 +21,10 @@ import numpy as np
 import os
 import sys
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'shared')))
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.append(
+    os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "shared"))
+)
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 from processing import get_lstm_train_test_new
@@ -31,11 +37,11 @@ WINDOW = 1500
 #######################################
 
 data = get_lstm_train_test_new(
-        include_1min_rv = INCLUDE_RV,
-        include_5min_rv = INCLUDE_RV,
-        include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_IV else [])
-        + (["Historical Call IVOL"] if INCLUDE_IV else [])
-    )
+    include_1min_rv=INCLUDE_RV,
+    include_5min_rv=INCLUDE_RV,
+    include_ivol_cols=(["10 Day Call IVOL"] if INCLUDE_IV else [])
+    + (["Historical Call IVOL"] if INCLUDE_IV else []),
+)
 data
 
 # %%
@@ -54,9 +60,9 @@ dates_test = data.test.dates
 
 # %%
 # Changing shape to not take in lags as features
-X_train = X_train[:, -1, : ]
-X_val = X_val[:, -1, : ]
-X_test = X_test[:, -1, : ]
+X_train = X_train[:, -1, :]
+X_val = X_val[:, -1, :]
+X_test = X_test[:, -1, :]
 
 # make a training set as df
 feat_cols = [f"feat_{i}" for i in range(X_train.shape[1])]
@@ -67,7 +73,7 @@ df_train["Return"] = y_train
 
 df_train
 
-#%%
+# %%
 # Do the same for the validation set but keep all data
 feat_cols = [f"feat_{i}" for i in range(X_val.shape[1])]
 df_val = pd.DataFrame(X_val, columns=feat_cols)
