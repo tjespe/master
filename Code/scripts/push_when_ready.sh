@@ -1,4 +1,3 @@
-#!/bin/bash
 git pull --no-edit
 git add .
 git commit -m "Add preds"
