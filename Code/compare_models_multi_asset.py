@@ -1,6 +1,6 @@
 # %%
+from shared.skew_t import skewt_nll
 from shared.adequacy import (
-    auxiliary_esr_test,
     christoffersen_test,
     pooled_bayer_dimitriadis_test,
 )
@@ -235,7 +235,7 @@ except FileNotFoundError:
 
 # GARCH Skewed-t Model
 try:
-    garch_skewt_vol_pred = pd.read_csv("predictions/garch_predictions_skewt.csv")
+    garch_skewt_vol_pred = pd.read_csv("predictions/garch_predictions_skewed_t.csv")
     garch_skewt_vol_pred["Date"] = pd.to_datetime(garch_skewt_vol_pred["Date"])
     garch_skewt_vol_pred = garch_skewt_vol_pred.set_index(["Date", "Symbol"])
     garch_skewt_dates = garch_skewt_vol_pred.index.get_level_values("Date")
@@ -258,6 +258,7 @@ try:
     nus = combined_df["GARCH_skewt_Nu"].values
     skew = combined_df["GARCH_skewt_Skew"].values
     crps = combined_df["GARCH_skewt_CRPS"].values
+    nll = skewt_nll(y_true, garch_skewt_vol_pred, nus, skew, reduce=False)
 
     entry = {
         "name": "GARCH Skewed-t",
@@ -265,13 +266,7 @@ try:
         "volatility_pred": garch_skewt_vol_pred,
         "symbols": combined_df.index.get_level_values("Symbol"),
         "dates": combined_df.index.get_level_values("Date"),
-        # "nll": student_t_nll( must make a new function for this
-        #     y_true,
-        #     mus,
-        #     garch_skewt_vol_pred,
-        #     nus,
-        #     skew=skew
-        # ),
+        "nll": nll,
         "crps": crps,
         # "ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
         "LB_67": combined_df["LB_67"].values,
@@ -1905,9 +1900,13 @@ results_df.T[
 for loss_fn in ["nll", "FZ0_95", "FZ0_97.5", "quantile_loss_95", "quantile_loss_98"]:
     plt.figure(figsize=(12, 6))
     for name in [
-        "GARCH",
         "LSTM MDN ivol-final-rolling",
-        "Transformer MDN rvol-ivol expanding",
+        "Transformer MDN ivol expanding",
+        "GARCH",
+        "GARCH Skewed-t",
+        "HAR-QREG",
+        "HAR_IVOL-QREG",
+        "Benchmark Catboost RV_IV",
         "Benchmark LightGBM IV",
     ]:
         entry = next(entry for entry in passing_models if entry["name"] == name)

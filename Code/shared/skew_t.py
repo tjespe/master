@@ -1,6 +1,45 @@
 # %%
 import numpy as np
-import numpy as np
+from arch.univariate.distribution import SkewStudent
+
+
+def skewt_nll(y_true, vol_pred, nu, skew, mu=None, reduce=True):
+    """
+    Per-obs loop to handle time-varying nu/skew in arch’s SkewStudent.
+
+    y_true : (n,) observed returns (same units your model was fit in)
+    vol_pred: (n,) one-step-ahead σ_t
+    nu      : (n,) or scalar η parameters
+    skew    : (n,) or scalar λ parameters
+    mu      : (n,) or scalar location (default zero)
+    reduce  : if True, return scalar sum NLL; else per-obs vector
+    """
+    y = np.asarray(y_true)
+    σ = np.asarray(vol_pred)
+    ηs = np.asarray(nu)
+    λs = np.asarray(skew)
+    if mu is None:
+        rs = y
+    else:
+        rs = y - np.asarray(mu)
+
+    dist = SkewStudent()
+    n = len(y)
+    ll = np.empty(n, dtype=float)
+
+    for i in range(n):
+        # each call gets scalar η and λ, and length-1 arrays for resids/sigma2
+        params = [float(ηs[i]), float(λs[i])]
+        resids = np.array([rs[i]])
+        sigma2 = np.array([σ[i] ** 2])
+        # individual=True returns a length-1 array
+        ll_i = dist.loglikelihood(
+            parameters=params, resids=resids, sigma2=sigma2, individual=True
+        )
+        ll[i] = ll_i[0]
+
+    nll_vec = -ll
+    return nll_vec.sum() if reduce else nll_vec
 
 
 def rvs_skewt(n, nu, lam, random_state=None):
