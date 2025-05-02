@@ -90,7 +90,6 @@ df["SquaredReturn"] = df["LogReturn"] ** 2
 
 # Set date and symbol as index
 df: pd.DataFrame = df.set_index(["Date", "Symbol"])
-df
 
 # %%
 # load capire data
@@ -103,11 +102,9 @@ capire_df = capire_df.set_index(["Date", "Symbol"])
 df = df.merge(capire_df, on=["Date", "Symbol"], how="inner")
 # transform RV to daily decimal
 df["RV_5_daily"] = (df["RV_5"] / 100) / 252.0
-df
 # %%
 # Filter away data before 1990
 df = df[df.index.get_level_values("Date") >= "1990-01-01"]
-df
 
 # %%
 # Get validation part of df
@@ -117,7 +114,6 @@ df_validation = (
     if TEST_SET == "validation"
     else df[(dates >= VALIDATION_TEST_SPLIT)]
 )
-df_validation
 
 # %%
 # Filter on important tickers
@@ -125,7 +121,6 @@ if FILTER_ON_IMPORTANT_TICKERS:
     df_validation = df_validation[
         df_validation.index.get_level_values("Symbol").isin(IMPORTANT_TICKERS)
     ]
-    df_validation
 
 
 # %%
@@ -262,7 +257,8 @@ try:
     crps = combined_df["GARCH_skewt_CRPS"].values
     nll = skewt_nll(y_true, garch_skewt_vol_pred, nus, skew, reduce=False)
     ece = ece_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
-    crps = crps_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
+    # crps = crps_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
+    crps = None  # Takes too long
 
     entry = {
         "name": "GARCH Skewed-t",
@@ -2128,7 +2124,7 @@ for loss_fn in loss_fns:
 # |  of overall performance... This is appropriate when no single asset is of primary
 # |  interest and we wish to evaluate models on their generalizability.
 #
-mcs_results = {0.05: None, 0.25: None}
+mcs_results = {0.05: None, 0.25: None, 0.5: None}
 all_models = [e["name"] for e in preds_per_model]
 for alpha in mcs_results.keys():
     all_results = pd.DataFrame(index=all_models, columns=loss_fns)
@@ -2230,14 +2226,14 @@ def color_cells(val):
 
 
 # %%
-print("95% MCS results")
-styled_df = mcs_results[0.05].style.applymap(color_cells)
-styled_df
-
-# %%
-print("75% MCS results")
-styled_df = mcs_results[0.25].style.applymap(color_cells)
-styled_df
+for alpha in mcs_results.keys():
+    cl = format_cl(1 - alpha)
+    print(f"{cl}% MCS results")
+    styled_df = mcs_results[alpha].style.applymap(color_cells)
+    try:
+        display(styled_df)
+    except Exception as e:
+        print(styled_df)
 
 
 # %%
@@ -2379,8 +2375,12 @@ for model_set in [our, traditional]:
             entry is None
             or model_name not in mcs_95.index
             and model_name not in mcs_75.index
+            or all(
+                np.isnan(mat.loc[model_name, metric])
+                for metric in ["nll", "crps"]
+                for mat in [mcs_95, mcs_75]
+            )
         ):
-            print(display_name, "&", " & ".join(["-"] * 6), "\\\\")
             continue
         vals_95 = mcs_95.loc[model_name].fillna(False).astype(int)
         vals_75 = mcs_75.loc[model_name].fillna(False).astype(int)
@@ -2568,28 +2568,72 @@ res_df_keys = [
     for cl in table_cls
     for key in ["Interval Score", "Mean width (MPIW)"]
 ]
-# Values for all benchmark models, shape: [num_models, num_metrics]
-benchmark_vals = np.array(
+adequacy_per_cl = {cl: [] for cl in table_cls}
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            continue
+        for cl in table_cls:
+            cl_str = format_cl(cl)
+            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            if chr_results_df is None:
+                continue
+            passes = chr_results_df[chr_results_df["cc_pass"] == True].shape[0]
+            fails = chr_results_df[chr_results_df["cc_pass"] == False].shape[0]
+            fail_rate = fails / (passes + fails) if (passes + fails) > 0 else 0
+            if fail_rate > 0.2 and fails > 3:
+                # It is not adequate
+                continue
+            else:
+                adequacy_per_cl[cl].append(entry)
+# Values for all adequate benchmark models, index: [num_models, num_metrics]
+adequate_scores = pd.DataFrame(
     [
-        [adequate_df.get(model_name, {}).get(key) for key in res_df_keys]
-        for _, model_name in traditional
+        [cl, entry["name"]]
+        + [entry.get(f"{key}_{format_cl(cl)}") for key in ["interval_score", "mpiw"]]
+        for cl in table_cls
+        for entry in adequacy_per_cl[cl]
     ],
-    dtype=float,
+    columns=[
+        "Confidence Level",
+        "Model Name",
+        "Interval Score",
+        "Mean Width",
+    ],
+).pivot_table(
+    index="Model Name",
+    columns="Confidence Level",
+    values=["Interval Score", "Mean Width"],
 )
+adequate_scores.columns = adequate_scores.columns.swaplevel(0, 1)
+adequate_scores = adequate_scores.sort_index(axis=1, level=0)
 # Set NaNs to inf so that they are not considered in the comparison
-benchmark_vals[np.isnan(benchmark_vals)] = np.inf
-# Get best values for each metric to decide underlining
-best_vals = np.array(
-    [results_df.loc[key][results_df.loc[key, "Winner"]] for key in res_df_keys],
-    dtype=float,
+adequate_scores[np.isnan(adequate_scores)] = np.inf
+# Create a filtered df with only the benchmarks
+benchmark_vals = pd.DataFrame(
+    [
+        row
+        for name, row in adequate_scores.iterrows()
+        if name
+        in [
+            model_name
+            for benchmark_set in [traditional, ml_benchmarks]
+            for _, model_name in benchmark_set
+        ]
+    ],
 )
+# Get best values for each metric to decide underlining
+best_vals = adequate_scores.min(axis=0)
 for model_set in [our, traditional, ml_benchmarks]:
     print("")
     for display_name, model_name in model_set:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
         )
-        print(display_name + ("*" if model_name in inadequate_models else ""), end=" ")
+        print(display_name, end=" ")
 
         if entry is None:
             print("&", " & ".join(["-"] * 6), "\\\\")
@@ -2605,12 +2649,18 @@ for model_set in [our, traditional, ml_benchmarks]:
         )
         bold = (numbers < benchmark_vals).all(axis=0)
         underline = numbers == best_vals
-        for val, u, b in zip(numbers, underline, bold):
+        cl_per_col = [[cl, cl] for cl in table_cls]
+        cl_per_col = np.array(cl_per_col).flatten()
+        for i, (val, u, b, cl) in enumerate(zip(numbers, underline, bold, cl_per_col)):
+            adequate = any(e == entry for e in adequacy_per_cl[cl])
             val = f"{val:.4f}"
-            if u:
-                val = f"\\underline{{{val}}}"
-            if b and model_set == our:
-                val = f"\\textbf{{{val}}}"
+            if adequate:
+                if u:
+                    val = f"\\underline{{{val}}}"
+                if b and model_set == our:
+                    val = f"\\textbf{{{val}}}"
+            else:
+                val += "*"
             print("&", val, end=" ")
 
         print("\\\\")
@@ -2650,15 +2700,16 @@ for model_set in [our, traditional, ml_benchmarks]:
             if fz_score is None or al_score is None:
                 print("&", " & ".join(["-"] * 2), end="")
                 continue
-            fz_score = np.mean(fz_score)
-            al_score = np.mean(al_score)
+            fz_score = np.nanmean(fz_score)
+            al_score = np.nanmean(al_score)
             res_df_keys = [
                 f"[{cl_str}] FZ Loss",
                 f"[{cl_str}] AL Loss",
             ]
-            benchmark_fz_scores, benchmark_al_scores = (
+            benchmarks = pd.DataFrame(
                 [
-                    np.mean(scores)
+                    [benchmark_name, key, np.nanmean(scores)]
+                    for key in ["FZ0", "AL"]
                     for benchmarks in [traditional, ml_benchmarks]
                     for _, benchmark_name in benchmarks
                     if (
@@ -2668,17 +2719,17 @@ for model_set in [our, traditional, ml_benchmarks]:
                         )
                     )
                     and (scores := benchmark_entry.get(f"{key}_{cl_str}")) is not None
-                ]
-                for key in ["FZ0", "AL"]
-            )
+                ],
+                columns=["Model", "Metric", "Score"],
+            ).pivot_table(index="Model", columns="Metric", values="Score")
             underline = []
             for k, row in results_df.loc[res_df_keys].iterrows():
                 # Underline if it is the absolute best
                 underline.append(row.get(model_name) == row[row["Winner"]])
             # Bold if it is better than all benchmarks
             bolden = [
-                (fz_score < benchmark_fz_scores).all(),
-                (al_score < benchmark_al_scores).all(),
+                (fz_score < benchmarks["FZ0"]).all(),
+                (al_score < benchmarks["AL"]).all(),
             ]
             # Format with 4 decimal places
             metrics = [
@@ -2870,7 +2921,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.gca().set_yticklabels(
                 ["{:.1f}%".format(n * 100) for n in plt.gca().get_yticks()]
             )
-            plt.title(f"{display_name} predictions for {ticker} on holdout data")
+            plt.title(f"{display_name} predictions for {ticker} on test data")
             # Place legend below plot
             plt.legend(
                 loc="upper center",
