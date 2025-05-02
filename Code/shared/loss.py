@@ -574,35 +574,49 @@ def crps_student_t(x, mu, sigma, nu):
     return crps_value
 
 
-def crps_skewt(x, mu, sigma, nu, lam, nsim=5000, rng=None):
+def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
     """
-    Monte-Carlo CRPS for a location-scale skew-t.
+    Monte‐Carlo CRPS for a location‐scale skew‐t, returns an array of per‐obs CRPS.
 
-    CRPS = σ [ E|Z - z_obs|  -  0.5 E|Z - Z'| ]
-    where Z ~ skew-t(0,1; ν,λ) and z_obs = (x-μ)/σ.
+    x     : array‐like, shape (B,)  observed values
+    mu    : array‐like, shape (B,)  forecast means
+    sigma : array‐like, shape (B,)  forecast scales (σ)
+    nu    : array‐like or scalar     dfs η
+    lam   : array‐like or scalar     skewness λ
+    nsim  : int                      number of MC draws per obs
+    random_state : int or None      seed for reproducibility
     """
-    # one RNG for all sims
-    if isinstance(rng, np.random.Generator):
-        gen = rng
-    else:
-        gen = np.random.default_rng(rng)
+    x = np.asarray(x, dtype=float)
+    mu = np.asarray(mu, dtype=float)
+    sigma = np.asarray(sigma, dtype=float)
+    nu = np.asarray(nu, dtype=float)
+    lam = np.asarray(lam, dtype=float)
 
-    # standardize
-    z_obs = (x - mu) / sigma
-    # simulate
-    z = rvs_skewt(nsim, nu, lam, rng=gen)
+    B = x.shape[0]
+    # broadcast scalars
+    if nu.size == 1:
+        nu = np.full(B, nu.item(), dtype=float)
+    if lam.size == 1:
+        lam = np.full(B, lam.item(), dtype=float)
 
-    # term1: E|Z - z_obs|
-    term1 = np.mean(np.abs(z - z_obs))
+    crps_vals = np.empty(B, dtype=float)
 
-    # term2: 0.5 * E|Z - Z'|, *excluding* the zero‐diagonal
-    diffs = np.abs(z[:, None] - z[None, :])
-    n = nsim
-    # mask out i==j:
-    mask = ~np.eye(n, dtype=bool)
-    term2 = 0.5 * diffs[mask].mean()
+    # use one RNG if you like reproducibility
+    # but since rvs_skewt takes its own random_state, we'll pass None
+    for i in range(B):
+        z_obs = (x[i] - mu[i]) / sigma[i]
+        # now nu[i] and lam[i] are scalars
+        z_samples = rvs_skewt(nsim, nu=nu[i], lam=lam[i], rng=random_state)
 
-    return sigma * (term1 - term2)
+        term1 = np.mean(np.abs(z_samples - z_obs))
+        diffs = np.abs(z_samples[:, None] - z_samples[None, :])
+        # exclude the zero‐diagonal
+        mask = ~np.eye(nsim, dtype=bool)
+        term2 = 0.5 * diffs[mask].mean()
+
+        crps_vals[i] = sigma[i] * (term1 - term2)
+
+    return crps_vals
 
 
 ##############################################################################

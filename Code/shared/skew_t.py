@@ -70,7 +70,7 @@ if __name__ == "__main__":
     lam = 0.5
 
     # Generate samples
-    samples = rvs_skewt(n_samples, nu=nu, lam=lam, random_state=42)
+    samples = rvs_skewt(n_samples, nu=nu, lam=lam, rng=42)
 
     # Plot histogram
     plt.hist(samples, bins=100, density=True, alpha=0.6, color="g")
@@ -88,6 +88,6 @@ if __name__ == "__main__":
     )
 
     for lam in [-0.9, -0.5, 0, 0.5, 0.9]:
-        samples = rvs_skewt(n_samples, nu=nu, lam=lam, random_state=42)
+        samples = rvs_skewt(n_samples, nu=nu, lam=lam, rng=42)
         skewness = ((samples - np.mean(samples)) ** 3).mean() / np.std(samples) ** 3
         print(f"Lambda {lam:+.1f}: Sample skewness {skewness:.4f}")
