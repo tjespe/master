@@ -305,7 +305,7 @@ def plot_sample_day(
             alpha=min(10 * weight, 1),
             color=colors[j % len(colors)] if colors is not None else None,
         )
-    ax.axvline(y_test[-day], linestyle="--", label="Actual", color="highlight")
+    ax.axvline(y_test[-day], linestyle="--", label="Actual", color="#b2182b")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-day]),
         np.array(mu_pred[-day]),
