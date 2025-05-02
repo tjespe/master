@@ -12,6 +12,8 @@ from settings import (
     VALIDATION_TEST_SPLIT,
 )
 import multiprocessing as mp
+import shared.styling_guidelines_graphs
+
 
 VERSION = "rv-and-ivol-final-rolling"
 
@@ -320,8 +322,6 @@ if __name__ == "__main__":
 
     # %%
     # 6b) Make plot for paper: 2x2 grid with 2 tickers and 2 random days
-    import shared.styling_guidelines_graphs
-
     fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
     fig.subplots_adjust(hspace=0.05, wspace=0.05)
     paper_name = "-".join(
@@ -349,6 +349,7 @@ if __name__ == "__main__":
             ax,
             ticker,
             day,
+            colors=["#555"],
         )
     plt.tight_layout()
     plt.savefig(f"results/distributions/{MODEL_NAME}_comparison.pdf")
@@ -358,14 +359,11 @@ if __name__ == "__main__":
 
     # %%
     # 7) Plot weights over time to show how they change
-    fig, axes = plt.subplots(
-        nrows=len(example_tickers), figsize=(18, len(example_tickers) * 9)
-    )
-
     # Dictionary to store union of legend entries
-    legend_dict = {}
-
-    for ax, ticker in zip(axes, example_tickers):
+    for ticker in example_tickers:
+        legend_dict = {}
+        plt.figure(figsize=(12, 6))
+        ax = plt.gca()
         pi_pred_ticker = filter_ndarray(ticker, pi_pred)
         for j in range(N_MIXTURES * N_ENSEMBLE_MEMBERS):
             mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
@@ -384,12 +382,16 @@ if __name__ == "__main__":
         ax.set_xlabel("Time")
         ax.set_ylabel("Weight")
 
-    # Create a combined legend using the union of entries
-    handles = list(legend_dict.values())
-    labels = list(legend_dict.keys())
-    fig.legend(handles, labels, loc="center left")
-    plt.tight_layout(rect=[0, 0, 1, 0.95])
-    plt.savefig(f"results/{MODEL_NAME}_mixture_weights.svg")
+        # Create a combined legend using the union of entries
+        handles = list(legend_dict.values())
+        labels = list(legend_dict.keys())
+        plt.tight_layout(rect=[0, 0, 1, 0.95])
+        plt.savefig(
+            f"results/mixture_weights/{ticker}_{MODEL_NAME}_mixture_weights.pdf"
+        )
+        if is_notebook():
+            plt.show()
+        plt.close()
 
     # %%
     # 11) Calculate intervals for 67%, 95%, 97.5% and 99% confidence levels

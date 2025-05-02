@@ -268,6 +268,7 @@ def plot_sample_day(
     ax: plt.Axes,
     ticker: str,
     day: Optional[int] = None,
+    colors: Optional[list] = None,
 ):
     if day is None:
         day = np.random.randint(0, len(y_test))
@@ -282,9 +283,7 @@ def plot_sample_day(
         x_vals,
         np.zeros_like(x_vals),
         mixture_pdf,
-        color="blue",
         label="Mixture",
-        alpha=0.5,
     )
     plotted_mixtures = 0
     top_weights = np.argsort(pi_pred[-day])[-6:][::-1]
@@ -299,8 +298,14 @@ def plot_sample_day(
             -0.5 * ((x_vals - mu) / sigma) ** 2
         )
         legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
-        ax.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
-    ax.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
+        ax.plot(
+            x_vals,
+            pdf,
+            label=legend,
+            alpha=min(10 * weight, 1),
+            color=colors[j % len(colors)] if colors is not None else None,
+        )
+    ax.axvline(y_test[-day], linestyle="--", label="Actual", color="highlight")
     moment_estimates = numerical_mixture_moments(
         np.array(pi_pred[-day]),
         np.array(mu_pred[-day]),
