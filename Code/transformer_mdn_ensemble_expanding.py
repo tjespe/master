@@ -3,6 +3,7 @@
 from datetime import date
 import subprocess
 from typing import Optional
+from shared.jupyter import is_notebook
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
 from settings import LOOKBACK_DAYS, SUFFIX, VALIDATION_TEST_SPLIT, TEST_SET
@@ -62,6 +63,7 @@ from shared.mdn import (
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
+    plot_sample_day,
     plot_sample_days,
     univariate_mixture_mean_and_var_approx,
 )
@@ -299,7 +301,18 @@ if __name__ == "__main__":
         y_pred_mdn, N_MIXTURES * N_ENSEMBLE_MEMBERS
     )
     symbols_arr = np.array(symbols)
-    filter_ndarray = lambda ticker, ndarr: np.array(ndarr)[symbols_arr == ticker]
+
+    # %%
+    # Define function to filter arrays by ticker
+    filter_cache = {}
+
+    def filter_ndarray(ticker, ndarr):
+        cache_key = (ticker, id(ndarr))
+        if cache_key in filter_cache:
+            return filter_cache[cache_key]
+        val = np.array([val for val, t in zip(ndarr, symbols) if t == ticker])
+        filter_cache[cache_key] = val
+        return val
 
     # %%
     # 6) Plot 10 charts with the distributions for 10 random days
@@ -315,6 +328,44 @@ if __name__ == "__main__":
             ticker=ticker,
             save_to=f"results/distributions/{ticker}_{MODEL_NAME}.svg",
         )
+
+    # %%
+    # 6b) Make plot for paper: 2x2 grid with 2 tickers and 2 random days
+    import shared.styling_guidelines_graphs
+
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
+    fig.subplots_adjust(hspace=0.05, wspace=0.05)
+    paper_name = "-".join(
+        (["RV"] if INCLUDE_1MIN_RV else []) + (["IV"] if INCLUDE_30_DAY_IVOL else [])
+    )
+    for i, (ticker, date) in enumerate(
+        [
+            ("AAPL", "2020-04-15"),
+            ("AAPL", "2023-06-05"),
+            ("WMT", "2020-04-15"),
+            ("WMT", "2023-06-05"),
+        ]
+    ):
+        date = pd.to_datetime(date)
+        ax = axes[i // 2, i % 2]
+        ticker_dates = filter_ndarray(ticker, dates)
+        day = len(ticker_dates) - list(ticker_dates).index(date) - 1
+        plot_sample_day(
+            ticker_dates,
+            filter_ndarray(ticker, true_y),
+            filter_ndarray(ticker, pi_pred),
+            filter_ndarray(ticker, mu_pred),
+            filter_ndarray(ticker, sigma_pred),
+            N_MIXTURES * N_ENSEMBLE_MEMBERS,
+            ax,
+            ticker,
+            day,
+        )
+    plt.tight_layout()
+    plt.savefig(f"results/distributions/{MODEL_NAME}_comparison.pdf")
+    if is_notebook():
+        plt.show()
+    plt.close()
 
     # %%
     # 7) Plot weights over time to show how they change
