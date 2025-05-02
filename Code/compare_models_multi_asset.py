@@ -511,7 +511,9 @@ for version in ["", "_IVOL"]:
         ]
         if np.isnan(har_qreg_preds["LB_67"]).all():
             raise FileNotFoundError(f"All HAR{version}_QREG predictions are NaN")
-        combined_df = df_validation.join(har_qreg_preds, how="left", rsuffix="_HAR_QREG")
+        combined_df = df_validation.join(
+            har_qreg_preds, how="left", rsuffix="_HAR_QREG"
+        )
 
         entry = {
             "name": f"HAR{version}-QREG",
@@ -640,6 +642,7 @@ for version in [
             ),
             "p_up": combined_df.get("Prob_Increase"),
             "ece": ece_col.median() if ece_col is not None else None,
+            "epistemic_var": combined_df.get("EpistemicVarMean"),
         }
         for cl in ALL_CONFIDENCE_LEVELS:
             lb = combined_df.get(f"LB_{format_cl(cl)}")
@@ -1329,11 +1332,9 @@ for entry in preds_per_model:
         entry[f"interval_score_{cl_str}"] = interval_score
 
         # Calculate quantile loss
-        entry[f"quantile_loss_{cl_str}"] = np.nanmean(
-            np.maximum(
-                y_test_actual - entry[f"UB_{cl_str}"],
-                entry[f"LB_{cl_str}"] - y_test_actual,
-            )
+        entry[f"quantile_loss_{cl_str}"] = np.maximum(
+            y_test_actual - entry[f"UB_{cl_str}"],
+            entry[f"LB_{cl_str}"] - y_test_actual,
         )
 
         # Calculate Lopez loss function
@@ -1649,7 +1650,7 @@ for entry in preds_per_model:
         results[f"[{cl_str}] PICP Miss"].append(picp_miss)
         results[f"[{cl_str}] Mean width (MPIW)"].append(entry[f"mpiw_{cl_str}"])
         results[f"[{cl_str}] Interval Score"].append(entry[f"interval_score_{cl_str}"])
-        results[f"[{cl_str}] QL"].append(entry[f"quantile_loss_{cl_str}"])
+        results[f"[{cl_str}] QL"].append(np.nanmean(entry[f"quantile_loss_{cl_str}"]))
         results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
         pooled_results = entry[f"christoffersen_test_{cl_str}"]["p-value"]
         for i, test in enumerate(["UC", "Ind", "CC"]):
@@ -1857,26 +1858,73 @@ results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
 )
 
 # %%
-# Look at how NLL changes over time
-plt.figure(figsize=(12, 6))
-for name in [
-    "GARCH",
-    "LSTM MDN rv-and-ivol-final-rolling",
-    "Transformer MDN rvol-ivol expanding",
-]:
-    entry = next(entry for entry in passing_models if entry["name"] == name)
-    nll_df = pd.DataFrame(
-        {
-            "Date": entry["dates"],
-            "Symbol": entry["symbols"],
-            "NLL": entry["nll"],
-            "Model": entry["name"],
-        }
-    ).set_index(["Date", "Symbol"])
-    plt.plot(
-        nll_df.groupby("Date")["NLL"].mean().rolling(30).mean(), label=entry["name"]
-    )
-plt.legend()
+# Look at PICP for each model
+results_df.T[["[90] PICP", "[95] PICP", "[98] PICP"]].style.apply(
+    underline_winner, axis=0
+)
+
+
+# %%
+# Examine if failures are caused by wrong UC or failure of independence
+def color_uc_ind_dominator(row):
+    # Color the UC stat in red if it is worse than the Ind stat, and vice versa,
+    # for each confidence level (90, 95, 98).
+    if row.name == "Winner":
+        return [""] * 6
+    styles = []
+    for cl in [0.9, 0.95, 0.98]:
+        cl_str = format_cl(cl)
+        uc_stat = row[f"[{cl_str}] UC fails"]
+        ind_stat = row[f"[{cl_str}] Ind fails"]
+        if uc_stat > ind_stat:
+            styles.append("color:red")
+            styles.append("")
+        elif ind_stat > uc_stat:
+            styles.append("")
+            styles.append("color:red")
+        else:
+            styles.append("")
+            styles.append("")
+    print(row.name, styles)
+    return styles
+
+
+results_df.T[
+    [
+        "[90] UC fails",
+        "[90] Ind fails",
+        "[95] UC fails",
+        "[95] Ind fails",
+        "[98] UC fails",
+        "[98] Ind fails",
+    ]
+].style.apply(color_uc_ind_dominator, axis=1)
+
+# %%
+# Look at how different loss functions change over time for the best performing models of each type
+for loss_fn in ["nll", "FZ0_95", "FZ0_97.5", "quantile_loss_95", "quantile_loss_98"]:
+    plt.figure(figsize=(12, 6))
+    for name in [
+        "GARCH",
+        "LSTM MDN ivol-final-rolling",
+        "Transformer MDN rvol-ivol expanding",
+        "Benchmark LightGBM IV",
+    ]:
+        entry = next(entry for entry in passing_models if entry["name"] == name)
+        loss_df = pd.DataFrame(
+            {
+                "Date": entry["dates"],
+                "Symbol": entry["symbols"],
+                loss_fn: entry[loss_fn],
+                "Model": entry["name"],
+            }
+        ).set_index(["Date", "Symbol"])
+        plt.plot(
+            loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
+            label=entry["name"],
+        )
+    plt.title(loss_fn)
+    plt.legend()
 
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
@@ -2084,6 +2132,7 @@ for alpha in mcs_results.keys():
     for metric in loss_fns:
         # Construct a DataFrame with columns = each model's losses for this metric, plus symbol
         df_losses = pd.DataFrame(index=df_validation.index)
+        nan_mask = np.array([False] * len(df_validation.index))
         for entry in preds_per_model:
             entry_df = pd.DataFrame(
                 index=[entry["symbols"], entry["dates"]],
@@ -2094,11 +2143,23 @@ for alpha in mcs_results.keys():
                 continue
             if not isinstance(loss_vals, np.ndarray):
                 loss_vals = np.array(loss_vals)
-            if np.isnan(loss_vals).any():
-                print(f"NaNs found in {entry['name']} for {metric}, excluding from MCS")
-                continue
+            nans = np.isnan(loss_vals)
+            if nans.any():
+                print(
+                    f"NaNs found in {entry['name']} for {metric} ({100*np.round(np.mean(np.isnan(loss_vals)),4)}%)",
+                    end=", ",
+                )
+                if np.mean(nans) < MAX_NAN_THRESH:
+                    print("masking")
+                    nan_mask = np.logical_or(nan_mask, nans)
+                else:
+                    print("excluding from MCS")
+                    continue
             entry_df[entry["name"]] = loss_vals
             df_losses = df_losses.join(entry_df, how="left")
+
+        # Remove rows that have NaNs in any model's losses
+        df_losses = df_losses[~nan_mask]
 
         # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
         # We take the mean across symbols at each time index for each model
@@ -2196,6 +2257,7 @@ traditional = [
     ("HAR", "HAR_python"),
     ("HARQ", "HARQ_python"),
     ("HAR-QREG", "HAR-QREG"),
+    ("HAR-IV-QREG", "HAR_IVOL-QREG"),
     ("DB-RV", "DB-RV"),
     ("DB-IV", "DB-IV"),
     ("DB-RV-IV", "DB-RV-IV"),
@@ -2375,6 +2437,115 @@ for model_set in [our, traditional, ml_benchmarks]:
 
         print("\\\\")
 
+# %%
+# Table X: Determine cause of failures (UC vs. Ind)
+# For each model, look at the series where the model failed CC and calculate how often UC and Ind failed.
+# Columns:
+# Model, % UC fails 95% VaR, % Ind fails 95% VaR, % UC fails 97.5% VaR, % Ind fails 97.5% VaR, % UC fails 99% VaR, % Ind fails 99% VaR
+print("=================================================")
+print("Table X: Determine cause of failures (UC vs. Ind)")
+print("=================================================")
+table_cls = [0.90, 0.95, 0.98]
+table_str = (
+    """
+\\begin{table}[H]
+    \\centering
+    \\caption[Causes of Christoffersen's test failures]{Causes of Christoffersen's test failures}
+    \\caption*{\\makebox[\\textwidth][c]{\\parbox{0.9\\textwidth}{\\centering\\small\\textit{For stocks failing the Conditional Coverage test: percentage that also fail Unconditional Coverage or Independence tests (by VaR level and model)}}}}
+
+    \\label{table:var_adequacy_explanation}
+    \\begin{adjustbox}{width=1\\textwidth,center}
+    \\begin{tabular}{
+        p{0.24\\textwidth}"""
+    + """
+        >{\\centering\\arraybackslash}p{0.1\\textwidth}
+        >{\\centering\\arraybackslash}p{0.1\\textwidth}"""
+    * len(table_cls)
+    + """
+    }
+        \\toprule
+        \\textbf{Model} & \\multicolumn{2}{c}{\\textbf{95\\% VaR}} & \\multicolumn{2}{c}{\\textbf{97.5\\% VaR}} & \\multicolumn{2}{c}{\\textbf{99\\% VaR}} \\\\
+        \\cmidrule(lr){2-3} \\cmidrule(lr){4-5} \\cmidrule(lr){6-7}
+        & UC & Ind.
+        & UC & Ind.
+        & UC & Ind.\\\\
+        \\midrule
+"""
+)
+for set_i, (set_name, model_set) in enumerate(
+    (
+        {
+            "Probabilistic AI Models": our,
+            "Traditional Benchmarks": traditional,
+            "Machine Learning Benchmarks": ml_benchmarks,
+        }
+    ).items()
+):
+    if set_i != 0:
+        table_str += """
+        \\addlinespace
+        \\hdashline[0.2pt/3pt]
+        \\addlinespace
+        """
+
+    table_str += f"""
+        \\multicolumn{{{1+len(table_cls)*2}}}{{l}}{{\\textbf{{{set_name}}}}} \\\\\n"""
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        table_str += "\n        "
+        if entry is None:
+            table_str += " ".join([display_name, "&", " & ".join(["-"] * 6), "\\\\"])
+            continue
+
+        table_str += display_name
+
+        # Calculate the number of passes, fails, and inconclusives for each confidence level
+        for cl in table_cls:
+            cl_str = format_cl(cl)
+            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            if chr_results_df is None:
+                table_str += " ".join(["&", " & ".join(["-"] * 2)])
+                continue
+            masked_df = chr_results_df[chr_results_df["cc_pass"] == False]
+            fails = masked_df.shape[0]
+            passes = chr_results_df[chr_results_df["cc_pass"] == True].shape[0]
+            fail_rate = fails / (passes + fails) if (passes + fails) > 0 else 0
+            if fail_rate < 0.15:
+                table_str += " & * & *"
+                continue
+            uc_fails = (masked_df["uc_pass"] == False).sum()
+            ind_fails = (masked_df["ind_pass"] == False).sum()
+            uc_fail_rate = (
+                uc_fails / masked_df.shape[0] if masked_df.shape[0] > 0 else 0
+            )
+            ind_fail_rate = (
+                ind_fails / masked_df.shape[0] if masked_df.shape[0] > 0 else 0
+            )
+            metrics = [100 * uc_fail_rate, 100 * ind_fail_rate]
+            bold = np.array(metrics) == np.max(metrics)
+            for val, b in zip(metrics, bold):
+                val = f"{val:.0f}\\%"
+                if b:
+                    val = f"\\textbf{{{val}}}"
+                table_str += " & " + val
+
+        table_str += "\\\\"
+table_str += """
+        \\bottomrule
+    \end{tabular}
+    \end{adjustbox}
+    \par\\vspace{0.3em} % Forces space between table and footnote
+    {\\raggedright\\footnotesize{
+        Notes: \hspace{0.3em}%
+        \\begin{minipage}[t]{0.92\\textwidth}
+        \\textbf{Bold} indicates the dominating source of failure for each model at each confidence level.\\\\
+        \\textbf{*} the model failed the CC test for 4 or fewer stocks and is assumed to be adequate at the tested level.\\\\
+        \end{minipage}
+    }}
+\end{table}"""
+print(table_str)
 
 # %%
 # Table 5: Interval Score and Mean Width
@@ -2586,7 +2757,7 @@ def sci_notation_latex(val, decimals=1):
     mantissa, exp_str = s.split("e")
     exp = int(exp_str)  # convert e.g. '-09' -> -9
     # build the desired string, e.g. '5.8 \times $10^-9$'
-    return f"{mantissa} \\times $10^{exp}$"
+    return f"${mantissa} \\times 10^{exp}$"
 
 
 for display_name, model_name in our:
