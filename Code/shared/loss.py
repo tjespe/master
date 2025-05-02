@@ -574,42 +574,34 @@ def crps_student_t(x, mu, sigma, nu):
     return crps_value
 
 
-def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
+def crps_skewt(x, mu, sigma, nu, lam, nsim=5000, rng=None):
     """
-    Compute the Continuous Ranked Probability Score (CRPS) for a skewed t forecast using
-    Monte Carlo simulation.
+    Monte-Carlo CRPS for a location-scale skew-t.
 
-    Parameters:
-    -----------
-    x : float
-        Observed value.
-    mu : float
-        Forecasted mean.
-    sigma : float
-        Forecasted volatility (scale parameter).
-    nu : float
-        Degrees of freedom of the skewed t distribution.
-    lam : float
-        Skewness parameter.
-    nsim : int, optional
-        Number of simulation draws (default is 1000).
-    random_state : int or None, optional
-        Seed for the random number generator.
-
-    Returns:
-    --------
-    crps : float
-        The CRPS score.
+    CRPS = σ [ E|Z - z_obs|  -  0.5 E|Z - Z'| ]
+    where Z ~ skew-t(0,1; ν,λ) and z_obs = (x-μ)/σ.
     """
-    # Standardize the observed value
+    # one RNG for all sims
+    if isinstance(rng, np.random.Generator):
+        gen = rng
+    else:
+        gen = np.random.default_rng(rng)
+
+    # standardize
     z_obs = (x - mu) / sigma
-    # Generate samples from the standardized skewed t distribution
-    z_samples = rvs_skewt(nsim, nu=nu, lam=lam, random_state=random_state)
-    # CRPS: sigma * [ E|z - z_obs| - 0.5 E|z - z'| ]
-    term1 = np.mean(np.abs(z_samples - z_obs))
-    # Compute the pairwise differences (using broadcasting)
-    diff_matrix = np.abs(z_samples[:, None] - z_samples[None, :])
-    term2 = 0.5 * np.mean(diff_matrix)
+    # simulate
+    z = rvs_skewt(nsim, nu, lam, rng=gen)
+
+    # term1: E|Z - z_obs|
+    term1 = np.mean(np.abs(z - z_obs))
+
+    # term2: 0.5 * E|Z - Z'|, *excluding* the zero‐diagonal
+    diffs = np.abs(z[:, None] - z[None, :])
+    n = nsim
+    # mask out i==j:
+    mask = ~np.eye(n, dtype=bool)
+    term2 = 0.5 * diffs[mask].mean()
+
     return sigma * (term1 - term2)
 
 
@@ -726,67 +718,47 @@ def ece_student_t(y_true, means, vols, nu, n_bins=20):
     return ece
 
 
-def ece_skewt(y_true, means, vols, nu, skew, n_bins=20):
+def ece_skewt(y_true, means, vols, nus, lams, n_bins=20):
     """
-    Compute an approximate Expected Calibration Error (ECE) for forecasts
-    under the skewed t-distribution. The idea is to evaluate how well the
-    predictive distribution, via its CDF, is calibrated compared to the
-    empirical distribution of the observations.
+    Exact ECE for a univariate skewed‐t forecast via arch’s CDF.
 
-    This is achieved by:
-      1) Standardizing the residuals.
-      2) Computing the CDF values for each observation using the skew-t CDF.
-      3) Binning the CDF values and comparing the proportion in each bin
-         to the expected probability.
-
-    Parameters:
-    -----------
-    y_true : array-like, shape (B,)
-        Observed values.
-    means : array-like, shape (B,)
-        Forecasted means.
-    vols : array-like, shape (B,)
-        Forecasted volatility (scale parameter).
-    nu : array-like or scalar
-        Degrees-of-freedom parameter.
-    skew : array-like or scalar
-        Skewness parameter.
-    n_bins : int, optional
-        Number of bins to use for calibration (default: 20).
-
-    Returns:
-    --------
-    ece : float
-        The approximate Expected Calibration Error.
+    y_true : (B,) observations
+    means  : (B,) location forecasts
+    vols   : (B,) scale forecasts (σ)
+    nus    : scalar or (B,) degrees of freedom η
+    lams   : scalar or (B,) skewness λ in (–1,1)
+    n_bins : int    number of probability bins
     """
-    y_true = np.squeeze(np.array(y_true))
-    means = np.squeeze(np.array(means))
-    vols = np.squeeze(np.array(vols))
+    y = np.asarray(y_true).ravel()
+    μ = np.asarray(means).ravel()
+    σ = np.asarray(vols).ravel()
+    B = len(y)
 
-    if np.isscalar(nu):
-        nu = np.full_like(y_true, nu)
+    # expand scalars
+    if np.isscalar(nus):
+        η = np.full(B, float(nus))
     else:
-        nu = np.squeeze(np.array(nu))
-    if np.isscalar(skew):
-        skew = np.full_like(y_true, skew)
+        η = np.asarray(nus).ravel()
+    if np.isscalar(lams):
+        λ = np.full(B, float(lams))
     else:
-        skew = np.squeeze(np.array(skew))
+        λ = np.asarray(lams).ravel()
 
-    # Compute standardized residuals.
-    standardized = (y_true - means) / (vols + 1e-12)
+    # standardize residuals
+    z = (y - μ) / σ
 
-    # Initialize the skew-t distribution.
-    skewt = SkewStudent()
+    dist = SkewStudent()
+    cdf_vals = np.empty(B, dtype=float)
 
-    # Compute the CDF values for each standardized observation.
-    cdf_vals = skewt.cdf(standardized, nu=nu, lam=skew)
+    # call the CDF correctly: cdf(resids, parameters=[eta, lam])
+    for i in range(B):
+        # dist.cdf expects a sequence of resids and a fixed parameter vector
+        cdf_vals[i] = dist.cdf([z[i]], parameters=[η[i], λ[i]])[0]
 
-    # Define the bin centers for ECE evaluation.
+    # now bin‐based ECE
     bin_centers = (np.arange(n_bins) + 0.5) / n_bins
     ece = 0.0
     for q in bin_centers:
         p_emp = np.mean(cdf_vals <= q)
         ece += abs(p_emp - q)
-    ece /= n_bins
-
-    return ece
+    return ece / n_bins

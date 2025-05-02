@@ -42,39 +42,23 @@ def skewt_nll(y_true, vol_pred, nu, skew, mu=None, reduce=True):
     return nll_vec.sum() if reduce else nll_vec
 
 
-def rvs_skewt(n, nu, lam, random_state=None):
+def rvs_skewt(n, nu, lam, rng=None):
     """
-    Generate random variates from Hansen's (1994) skewed Student-t distribution.
-
-    Parameters
-    ----------
-    n : int
-        Number of samples
-    nu : float
-        Degrees of freedom (>2)
-    lam : float
-        Skewness parameter (-1 < lam < 1)
-    random_state : int, RandomState instance or None
-
-    Returns
-    -------
-    samples : ndarray
+    Draw from Hansen's (1994) skewed Student-t.
+    Accepts either an RNG or a seed.
     """
-    rng = np.random.default_rng(random_state)
-
-    # Constants from Hansen (1994)
+    if isinstance(rng, np.random.Generator):
+        gen = rng
+    else:
+        gen = np.random.default_rng(rng)
+    # Hansen constants
     c = (nu - 2) / nu
-    omega = np.sqrt(1 + 3 * lam**2 - (4 * lam**2) / (1 + lam**2))
+    omega = np.sqrt(1 + 3 * lam**2 - 4 * lam**2 / (1 + lam**2))
     alpha = 2 / (1 + lam**2)
     beta = -lam / np.sqrt(1 + lam**2)
 
-    # Generate standard t samples
-    z = rng.standard_t(df=nu, size=n)
-
-    # Warp according to skewness
-    samples = omega * (alpha * (beta + z) / np.sqrt(1 + beta**2 + (z + beta) ** 2 * c))
-
-    return samples
+    z = gen.standard_t(df=nu, size=n)
+    return omega * (alpha * (beta + z) / np.sqrt(1 + beta**2 + (z + beta) ** 2 * c))
 
 
 if __name__ == "__main__":

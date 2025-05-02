@@ -10,7 +10,9 @@ from shared.conf_levels import format_cl
 from shared.loss import (
     al_loss,
     crps_normal_univariate,
+    crps_skewt,
     ece_gaussian,
+    ece_skewt,
     ece_student_t,
     fz_loss,
     nll_loss_mean_and_vol,
@@ -259,6 +261,8 @@ try:
     skew = combined_df["GARCH_skewt_Skew"].values
     crps = combined_df["GARCH_skewt_CRPS"].values
     nll = skewt_nll(y_true, garch_skewt_vol_pred, nus, skew, reduce=False)
+    ece = ece_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
+    crps = crps_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
 
     entry = {
         "name": "GARCH Skewed-t",
@@ -268,7 +272,7 @@ try:
         "dates": combined_df.index.get_level_values("Date"),
         "nll": nll,
         "crps": crps,
-        # "ece": ece_student_t(y_true, mus, garch_skewt_vol_pred, nus, skew=skew), must make a new function for this
+        "ece": ece,
         "LB_67": combined_df["LB_67"].values,
         "UB_67": combined_df["UB_67"].values,
         "LB_90": combined_df["LB_90"].values,
@@ -2249,6 +2253,7 @@ our = [
 traditional = [
     ("GARCH", "GARCH"),
     ("GARCH-t", "GARCH Student-t"),
+    ("GARCH Skewed-t", "GARCH Skewed-t"),
     ("EGARCH", "EGARCH"),
     ("RV-GARCH", "Realized GARCH std"),
     ("AR-GARCH", "AR(1)-GARCH(1,1)-normal"),
@@ -2314,12 +2319,16 @@ for model_set in [our, traditional, ml_benchmarks]:
         conf_levels = [0.67, 0.90, 0.95, 0.98]
         numbers = [
             (
-                nll.mean()
-                if (nll := entry.get("nll")) is not None and not np.isnan(nll).any()
+                np.nanmean(nll)
+                if (nll := entry.get("nll")) is not None and not np.isnan(nll).all()
                 else None
             ),
             ece if (ece := entry.get("ece")) is not None else None,
-            np.mean(crps) if (crps := entry.get("crps")) is not None else None,
+            (
+                np.nanmean(crps)
+                if (crps := entry.get("crps")) is not None and not np.isnan(nll).all()
+                else None
+            ),
             *(entry.get(f"picp_{format_cl(cl)}") for cl in conf_levels),
         ]
         comp_numbers = np.array(numbers, dtype=float)
