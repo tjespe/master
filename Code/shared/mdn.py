@@ -258,6 +258,80 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
     return intervals
 
 
+def plot_sample_day(
+    y_dates: list[str],
+    y_test: np.ndarray,
+    pi_pred: np.ndarray,
+    mu_pred: np.ndarray,
+    sigma_pred: np.ndarray,
+    n_mixtures: int,
+    ax: plt.Axes,
+    ticker: str,
+    day: Optional[int] = None,
+):
+    if day is None:
+        day = np.random.randint(0, len(y_test))
+    timestamp = y_dates[-day]
+    x_min = -0.1
+    x_max = 0.1
+    x_vals = np.linspace(x_min, x_max, 1000)
+    mixture_pdf = compute_mixture_pdf(
+        x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+    )
+    ax.fill_between(
+        x_vals,
+        np.zeros_like(x_vals),
+        mixture_pdf,
+        color="blue",
+        label="Mixture",
+        alpha=0.5,
+    )
+    plotted_mixtures = 0
+    top_weights = np.argsort(pi_pred[-day])[-6:][::-1]
+    for j in range(n_mixtures):
+        weight = np.array(pi_pred[-day, j])
+        if weight < 0.001:
+            continue
+        plotted_mixtures += 1
+        mu = mu_pred[-day, j]
+        sigma = sigma_pred[-day, j]
+        pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
+            -0.5 * ((x_vals - mu) / sigma) ** 2
+        )
+        legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
+        ax.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
+    ax.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
+    moment_estimates = numerical_mixture_moments(
+        np.array(pi_pred[-day]),
+        np.array(mu_pred[-day]),
+        np.array(sigma_pred[-day]),
+        range_factor=3,
+    )
+    ax.axvline(
+        moment_estimates["mean"],
+        color="black",
+        linestyle="--",
+        label="Predicted Mean",
+    )
+    ax.text(
+        x_min + 0.01,
+        5,
+        f"Mean: {moment_estimates['mean']*100:.2f}%\n"
+        f"Std: {moment_estimates['std']*100:.2f}%\n"
+        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
+        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
+        f"* Numerically estimated",
+        fontsize=10,
+    )
+    ax.set_xticklabels(["{:.1f}%".format(x * 100) for x in ax.get_xticks()])
+    ax.set_title(
+        f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {ticker}"
+    )
+    ax.set_ylim(0, 50)
+    ax.legend()
+    ax.set_ylabel("Density")
+
+
 def plot_sample_days(
     y_dates: list[str],
     y_test: np.ndarray,
@@ -268,74 +342,29 @@ def plot_sample_days(
     save_to: Optional[str] = None,
     show=True,
     ticker=TEST_ASSET,
+    n_days=10,
+    seed=0,
+    ax=None,
 ):
-    plt.figure(figsize=(10, 40))
-    np.random.seed(0)
-    days = np.random.randint(0, len(y_test), 10)
+    np.random.seed(seed)
+    if ax is None:
+        plt.figure(figsize=(10, 40))
+        ax = plt.gca()
+    days = np.random.randint(0, len(y_test), n_days)
     days = np.sort(days)[::-1]
     for i, day in enumerate(days):
         plt.subplot(10, 1, i + 1)
-        timestamp = y_dates[-day]
-        x_min = -0.1
-        x_max = 0.1
-        x_vals = np.linspace(x_min, x_max, 1000)
-        mixture_pdf = compute_mixture_pdf(
-            x_vals, pi_pred[-day], mu_pred[-day], sigma_pred[-day]
+        plot_sample_day(
+            y_dates,
+            y_test,
+            pi_pred,
+            mu_pred,
+            sigma_pred,
+            n_mixtures,
+            ax,
+            ticker,
+            day,
         )
-        plt.fill_between(
-            x_vals,
-            np.zeros_like(x_vals),
-            mixture_pdf,
-            color="blue",
-            label="Mixture",
-            alpha=0.5,
-        )
-        plotted_mixtures = 0
-        top_weights = np.argsort(pi_pred[-day])[-7:][::-1]
-        for j in range(n_mixtures):
-            weight = np.array(pi_pred[-day, j])
-            if weight < 0.001:
-                continue
-            plotted_mixtures += 1
-            mu = mu_pred[-day, j]
-            sigma = sigma_pred[-day, j]
-            pdf = (1 / (sigma * np.sqrt(2 * np.pi))) * np.exp(
-                -0.5 * ((x_vals - mu) / sigma) ** 2
-            )
-            legend = f"$\pi_{{{j}}}$ = {weight*100:.2f}%" if j in top_weights else None
-            plt.plot(x_vals, pdf, label=legend, alpha=min(10 * weight, 1))
-        plt.axvline(y_test[-day], color="red", linestyle="--", label="Actual")
-        moment_estimates = numerical_mixture_moments(
-            np.array(pi_pred[-day]),
-            np.array(mu_pred[-day]),
-            np.array(sigma_pred[-day]),
-            range_factor=3,
-        )
-        plt.axvline(
-            moment_estimates["mean"],
-            color="black",
-            linestyle="--",
-            label="Predicted Mean",
-        )
-        plt.text(
-            x_min + 0.01,
-            5,
-            f"Mean: {moment_estimates['mean']*100:.2f}%\n"
-            f"Std: {moment_estimates['std']*100:.2f}%\n"
-            f"Skewness: {moment_estimates['skewness']:.4f}*\n"
-            f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
-            f"* Numerically estimated",
-            fontsize=10,
-        )
-        plt.gca().set_xticklabels(
-            ["{:.1f}%".format(x * 100) for x in plt.gca().get_xticks()]
-        )
-        plt.title(
-            f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {ticker}"
-        )
-        plt.ylim(0, 50)
-        plt.legend()
-        plt.ylabel("Density")
     plt.xlabel("LogReturn")
     plt.tight_layout()
     if save_to:
