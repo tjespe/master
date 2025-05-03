@@ -33,6 +33,7 @@ from scipy.stats import linregress
 from scipy.stats import ttest_1samp
 from arch.bootstrap import MCS
 import matplotlib.ticker as mtick
+from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 
 
 # %%
@@ -2980,7 +2981,7 @@ for model_set in [our, traditional, ml_benchmarks]:
         )
         log_df.index.names = ["Symbol", "Date"]
         log_df["Mean"] = entry.get("mean_pred")
-        log_df["EpistemicSD"] = np.sqrt(entry.get("epistemic_var"))
+        log_df["EpistemicSD"] = np.sqrt(np.array(epistemic_var))
         df = np.exp(log_df) - 1
         for ticker in example_tickers:
             true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
@@ -2999,13 +3000,13 @@ for model_set in [our, traditional, ml_benchmarks]:
                 linewidth=1,
             )
             plt.plot(
-                dates, filtered_mean, label="Predicted Mean", color="red", linewidth=1
+                dates, filtered_mean, label="Predicted Mean", color=colors["secondary"], linewidth=1
             )
             plt.fill_between(
                 dates,
                 filtered_mean - filtered_epistemic_sd,
                 filtered_mean + filtered_epistemic_sd,
-                color="blue",
+                color=colors["primary"],
                 alpha=0.8,
                 label="Epistemic Uncertainty (67%)",
             )
@@ -3013,7 +3014,7 @@ for model_set in [our, traditional, ml_benchmarks]:
                 dates,
                 filtered_mean - 2 * filtered_epistemic_sd,
                 filtered_mean + 2 * filtered_epistemic_sd,
-                color="blue",
+                color=colors["primary"],
                 alpha=0.5,
                 label="Epistemic Uncertainty (95%)",
             )
@@ -3021,7 +3022,7 @@ for model_set in [our, traditional, ml_benchmarks]:
                 dates,
                 filtered_mean - 2.57 * filtered_epistemic_sd,
                 filtered_mean + 2.57 * filtered_epistemic_sd,
-                color="blue",
+                color=colors["primary"],
                 alpha=0.3,
                 label="Epistemic Uncertainty (99%)",
             )
@@ -3029,7 +3030,7 @@ for model_set in [our, traditional, ml_benchmarks]:
                 dates,
                 filtered_mean - 3.29 * filtered_epistemic_sd,
                 filtered_mean + 3.29 * filtered_epistemic_sd,
-                color="blue",
+                color=colors["primary"],
                 alpha=0.1,
                 label="Epistemic Uncertainty (99.9%)",
             )
@@ -3064,23 +3065,27 @@ for model_set in [our, traditional, ml_benchmarks]:
             zoom_true_ret = true_ret.iloc[start_idx:end_idx]
 
             # Plot in the inset
-            axins.plot(zoom_dates, zoom_true_ret, color="black")
-            axins.plot(zoom_dates, zoom_mean, color="red")
+            axins.plot(zoom_dates, zoom_true_ret, color="black", alpha=0.1, linewidth=1)
+            axins.plot(zoom_dates, zoom_mean, color=colors["secondary"], linewidth=1)
             axins.fill_between(
                 zoom_dates,
                 zoom_mean - 2 * zoom_sd,
                 zoom_mean + 2 * zoom_sd,
-                color="blue",
+                color=colors["primary"],
                 alpha=0.5,
             )
 
-            # Zoom limits
-            axins.set_xlim(zoom_dates[0], zoom_dates[-1])
-            y_margin = 0.02
-            axins.set_ylim(
-                (zoom_mean - 2 * zoom_sd).min() - y_margin,
-                (zoom_mean + 2 * zoom_sd).max() + y_margin,
-            )
+            # Tighten y-limits for better vertical zoom
+            mid = zoom_mean.mean()
+            span = (2 * zoom_sd).max() * 3  # amplify focus around the epistemic band
+            axins.set_ylim(mid - span, mid + span)
+
+            # Hide x-axis ticks and labels
+            axins.set_xticks([])
+            axins.set_xticklabels([])
+
+            # Optionally, hide y ticks too if minimalism is desired
+            axins.set_yticks([])
 
             # Mark the zoom area
             mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
