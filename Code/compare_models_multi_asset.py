@@ -2874,7 +2874,7 @@ example_tickers = ["AAPL", "WMT"]
 # Include more conf levels here because it is interesting to see
 conf_levels = CONFIDENCE_LEVELS + [0.99, 0.995]
 
-for model_set in [our]:  # , traditional, ml_benchmarks]:
+for model_set in [our, traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
@@ -2900,12 +2900,14 @@ for model_set in [our]:  # , traditional, ml_benchmarks]:
             ticker_df = df.xs(ticker, level="Symbol")
             plt.figure(figsize=(7, 4))
             plt.plot(
-                true_ret,
-                label="Actual Returns",
-                color="black",
-                alpha=0.5,
+                true_ret, label="Actual Returns", color="black", alpha=0.5, linewidth=1
             )
-            plt.plot(ticker_df["Mean"], label="Predicted Mean", color="red")
+            plt.plot(
+                ticker_df["Mean"],
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
+            )
             for i, cl in enumerate(conf_levels):
                 lb = ticker_df.get(f"LB_{format_cl(cl)}")
                 ub = ticker_df.get(f"UB_{format_cl(cl)}")
@@ -2993,9 +2995,12 @@ for model_set in [our, traditional, ml_benchmarks]:
                 true_ret,
                 label="Actual Returns",
                 color="black",
-                # alpha=0.5,
+                alpha=0.5,
+                linewidth=1,
             )
-            plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+            plt.plot(
+                dates, filtered_mean, label="Predicted Mean", color="red", linewidth=1
+            )
             plt.fill_between(
                 dates,
                 filtered_mean - filtered_epistemic_sd,
@@ -3039,6 +3044,47 @@ for model_set in [our, traditional, ml_benchmarks]:
                 fontsize=10,
                 frameon=False,
             )
+            fig, ax = plt.gcf(), plt.gca()
+
+            # Create an inset
+            axins = inset_axes(
+                ax,
+                width="35%",
+                height="35%",
+                loc="lower left",
+                bbox_to_anchor=(0.1, 0.05, 1, 1),
+                bbox_transform=ax.transAxes,
+            )
+
+            # Define the zoom region (adjust these index ranges as needed)
+            start_idx, end_idx = 100, 200  # example range with visible variance
+            zoom_dates = dates[start_idx:end_idx]
+            zoom_mean = filtered_mean.iloc[start_idx:end_idx]
+            zoom_sd = filtered_epistemic_sd.iloc[start_idx:end_idx]
+            zoom_true_ret = true_ret.iloc[start_idx:end_idx]
+
+            # Plot in the inset
+            axins.plot(zoom_dates, zoom_true_ret, color="black")
+            axins.plot(zoom_dates, zoom_mean, color="red")
+            axins.fill_between(
+                zoom_dates,
+                zoom_mean - 2 * zoom_sd,
+                zoom_mean + 2 * zoom_sd,
+                color="blue",
+                alpha=0.5,
+            )
+
+            # Zoom limits
+            axins.set_xlim(zoom_dates[0], zoom_dates[-1])
+            y_margin = 0.02
+            axins.set_ylim(
+                (zoom_mean - 2 * zoom_sd).min() - y_margin,
+                (zoom_mean + 2 * zoom_sd).max() + y_margin,
+            )
+
+            # Mark the zoom area
+            mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+
             plt.savefig(
                 f"results/time_series/epistemic/{ticker}_{model_name}.pdf",
             )
