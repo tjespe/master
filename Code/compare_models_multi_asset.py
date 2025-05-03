@@ -3000,7 +3000,11 @@ for model_set in [our, traditional, ml_benchmarks]:
                 linewidth=1,
             )
             plt.plot(
-                dates, filtered_mean, label="Predicted Mean", color=colors["secondary"], linewidth=1
+                dates,
+                filtered_mean,
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
             )
             plt.fill_between(
                 dates,
@@ -3026,14 +3030,6 @@ for model_set in [our, traditional, ml_benchmarks]:
                 alpha=0.3,
                 label="Epistemic Uncertainty (99%)",
             )
-            plt.fill_between(
-                dates,
-                filtered_mean - 3.29 * filtered_epistemic_sd,
-                filtered_mean + 3.29 * filtered_epistemic_sd,
-                color=colors["primary"],
-                alpha=0.1,
-                label="Epistemic Uncertainty (99.9%)",
-            )
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.title(
                 f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
@@ -3058,7 +3054,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
 
             # Define the zoom region (adjust these index ranges as needed)
-            start_idx, end_idx = 100, 200  # example range with visible variance
+            start_idx, end_idx = 20, 70  # example range with visible variance
             zoom_dates = dates[start_idx:end_idx]
             zoom_mean = filtered_mean.iloc[start_idx:end_idx]
             zoom_sd = filtered_epistemic_sd.iloc[start_idx:end_idx]
@@ -3067,17 +3063,37 @@ for model_set in [our, traditional, ml_benchmarks]:
             # Plot in the inset
             axins.plot(zoom_dates, zoom_true_ret, color="black", alpha=0.1, linewidth=1)
             axins.plot(zoom_dates, zoom_mean, color=colors["secondary"], linewidth=1)
-            axins.fill_between(
+            # Plot the zero line
+            axins.axhline(0, color="black", linestyle="--", linewidth=0.5)
+
+            plt.fill_between(
+                zoom_dates,
+                zoom_mean - zoom_sd,
+                zoom_mean + zoom_sd,
+                color=colors["primary"],
+                alpha=0.8,
+                label="Epistemic Uncertainty (67%)",
+            )
+            plt.fill_between(
                 zoom_dates,
                 zoom_mean - 2 * zoom_sd,
                 zoom_mean + 2 * zoom_sd,
                 color=colors["primary"],
                 alpha=0.5,
+                label="Epistemic Uncertainty (95%)",
+            )
+            plt.fill_between(
+                zoom_dates,
+                zoom_mean - 2.57 * zoom_sd,
+                zoom_mean + 2.57 * zoom_sd,
+                color=colors["primary"],
+                alpha=0.3,
+                label="Epistemic Uncertainty (99%)",
             )
 
             # Tighten y-limits for better vertical zoom
             mid = zoom_mean.mean()
-            span = (2 * zoom_sd).max() * 3  # amplify focus around the epistemic band
+            span = (3 * zoom_sd).max() * 3  # amplify focus around the epistemic band
             axins.set_ylim(mid - span, mid + span)
 
             # Hide x-axis ticks and labels
@@ -3088,7 +3104,13 @@ for model_set in [our, traditional, ml_benchmarks]:
             axins.set_yticks([])
 
             # Mark the zoom area
-            mark_inset(ax, axins, loc1=2, loc2=4, fc="none", ec="0.5")
+            mark_inset(ax, axins, loc1=2, loc2=1, fc="none", ec="black")
+
+            axins.set_frame_on(True)
+            for spine in axins.spines.values():
+                spine.set_visible(True)
+                spine.set_edgecolor("black")
+                spine.set_linewidth(1)
 
             plt.savefig(
                 f"results/time_series/epistemic/{ticker}_{model_name}.pdf",
