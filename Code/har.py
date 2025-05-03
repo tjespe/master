@@ -8,6 +8,9 @@ import numpy as np
 import statsmodels.api as sm
 from tqdm import tqdm
 from joblib import Parallel, delayed
+from shared.conf_levels import format_cl
+from scipy.stats import norm
+from shared.mdn import calculate_es_for_quantile
 
 import warnings
 
@@ -211,6 +214,35 @@ results_df["Mean"] = 0  # Assume mean is 0
 
 # %%
 # save the dataframe
+results_df.to_csv("predictions/HAR_python.csv", index=False)
+
+# %%
+# load the dataframe
+results_df = pd.read_csv("predictions/HAR_python.csv")
+
+# %%
+# Add VaR and ES estimates assuming normality
+CONFIDENCE_LEVELS = [0.67, 0.90, 0.95, 0.98]
+ALL_CONFIDENCE_LEVELS = CONFIDENCE_LEVELS + [0.99, 0.995]
+mu = results_df["Mean"].values
+har_vol_pred = results_df["HAR_vol_python"].values
+for cl in ALL_CONFIDENCE_LEVELS:
+    alpha = 1 - cl
+    z_alpha = norm.ppf(1 - alpha / 2)
+    lb = mu - z_alpha * har_vol_pred
+    ub = mu + z_alpha * har_vol_pred
+    results_df[f"LB_{format_cl(cl)}"] = lb
+    results_df[f"UB_{format_cl(cl)}"] = ub
+    es_alpha = alpha / 2
+    results_df[f"ES_{format_cl(1-es_alpha)}"] = calculate_es_for_quantile(
+        np.ones_like(mu).reshape(-1, 1),
+        mu.reshape(-1, 1),
+        har_vol_pred.reshape(-1, 1),
+        lb,
+    )
+
+# %%
+# Save the dataframe with the new columns
 results_df.to_csv("predictions/HAR_python.csv", index=False)
 
 # %%

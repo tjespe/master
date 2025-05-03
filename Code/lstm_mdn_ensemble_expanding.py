@@ -2,6 +2,7 @@
 # Define parameters (based on settings)
 import subprocess
 from typing import Optional
+from shared.jupyter import is_notebook
 from lstm_mdn_ensemble import build_lstm_mdn
 from shared.ensemble import MDNEnsemble, ParallelProgressCallback
 from shared.conf_levels import format_cl
@@ -412,8 +413,11 @@ if __name__ == "__main__":
         # Color appropriately
         color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
         figsize=(12, 6),
-        save_to=f"results/ES/AAPL_{MODEL_NAME}.pdf",
     )
+    plt.savefig(f"results/ES/AAPL_{MODEL_NAME}.pdf")
+    if is_notebook():
+        plt.show()
+    plt.close()
 
     # %%
     # Calculate probability of price increase

@@ -1116,11 +1116,7 @@ for version in ["RV", "IV", "RV_IV"]:
     except FileNotFoundError:
         print("XGBoost_4y predictions not found")
 
-for version in [
-    # "RV",
-    # "IV",
-    # "RV_IV"
-]:
+for version in []:  # "RV", "IV", "RV_IV"]: # Not ready yet
     try:
         DB_preds = pd.read_csv(f"predictions/DB_{version}.csv")
         DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
@@ -1144,6 +1140,8 @@ for version in [
         # same for NLL
         combined_df["nll"] = np.nan
 
+        key = "RV_set + IV_set" if version == "RV_IV" else f"{version}_set"
+
         preds_per_model.append(
             {
                 "name": f"Benchmark DB {version}",
@@ -1152,22 +1150,22 @@ for version in [
                 "nll": combined_df["nll"].values,
                 "symbols": combined_df.index.get_level_values("Symbol"),
                 "dates": combined_df.index.get_level_values("Date"),
-                "LB_98": combined_df["DB_RV_set_0.01"].values,
-                "UB_98": combined_df["DB_RV_set_0.99"].values,
-                "LB_95": combined_df["DB_RV_set_0.025"].values,
-                "UB_95": combined_df["DB_RV_set_0.975"].values,
-                "LB_90": combined_df["DB_RV_set_0.05"].values,
-                "UB_90": combined_df["DB_RV_set_0.95"].values,
-                "LB_67": combined_df["DB_RV_set_0.165"].values,
-                "UB_67": combined_df["DB_RV_set_0.835"].values,
-                "ES_99": combined_df["DB_RV_set_ES_0.01"].values,
-                "ES_97.5": combined_df["DB_RV_set_ES_0.025"].values,
-                "ES_95": combined_df["DB_RV_set_ES_0.05"].values,
-                "ES_83.5": combined_df["DB_RV_set_ES_0.165"].values,
-                "ES_16.5": combined_df["DB_RV_set_ES_0.835"].values,
-                "ES_0.05": combined_df["DB_RV_set_ES_0.95"].values,
-                "ES_0.025": combined_df["DB_RV_set_ES_0.975"].values,
-                "ES_0.01": combined_df["DB_RV_set_ES_0.99"].values,
+                "LB_98": combined_df[f"DB_{key}_0.01"].values,
+                "UB_98": combined_df[f"DB_{key}_0.99"].values,
+                "LB_95": combined_df[f"DB_{key}_0.025"].values,
+                "UB_95": combined_df[f"DB_{key}_0.975"].values,
+                "LB_90": combined_df[f"DB_{key}_0.05"].values,
+                "UB_90": combined_df[f"DB_{key}_0.95"].values,
+                "LB_67": combined_df[f"DB_{key}_0.165"].values,
+                "UB_67": combined_df[f"DB_{key}_0.835"].values,
+                "ES_99": combined_df[f"DB_{key}_ES_0.01"].values,
+                "ES_97.5": combined_df[f"DB_{key}_ES_0.025"].values,
+                "ES_95": combined_df[f"DB_{key}_ES_0.05"].values,
+                "ES_83.5": combined_df[f"DB_{key}_ES_0.165"].values,
+                "ES_16.5": combined_df[f"DB_{key}_ES_0.835"].values,
+                "ES_0.05": combined_df[f"DB_{key}_ES_0.95"].values,
+                "ES_0.025": combined_df[f"DB_{key}_ES_0.975"].values,
+                "ES_0.01": combined_df[f"DB_{key}_ES_0.99"].values,
             }
         )
         # nans = combined_df["Mean_SP"].isnull().sum()
@@ -2026,7 +2024,12 @@ for loss_fn in loss_fns:
             )
             benchmark_values = benchmark_entry.get(loss_fn)
             challenger_values = challenger_entry.get(loss_fn)
-            if benchmark_values is None or challenger_values is None:
+            if (
+                benchmark_values is None
+                or challenger_values is None
+                or np.isnan(challenger_values).all()
+                or np.isnan(benchmark_values).all()
+            ):
                 p_value_df.loc[benchmark, challenger] = np.nan
                 continue
             benchmark_values = np.array(benchmark_values)
