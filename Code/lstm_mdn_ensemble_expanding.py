@@ -349,7 +349,6 @@ if __name__ == "__main__":
             ax,
             ticker,
             day,
-            colors=["#555"],
         )
     plt.tight_layout()
     plt.savefig(f"results/distributions/{MODEL_NAME}_comparison.pdf")
