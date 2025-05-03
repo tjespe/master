@@ -15,7 +15,7 @@ import shared.styling_guidelines_graphs
 
 # %%
 # Model loading parameters
-VERSION = "rv-and-ivol-final-rolling"
+VERSION = "ivol-final-rolling"
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
