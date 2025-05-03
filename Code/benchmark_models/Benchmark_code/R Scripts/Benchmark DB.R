@@ -328,8 +328,11 @@ tickers <- unique(D$Symbol)
 
 # Loop through each asset (Ticker)
 for (ticker in tickers) {
-  file_name <- paste0("~/Copy of data/DB_", ticker, ".csv")
+  # Skip DOW
+  if (ticker == "DOW") next
+
   print(ticker)
+
   # Filter dataset for the current asset
   D_ticker <- D[Symbol == ticker]
 
