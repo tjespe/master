@@ -2852,7 +2852,7 @@ for title, loss_fn in [
         plt.plot(
             loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
             label=display_name,
-            linewidth=2,
+            linewidth=1,
             alpha=0.8,
         )
     plt.title(title)

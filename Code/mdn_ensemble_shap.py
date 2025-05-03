@@ -47,7 +47,9 @@ DATA_FLAGS = dict(
     include_fred_md=False,
     include_1min_rv="rv" in VERSION,
     include_5min_rv="rv" in VERSION,
-    include_ivol_cols=["10 Day Call IVOL", "Historical Call IVOL"] if "ivol" in VERSION else [],
+    include_ivol_cols=(
+        ["10 Day Call IVOL", "Historical Call IVOL"] if "ivol" in VERSION else []
+    ),
 )
 
 # %%
@@ -152,6 +154,12 @@ if __name__ == "__main__":
     np.save(f"results/xai/raw/{MODEL_NAME}_{ANALYSIS_START_DATE}_shap.npy", shap_values)
 
     # %%
+    # Load shap_values from file
+    shap_values = np.load(
+        f"results/xai/raw/{MODEL_NAME}_{ANALYSIS_START_DATE}_shap.npy"
+    )
+
+    # %%
     # Present results
     feature_names = [
         f"{feat} ({LOOKBACK_DAYS - lag} days ago)".replace("(1 days", "(1 day")
@@ -163,16 +171,23 @@ if __name__ == "__main__":
         *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
         *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
     ]
-    for i, name in enumerate(output_names):
+    top_n = 10  # Number of features to show in summary plot
+    for i, metric in enumerate(output_names):
         shap.summary_plot(
             shap_values[:, :, i],
             Xtf,
             show=False,
             feature_names=feature_names,
+            max_display=top_n,
         )
-        plt.title(name)
+        model_base_name = "LSTM-MDN" if "lstm" in MODEL_NAME else "Transformer-MDN"
+        version_expl = "-".join(
+            (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
+        )
+        model_display_name = f"{model_base_name}-{version_expl}"
+        plt.title(f"SHAP analysis of {model_display_name} {metric} estimates")
         plt.savefig(
-            f"results/xai/shap_{name}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
+            f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
             bbox_inches="tight",
             dpi=300,
         )
