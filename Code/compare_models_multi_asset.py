@@ -2822,25 +2822,22 @@ for title, loss_fn in [
     ("Quantile Loss (QL) for the 95% confidence level", "quantile_loss_95"),
     ("Quantile Loss (QL) for the 98% confidence level", "quantile_loss_98"),
 ]:
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(7, 4))
     for name in [
-        "LSTM MDN ivol-final-rolling",
-        "Transformer MDN ivol expanding",
+        # "HAR_IVOL-QREG",
+        "Benchmark DB IV",
+        "Benchmark Catboost RV_IV",
         "GARCH",
         "GARCH Skewed-t",
-        "HAR_IVOL-QREG",
-        "Benchmark Catboost RV_IV",
-        "Benchmark DB IV",
-    ]:
-        display_name = next(
-            (
-                n
-                for model_set in [our, traditional, benchmark]
-                for n, model_name in model_set
-                if model_name == name
-            ),
-            None,
-        )
+        "LSTM MDN ivol-final-rolling",
+        "Transformer MDN ivol expanding",
+    ][::-1]:
+        display_name = model_name
+        for model_set in [our, traditional, ml_benchmarks]:
+            for d_name, model_name in model_set:
+                if name == model_name:
+                    display_name = d_name
+                    break
         entry = next(entry for entry in passing_models if entry["name"] == name)
         loss_df = pd.DataFrame(
             {
@@ -2850,14 +2847,24 @@ for title, loss_fn in [
                 "Model": entry["name"],
             }
         ).set_index(["Date", "Symbol"])
+        if loss_df[loss_fn].isnull().all():
+            continue
         plt.plot(
             loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
-            label=entry["name"],
+            label=display_name,
+            linewidth=2,
+            alpha=0.8,
         )
     plt.title(title)
     plt.tight_layout()
+    plt.legend(
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.15),
+        ncol=4,
+        fontsize=10,
+        frameon=False,
+    )
     plt.savefig(f"results/loss/{loss_fn}.pdf")
-    plt.legend()
 
 
 # %%
