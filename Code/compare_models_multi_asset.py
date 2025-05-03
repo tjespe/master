@@ -2891,7 +2891,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
             true_ret = np.exp(true_log_ret) - 1
             ticker_df = df.xs(ticker, level="Symbol")
-            plt.figure(figsize=(12, 6))
+            plt.figure(figsize=(7, 4))
             plt.plot(
                 true_ret,
                 label="Actual Returns",
