@@ -2737,7 +2737,7 @@ for model_set in [our, traditional, ml_benchmarks]:
         print(display_name, end=" ")
 
         # Calculate the number of wins for each scoring rule at each confidence level
-        for alpha in [0.25, 0.05]:
+        for alpha in [0.5, 0.05]:
             mcs = mcs_results[alpha]
             if model_name not in mcs.index or mcs.loc[model_name].isna().all():
                 print("&", " & ".join(["-"] * 7), end="")
