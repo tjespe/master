@@ -2025,7 +2025,7 @@ loss_fns = [
 ]
 
 # %%
-# Calculate p-value of outperformance in terms of NLL
+# Calculate p-value of outperformance in terms of each loss fn
 for loss_fn in loss_fns:
     passing_model_names = [entry["name"] for entry in passing_models]
     p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
