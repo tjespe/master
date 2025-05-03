@@ -15,16 +15,16 @@ import shared.styling_guidelines_graphs
 
 # %%
 # Model loading parameters
-VERSION = "ivol-final-rolling"
+VERSION = "rvol-ivol"  # "ivol-final-rolling"
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
-MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
+MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
 MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
 # Function for building the model
-BUILD_FN = build_lstm_mdn  # or build_transformer_mdn
+BUILD_FN = build_transformer_mdn  # build_lstm_mdn
 
 # %%
 # Structural parameters
