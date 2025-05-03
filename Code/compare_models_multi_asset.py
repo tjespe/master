@@ -2963,6 +2963,89 @@ for model_set in [our, traditional, ml_benchmarks]:
 
 
 # %%
+# Plot epistemic variance for the models that have that
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            continue
+        epistemic_var = entry.get("epistemic_var")
+        if epistemic_var is None or pd.isnull(epistemic_var).all():
+            continue
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        log_df["EpistemicSD"] = np.sqrt(entry.get("epistemic_var"))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            dates = ticker_df.index
+            filtered_mean = ticker_df["Mean"]
+            filtered_epistemic_sd = ticker_df["EpistemicSD"]
+            plt.figure(figsize=(8, 4))
+            plt.plot(
+                dates,
+                true_ret,
+                label="Actual Returns",
+                color="black",
+                # alpha=0.5,
+            )
+            plt.plot(dates, filtered_mean, label="Predicted Mean", color="red")
+            plt.fill_between(
+                dates,
+                filtered_mean - filtered_epistemic_sd,
+                filtered_mean + filtered_epistemic_sd,
+                color="blue",
+                alpha=0.8,
+                label="Epistemic Uncertainty (67%)",
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - 2 * filtered_epistemic_sd,
+                filtered_mean + 2 * filtered_epistemic_sd,
+                color="blue",
+                alpha=0.5,
+                label="Epistemic Uncertainty (95%)",
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - 2.57 * filtered_epistemic_sd,
+                filtered_mean + 2.57 * filtered_epistemic_sd,
+                color="blue",
+                alpha=0.3,
+                label="Epistemic Uncertainty (99%)",
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - 3.29 * filtered_epistemic_sd,
+                filtered_mean + 3.29 * filtered_epistemic_sd,
+                color="blue",
+                alpha=0.1,
+                label="Epistemic Uncertainty (99.9%)",
+            )
+            plt.gca().set_yticklabels(
+                ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
+            )
+            plt.title(
+                f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
+            )
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=3,
+                fontsize=10,
+                frameon=False,
+            )
+            plt.savefig(
+                f"results/time_series/epistemic/{ticker}_{model_name}.pdf",
+            )
+            plt.show()
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
