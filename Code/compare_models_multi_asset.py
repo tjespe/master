@@ -1,5 +1,5 @@
 # %%
-import shared.styling_guidelines_graphs
+from shared.styling_guidelines_graphs import colors
 from shared.skew_t import skewt_nll
 from shared.adequacy import (
     christoffersen_test,
@@ -32,6 +32,7 @@ from scipy.stats import ttest_rel
 from scipy.stats import linregress
 from scipy.stats import ttest_1samp
 from arch.bootstrap import MCS
+import matplotlib.ticker as mtick
 
 
 # %%
@@ -2872,9 +2873,8 @@ for title, loss_fn in [
 example_tickers = ["AAPL", "WMT"]
 # Include more conf levels here because it is interesting to see
 conf_levels = CONFIDENCE_LEVELS + [0.99, 0.995]
-import shared.styling_guidelines_graphs
 
-for model_set in [our, traditional, ml_benchmarks]:
+for model_set in [our]:  # , traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
@@ -2920,14 +2920,14 @@ for model_set in [our, traditional, ml_benchmarks]:
                     lb.index,
                     lb,
                     ub,
-                    color="blue",
+                    color=colors["primary"],
                     alpha=alpha,
                     label=f"{format_cl(cl)}% Interval",
                 )
                 # Mark violations
                 violations = np.logical_or(
-                    true_log_ret < lb,
-                    true_log_ret > ub,
+                    true_ret < lb,
+                    true_ret > ub,
                 )
                 mark_color = (0.3 + i * 0.1,) * 3
                 # Commented out now because it is too crowded
@@ -2941,10 +2941,9 @@ for model_set in [our, traditional, ml_benchmarks]:
                 #     zorder=20 - i,
                 # )
             plt.ylim(-0.2, 0.2)
+            # Format y ticks as pct
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.xlim(ticker_df.index.min(), ticker_df.index.max())
-            plt.gca().set_yticklabels(
-                ["{:.1f}%".format(n * 100) for n in plt.gca().get_yticks()]
-            )
             plt.title(f"{display_name} predictions for {ticker} on test data")
             # Place legend below plot
             plt.legend(
@@ -3029,9 +3028,7 @@ for model_set in [our, traditional, ml_benchmarks]:
                 alpha=0.1,
                 label="Epistemic Uncertainty (99.9%)",
             )
-            plt.gca().set_yticklabels(
-                ["{:.1f}%".format(x * 100) for x in plt.gca().get_yticks()]
-            )
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.title(
                 f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
             )
