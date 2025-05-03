@@ -1,4 +1,5 @@
 # %%
+import shared.styling_guidelines_graphs
 from shared.skew_t import skewt_nll
 from shared.adequacy import (
     christoffersen_test,
@@ -1115,7 +1116,7 @@ for version in ["RV", "IV", "RV_IV"]:
     except FileNotFoundError:
         print("XGBoost_4y predictions not found")
 
-for version in []:  # "RV", "IV", "RV_IV"]: # Not ready yet
+for version in ["RV", "IV", "RV_IV"]:
     try:
         DB_preds = pd.read_csv(f"predictions/DB_{version}.csv")
         DB_preds["Date"] = pd.to_datetime(DB_preds["Date"])
@@ -1172,7 +1173,7 @@ for version in []:  # "RV", "IV", "RV_IV"]: # Not ready yet
         if nans > 0:
             print(f"DB has {nans} NaN predictions")
     except FileNotFoundError:
-        print("DB predictions not found")
+        print(f"DB {version} predictions not found")
 ###########################################
 
 # %%
@@ -1894,37 +1895,6 @@ results_df.T[
         "[98] Ind fails",
     ]
 ].style.apply(color_uc_ind_dominator, axis=1)
-
-# %%
-# Look at how different loss functions change over time for the best performing models of each type
-for loss_fn in ["nll", "FZ0_95", "FZ0_97.5", "quantile_loss_95", "quantile_loss_98"]:
-    plt.figure(figsize=(12, 6))
-    for name in [
-        "LSTM MDN ivol-final-rolling",
-        "Transformer MDN ivol expanding",
-        "GARCH",
-        "GARCH Skewed-t",
-        "HAR-QREG",
-        "HAR_IVOL-QREG",
-        "Benchmark Catboost RV_IV",
-        "Benchmark LightGBM IV",
-    ]:
-        entry = next(entry for entry in passing_models if entry["name"] == name)
-        loss_df = pd.DataFrame(
-            {
-                "Date": entry["dates"],
-                "Symbol": entry["symbols"],
-                loss_fn: entry[loss_fn],
-                "Model": entry["name"],
-            }
-        ).set_index(["Date", "Symbol"])
-        plt.plot(
-            loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
-            label=entry["name"],
-        )
-    plt.title(loss_fn)
-    plt.legend()
-
 # %%
 # Calculate each model's rank in each metric, taking into account whether higher or lower is better
 # Initialize a dictionary to hold ranking series for each metric.
@@ -2258,9 +2228,9 @@ traditional = [
     ("HARQ", "HARQ_python"),
     ("HAR-QREG", "HAR-QREG"),
     ("HAR-IV-QREG", "HAR_IVOL-QREG"),
-    ("DB-RV", "DB-RV"),
-    ("DB-IV", "DB-IV"),
-    ("DB-RV-IV", "DB-RV-IV"),
+    ("DB-RV", "Benchmark DB RV"),
+    ("DB-IV", "Benchmark DB IV"),
+    ("DB-RV-IV", "Benchmark DB RV-IV"),
 ]
 ml_benchmarks = [
     ("XgBoost-RV", "Benchmark XGBoost RV"),
@@ -2842,6 +2812,53 @@ for display_name, model_name in our:
         print("&", sci_notation_latex(val), end=" ")
 
     print("\\\\")
+
+# %%
+# Look at how different loss functions change over time for the best performing models of each type
+for title, loss_fn in [
+    ("Negative Log-Likelihood", "nll"),
+    ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
+    ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
+    ("Quantile Loss (QL) for the 95% confidence level", "quantile_loss_95"),
+    ("Quantile Loss (QL) for the 98% confidence level", "quantile_loss_98"),
+]:
+    plt.figure(figsize=(12, 6))
+    for name in [
+        "LSTM MDN ivol-final-rolling",
+        "Transformer MDN ivol expanding",
+        "GARCH",
+        "GARCH Skewed-t",
+        "HAR_IVOL-QREG",
+        "Benchmark Catboost RV_IV",
+        "Benchmark DB IV",
+    ]:
+        display_name = next(
+            (
+                n
+                for model_set in [our, traditional, benchmark]
+                for n, model_name in model_set
+                if model_name == name
+            ),
+            None,
+        )
+        entry = next(entry for entry in passing_models if entry["name"] == name)
+        loss_df = pd.DataFrame(
+            {
+                "Date": entry["dates"],
+                "Symbol": entry["symbols"],
+                loss_fn: entry[loss_fn],
+                "Model": entry["name"],
+            }
+        ).set_index(["Date", "Symbol"])
+        plt.plot(
+            loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
+            label=entry["name"],
+        )
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(f"results/loss/{loss_fn}.pdf")
+    plt.legend()
+
 
 # %%
 # Generate time series chart with confidence intervals for each model

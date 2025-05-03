@@ -105,7 +105,7 @@ lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV_4y.
 ########## DB ###########
 # %%
 # DB_RV     <- read.csv(file.path(base_path_predictions, "DB_RV.csv"))
-# DB_IV     <- read.csv(file.path(base_path_predictions, "DB_IV.csv"))
+DB_IV     <- read.csv(file.path(base_path_predictions, "DB_IV.csv"))
 # DB_RV_IV  <- read.csv(file.path(base_path_predictions, "DB_RV_IV.csv"), check.names = FALSE)
 
 
@@ -133,9 +133,9 @@ xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
 lightgbm_RV <- lightgbm_RV[lightgbm_RV$Symbol != "DOW", ]
 lightgbm_IV <- lightgbm_IV[lightgbm_IV$Symbol != "DOW", ]
 lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
-DB_RV <- DB_RV[DB_RV$Symbol != "DOW", ]
+# DB_RV <- DB_RV[DB_RV$Symbol != "DOW", ]
 DB_IV <- DB_IV[DB_IV$Symbol != "DOW", ]
-DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
+# DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
 har <- har[har$Symbol != "DOW", ]
 harq <- harq[harq$Symbol != "DOW", ]
 har_qreq <- har_qreq[har_qreq$Symbol != "DOW", ]
@@ -246,7 +246,7 @@ model_list_DB_RV <- list(
 #  "DB_RV" = DB_RV
 )
 model_list_DB_IV <- list(
-  # "DB_IV" = DB_IV
+  "DB_IV" = DB_IV
 )
 model_list_DB_RV_IV <- list(
   # "DB_RV_IV" = DB_RV_IV
@@ -384,7 +384,7 @@ all_model_groups <- list(
   list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer),
   list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
   # list(models = model_list_DB_RV, alpha_config = alpha_config_db_rv, es_config = es_config_db_rv),
-  # list(models = model_list_DB_IV, alpha_config = alpha_config_db_iv, es_config = es_config_db_iv),
+  list(models = model_list_DB_IV, alpha_config = alpha_config_db_iv, es_config = es_config_db_iv),
   # list(models = model_list_DB_RV_IV, alpha_config = alpha_config_db_rv_iv, es_config = es_config_db_rv_iv),
   list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
   list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
