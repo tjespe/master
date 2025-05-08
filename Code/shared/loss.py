@@ -606,7 +606,7 @@ def crps_skewt(x, mu, sigma, nu, lam, nsim=1000, random_state=None):
     for i in range(B):
         z_obs = (x[i] - mu[i]) / sigma[i]
         # now nu[i] and lam[i] are scalars
-        z_samples = rvs_skewt(nsim, nu=nu[i], lam=lam[i], rng=random_state)
+        z_samples = rvs_skewt(nsim, nu=nu[i], lam=lam[i])
 
         term1 = np.mean(np.abs(z_samples - z_obs))
         diffs = np.abs(z_samples[:, None] - z_samples[None, :])
