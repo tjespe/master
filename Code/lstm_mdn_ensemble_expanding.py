@@ -322,7 +322,7 @@ if __name__ == "__main__":
 
     # %%
     # 6b) Make plot for paper: 2x2 grid with 2 tickers and 2 random days
-    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(14, 8))
+    fig, axes = plt.subplots(nrows=2, ncols=2, figsize=(12, 7))
     fig.subplots_adjust(hspace=0.05, wspace=0.05)
     paper_name = "-".join(
         (["RV"] if INCLUDE_1MIN_RV else []) + (["IV"] if INCLUDE_30_DAY_IVOL else [])

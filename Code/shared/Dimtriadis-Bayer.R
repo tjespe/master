@@ -12,7 +12,8 @@ test_set_start_date <- "2019-12-31"
 
 # get return data for the test set
 return_data <- read.csv(file.path(base_path_return_data, "dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv"))
-# filter only for test set, from 2023-01-03 to 2024-03-28
+# filter only for test set, fr
+om 2023-01-03 to 2024-03-28
 return_data <- return_data[return_data$Date >= test_set_start_date & return_data$Date <= "2024-03-28", ] 
 # return_data <- return_data[return_data$Date >= "2005-02-15" & return_data$Date <= "2024-03-28", ]
 # remove .O at the end of the Symbol for the return data
@@ -104,9 +105,14 @@ lightgbm_RV_IV  <- read.csv(file.path(base_path_predictions, "LightGBM_RV_IV_4y.
 
 ########## DB ###########
 # %%
-# DB_RV     <- read.csv(file.path(base_path_predictions, "DB_RV.csv"))
+DB_RV     <- read.csv(file.path(base_path_predictions, "DB_RV.csv"))
 DB_IV     <- read.csv(file.path(base_path_predictions, "DB_IV.csv"))
-# DB_RV_IV  <- read.csv(file.path(base_path_predictions, "DB_RV_IV.csv"), check.names = FALSE)
+DB_RV_IV  <- read.csv(file.path(base_path_predictions, "DB_RV_IV.csv"), check.names = FALSE)
+
+# Filter away dates before test_set_start_date
+DB_RV     <- DB_RV[DB_RV$Date >= test_set_start_date, ]
+DB_IV     <- DB_IV[DB_IV$Date >= test_set_start_date, ]
+DB_RV_IV  <- DB_RV_IV[DB_RV_IV$Date >= test_set_start_date, ]
 
 
 # %%
@@ -133,9 +139,9 @@ xgboost_RV_IV <- xgboost_RV_IV[xgboost_RV_IV$Symbol != "DOW", ]
 lightgbm_RV <- lightgbm_RV[lightgbm_RV$Symbol != "DOW", ]
 lightgbm_IV <- lightgbm_IV[lightgbm_IV$Symbol != "DOW", ]
 lightgbm_RV_IV <- lightgbm_RV_IV[lightgbm_RV_IV$Symbol != "DOW", ]
-# DB_RV <- DB_RV[DB_RV$Symbol != "DOW", ]
+DB_RV <- DB_RV[DB_RV$Symbol != "DOW", ]
 DB_IV <- DB_IV[DB_IV$Symbol != "DOW", ]
-# DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
+DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
 har <- har[har$Symbol != "DOW", ]
 harq <- harq[harq$Symbol != "DOW", ]
 har_qreq <- har_qreq[har_qreq$Symbol != "DOW", ]
@@ -243,13 +249,13 @@ es_config_db_rv_iv <- list(
 
 # Model lists
 model_list_DB_RV <- list(
-#  "DB_RV" = DB_RV
+ "DB_RV" = DB_RV
 )
 model_list_DB_IV <- list(
   "DB_IV" = DB_IV
 )
 model_list_DB_RV_IV <- list(
-  # "DB_RV_IV" = DB_RV_IV
+  "DB_RV_IV" = DB_RV_IV
 )
 
 
@@ -302,21 +308,20 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
           # Print model name
           cat("  Model:", model_name, "\n")
 
+
           for (alpha in alpha_config$levels) {
             pass_count <- 0
             fail_count <- 0
+
+            alpha_col <- alpha_config$columns[[ as.character(alpha) ]]
+            es_col    <- es_config$columns[[ as.character(alpha) ]]
             
             for (sym in symbols) {
-              # grab the single column names for this alpha
-              alpha_col <- alpha_config$columns[[ as.character(alpha) ]]
-              es_col    <- es_config$columns[[ as.character(alpha) ]]
-              
               # subset and align by Date
               returns <- return_data %>%
                 filter(Symbol == sym) %>%
                 select(Date, LogReturn) %>%
                 arrange(Date)
-
 
               preds   <- model_data %>%
                 filter(Symbol == sym) %>%
@@ -383,9 +388,9 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
 all_model_groups <- list(
   list(models = model_list_lstm_transformer, alpha_config = alpha_config_lstm_transformer, es_config = es_config_lstm_transformer),
   list(models = model_list_boosters, alpha_config = alpha_config_boost, es_config = es_config_boost),
-  # list(models = model_list_DB_RV, alpha_config = alpha_config_db_rv, es_config = es_config_db_rv),
+  list(models = model_list_DB_RV, alpha_config = alpha_config_db_rv, es_config = es_config_db_rv),
   list(models = model_list_DB_IV, alpha_config = alpha_config_db_iv, es_config = es_config_db_iv),
-  # list(models = model_list_DB_RV_IV, alpha_config = alpha_config_db_rv_iv, es_config = es_config_db_rv_iv),
+  list(models = model_list_DB_RV_IV, alpha_config = alpha_config_db_rv_iv, es_config = es_config_db_rv_iv),
   list(models = model_list_HAR, alpha_config = alpha_config_har, es_config = es_config_har),
   list(models = model_list_garch, alpha_config = alpha_config_garch, es_config = es_config_garch)
 )

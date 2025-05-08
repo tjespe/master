@@ -2232,7 +2232,7 @@ traditional = [
     ("HAR-IV-QREG", "HAR_IVOL-QREG"),
     ("DB-RV", "Benchmark DB RV"),
     ("DB-IV", "Benchmark DB IV"),
-    ("DB-RV-IV", "Benchmark DB RV-IV"),
+    ("DB-RV-IV", "Benchmark DB RV_IV"),
 ]
 ml_benchmarks = [
     ("XgBoost-RV", "Benchmark XGBoost RV"),
@@ -3254,7 +3254,7 @@ for entry in passing_models:
 # Examine correlation between predicted mean and actual return
 for entry in passing_models:
     mean_pred = entry.get("mean_pred")
-    if mean_pred is None or (mean_pred == 0).all():
+    if mean_pred is None or np.isnan(mean_pred).all() or np.all(mean_pred == 0):
         continue
     df_copy = df_validation.copy()
     df_copy["mean_pred"] = mean_pred
@@ -3313,7 +3313,7 @@ strat_results_df = pd.DataFrame(
 
 for entry in passing_models:
     mean_pred = entry.get("mean_pred")
-    if mean_pred is None or (mean_pred == 0).all():
+    if mean_pred is None or np.isnan(mean_pred).all() or np.all(mean_pred == 0):
         continue
     decisions_df = df_validation.copy()
     decisions_df["mean_pred"] = mean_pred
