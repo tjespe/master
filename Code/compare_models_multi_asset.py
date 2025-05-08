@@ -2860,15 +2860,19 @@ for title, loss_fn in [
     ("Quantile Loss (QL) for the 1% quantile", "quantile_loss_1"),
 ]:
     plt.figure(figsize=(7, 4))
-    for name in [
-        # "HAR_IVOL-QREG",
-        "Benchmark DB IV",
-        "Benchmark Catboost RV_IV",
-        "GARCH",
-        "GARCH Skewed-t",
-        "LSTM MDN ivol-final-rolling",
-        "Transformer MDN ivol expanding",
-    ][::-1]:
+    for zorder, name in list(
+        enumerate(
+            [
+                # "HAR_IVOL-QREG",
+                "Benchmark DB IV",
+                "Benchmark Catboost RV_IV",
+                "GARCH",
+                "GARCH Skewed-t",
+                "LSTM MDN ivol-final-rolling",
+                "Transformer MDN ivol expanding",
+            ]
+        )
+    )[::-1]:
         display_name = model_name
         for model_set in [our, traditional, ml_benchmarks]:
             for d_name, model_name in model_set:
@@ -2891,6 +2895,7 @@ for title, loss_fn in [
             label=display_name,
             linewidth=1,
             alpha=0.8,
+            zorder=zorder,
         )
     plt.title(title)
     plt.tight_layout()
