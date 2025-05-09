@@ -4,6 +4,9 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import norm
 
 from shared.processing import get_lstm_train_test_new
 
@@ -120,4 +123,97 @@ print("Table 1: Average Descriptive Statistics Across Assets\n")
 latex_table = average_stats_formatted.to_latex(index=True, escape=False)
 print(latex_table)
 
+# %%
+
+
+# %% 
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from scipy.stats import norm
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+from scipy.stats import norm
+import shared.styling_guidelines_graphs
+from shared.styling_guidelines_graphs import colors
+
+
+
+def plot_return_analysis(df, symbol, return_col='ActualReturn'):
+    df = df.copy()
+    df.drop(columns='Set', errors='ignore', inplace=True)
+
+    if 'Symbol' not in df.columns or 'Date' not in df.columns:
+        df.reset_index(inplace=True)
+
+    if 'Symbol' not in df.columns:
+        raise KeyError(f"'Symbol' column not found. Available columns: {df.columns.tolist()}")
+
+    symbol_df = df[df['Symbol'] == symbol].copy()
+    symbol_df = symbol_df.dropna(subset=[return_col])
+
+    # --- Sub-function 1: Time-Series Plot ---
+    def plot_time_series(data, symbol, return_col):
+        plt.figure(figsize=(10, 6))
+        plt.plot(data['Date'], data[return_col], color='black', linewidth=0.5)
+        plt.title(f"{symbol} Daily Returns")
+        plt.xlabel("Date")
+        plt.ylabel("Returns")
+        plt.tight_layout()
+        plt.show()
+
+    # --- Sub-function 2: Histogram with Scaled Normal Curve ---
+    def plot_histogram_with_normal(data, symbol, return_col):
+        fig, ax1 = plt.subplots(figsize=(10, 6))
+
+        # Plot histogram (left y-axis)
+        sns.histplot(data[return_col], bins=100, stat='frequency',
+                    kde=False, color=colors['primary'], edgecolor='black',
+                    label="Returns Histogram", ax=ax1)
+
+        ax1.set_xlabel("Return")
+        ax1.set_ylabel("Frequency")
+        ax1.tick_params(axis='y', labelcolor='black')
+
+        # Add second y-axis (right)
+        ax2 = ax1.twinx()
+
+        # Fit normal distribution
+        mu, std = norm.fit(data[return_col])
+        x = np.linspace(data[return_col].min(), data[return_col].max(), 500)
+        p = norm.pdf(x, mu, std)
+
+        # Plot normal PDF (right y-axis)
+        ax2.plot(x, p, linestyle='--', color=colors['secondary'], linewidth=2, label='Normal Distrubuted PDF')
+        ax2.set_ylabel("Probability Density")
+        ax2.tick_params(axis='y', labelcolor='black')
+
+        # Set both y-axes to start from zero
+        ax1.set_ylim(bottom=0)
+        ax2.set_ylim(bottom=0)
+
+        # Combine legends manually
+        lines, labels = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines + lines2, labels + labels2, loc='upper right')
+
+        plt.title(f"{symbol} Daily Returns Histogram with Normal Curve")
+        plt.tight_layout()
+        plt.show()
+
+
+
+    # Call both subplots
+    plot_time_series(symbol_df, symbol, return_col)
+    plot_histogram_with_normal(symbol_df, symbol, return_col)
+
+
+# %% Example usage
+# Assuming processed_data.df is your main DataFrame
+plot_return_analysis(processed_data.df, 'AAPL')
+plot_return_analysis(processed_data.df, 'WMT')
+# %%
+processed_data.df.columns
 # %%
