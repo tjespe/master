@@ -1,4 +1,5 @@
 # %%
+import sys
 from shared.styling_guidelines_graphs import colors
 from shared.skew_t import skewt_nll
 from shared.adequacy import (
@@ -1323,6 +1324,16 @@ for entry in preds_per_model:
         entry[f"mpiw_{cl_str}"] = mpiw
         entry[f"within_bounds_{cl_str}"] = within_bounds
 
+        # Calculate lower tail exceedances and picp
+        q = (1 - cl) / 2
+        q_str = format_cl(q)
+        lb_pred = entry[f"LB_{cl_str}"]
+        lower_picp, above_lb = calculate_picp(
+            y_test_actual, lb_pred, np.inf * np.ones_like(lb_pred)
+        )
+        entry[f"below_{q_str}"] = ~(above_lb.astype(bool))
+        entry[f"picp_lb_{q_str}"] = lower_picp
+
         # Calculate Interval Scores
         interval_score = calculate_interval_score(
             y_test_actual, entry[f"LB_{cl_str}"], entry[f"UB_{cl_str}"], cl
@@ -1330,12 +1341,10 @@ for entry in preds_per_model:
         entry[f"interval_score_{cl_str}"] = interval_score
 
         # Calculate quantile loss for the lower bound
-        q = (1 - cl) / 2
-        q_pred = entry[f"LB_{cl_str}"]
         entry[f"quantile_loss_{format_cl(q)}"] = np.where(
-            y_test_actual >= q_pred,
-            q * (y_test_actual - q_pred),
-            (1 - q) * (q_pred - y_test_actual),
+            y_test_actual >= lb_pred,
+            q * (y_test_actual - lb_pred),
+            (1 - q) * (lb_pred - y_test_actual),
         )
 
         # Calculate interval pinball loss (symmetric interval score)
@@ -1359,7 +1368,7 @@ for entry in preds_per_model:
         exceedance_df = pd.DataFrame(
             {
                 "Symbol": entry["symbols"],
-                "Within Bounds": entry[f"within_bounds_{cl_str}"],
+                "Within Bounds": above_lb,
             }
         )
         exceedance_df = exceedance_df.dropna(subset=["Within Bounds"])
@@ -1367,47 +1376,13 @@ for entry in preds_per_model:
             print(f"No valid data for {entry['name']}")
             continue
 
-        pooled_exceedances_list = []
-        reset_indices = []
-        start_index = 0
-
-        # Group by symbol in original order.
-        exceedance_df.sort_values("Symbol", inplace=True)
-        for symbol, group in exceedance_df.groupby("Symbol", sort=False):
-            asset_exceedances = (
-                ~group["Within Bounds"].astype(bool)
-            ).values  # 1 if exceedance, 0 otherwise.
-            pooled_exceedances_list.append(asset_exceedances)
-            reset_indices.append(start_index)  # mark start of this asset's series.
-            start_index += len(asset_exceedances)
-
-        if len(pooled_exceedances_list) == 0:
-            print("No valid data to run Christoffersen test.")
-        else:
-            pooled_exceedances = np.concatenate(pooled_exceedances_list)
-            pooled_result = christoffersen_test(
-                pooled_exceedances, 1 - cl, reset_indices=reset_indices
-            )
-            entry[f"christoffersen_test_{cl_str}"] = interpret_christoffersen_test(
-                pooled_result
-            )
-
-        if PRINT_CHRISTOFFERSEN_TESTS:
-            print(
-                f"\n{entry['name']} Pooled Christoffersen's Test Results ({cl_str}%):"
-            )
-            try:
-                display(entry[f"christoffersen_test_{cl_str}"])
-            except NameError:
-                print(entry[f"christoffersen_test_{cl_str}"])
-
         chr_results = []
         for symbol, within_bounds in exceedance_df.groupby("Symbol")["Within Bounds"]:
             if within_bounds.isna().any():
                 print(f"Skipping {symbol} due to NaN values")
                 continue
             exceedances = ~within_bounds.astype(bool)
-            result = christoffersen_test(exceedances, 1 - cl)
+            result = christoffersen_test(exceedances, q)
             chr_results.append(
                 {**result, "Symbol": symbol, "Coverage": within_bounds.mean()}
             )
@@ -1443,21 +1418,21 @@ for entry in preds_per_model:
                 f"\n{entry['name']} Average Christoffersen's Test Results ({cl_str}%):"
             )
 
-        entry[f"chr_results_df_{cl_str}"] = chr_results_df
-        entry[f"uc_passes_{cl_str}"] = int(chr_results_df["uc_pass"].sum())
-        entry[f"uc_fails_{cl_str}"] = (chr_results_df["uc_pass"] == 0).sum()
-        entry[f"uc_nans_{cl_str}"] = chr_results_df["uc_pass"].isna().sum()
-        entry[f"ind_passes_{cl_str}"] = int(chr_results_df["ind_pass"].sum())
-        entry[f"ind_fails_{cl_str}"] = (chr_results_df["ind_pass"] == 0).sum()
-        entry[f"ind_nans_{cl_str}"] = chr_results_df["ind_pass"].isna().sum()
-        entry[f"cc_passes_{cl_str}"] = int(chr_results_df["cc_pass"].sum())
-        entry[f"cc_fails_{cl_str}"] = (chr_results_df["cc_pass"] == 0).sum()
-        entry[f"cc_nans_{cl_str}"] = chr_results_df["cc_pass"].isna().sum()
+        entry[f"chr_results_df_{q_str}"] = chr_results_df
+        entry[f"uc_passes_{q_str}"] = int(chr_results_df["uc_pass"].sum())
+        entry[f"uc_fails_{q_str}"] = (chr_results_df["uc_pass"] == 0).sum()
+        entry[f"uc_nans_{q_str}"] = chr_results_df["uc_pass"].isna().sum()
+        entry[f"ind_passes_{q_str}"] = int(chr_results_df["ind_pass"].sum())
+        entry[f"ind_fails_{q_str}"] = (chr_results_df["ind_pass"] == 0).sum()
+        entry[f"ind_nans_{q_str}"] = chr_results_df["ind_pass"].isna().sum()
+        entry[f"cc_passes_{q_str}"] = int(chr_results_df["cc_pass"].sum())
+        entry[f"cc_fails_{q_str}"] = (chr_results_df["cc_pass"] == 0).sum()
+        entry[f"cc_nans_{q_str}"] = chr_results_df["cc_pass"].isna().sum()
         if PRINT_CHRISTOFFERSEN_TESTS:
             print(
-                f"Unconditional Coverage:\t{entry[f'uc_passes_{cl_str}']} passes,\t{entry[f'uc_fails_{cl_str}']} fails,\t{entry[f'uc_nans_{cl_str}']} indeterminate\n"
-                f"Independence:\t\t{entry[f'ind_passes_{cl_str}']} passes,\t{entry[f'ind_fails_{cl_str}']} fails,\t{entry[f'ind_nans_{cl_str}']} indeterminate\n"
-                f"Conditional Coverage:\t{entry[f'cc_passes_{cl_str}']} passes,\t{entry[f'cc_fails_{cl_str}']} fails,\t{entry[f'cc_nans_{cl_str}']} indeterminate\n"
+                f"Unconditional Coverage:\t{entry[f'uc_passes_{q_str}']} passes,\t{entry[f'uc_fails_{q_str}']} fails,\t{entry[f'uc_nans_{q_str}']} indeterminate\n"
+                f"Independence:\t\t{entry[f'ind_passes_{q_str}']} passes,\t{entry[f'ind_fails_{q_str}']} fails,\t{entry[f'ind_nans_{q_str}']} indeterminate\n"
+                f"Conditional Coverage:\t{entry[f'cc_passes_{q_str}']} passes,\t{entry[f'cc_fails_{q_str}']} fails,\t{entry[f'cc_nans_{q_str}']} indeterminate\n"
             )
 
         es_alpha = 1 - (1 - cl) / 2
@@ -1576,22 +1551,6 @@ interval_metric_keys = [
     "Interval Score",
     "Interval Pinball Loss",
     "Lopez Loss",
-    "Pooled UC p-value",
-    "Pooled UC pass?",
-    "Pooled Ind p-value",
-    "Pooled Ind pass?",
-    "Pooled CC p-value",
-    "Pooled CC pass?",
-    "UC pass pct",
-    "UC passes",
-    "UC fails",
-    "UC indeterminate",
-    "Ind passes",
-    "Ind fails",
-    "Ind indeterminate",
-    "CC passes",
-    "CC fails",
-    "CC indeterminate",
 ]
 es_metric_keys = [
     "Pooled Bayer-Dimitriadis pass?",
@@ -1607,6 +1566,18 @@ es_metric_keys = [
 ]
 quantile_metric_keys = [
     "QL",
+    "Lower PICP",
+    "Lower PICP Miss",
+    "UC pass pct",
+    "UC passes",
+    "UC fails",
+    "UC indeterminate",
+    "Ind passes",
+    "Ind fails",
+    "Ind indeterminate",
+    "CC passes",
+    "CC fails",
+    "CC indeterminate",
 ]
 results = {
     "Model": [],
@@ -1672,29 +1643,26 @@ for entry in preds_per_model:
             np.nanmean(entry[f"interval_pinball_loss_{cl_str}"])
         )
         results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
-        pooled_results = entry[f"christoffersen_test_{cl_str}"]["p-value"]
-        for i, test in enumerate(["UC", "Ind", "CC"]):
-            results[f"[{cl_str}] Pooled {test} p-value"].append(pooled_results[i])
-            results[f"[{cl_str}] Pooled {test} pass?"].append(
-                interpret_christoffersen_stat(pooled_results[i])
-            )
-        uc_passes = entry[f"uc_passes_{cl_str}"]
-        uc_fails = entry[f"uc_fails_{cl_str}"]
-        uc_pass_pct = uc_passes / (uc_passes + uc_fails)
-        results[f"[{cl_str}] UC pass pct"].append(uc_pass_pct)
-        results[f"[{cl_str}] UC passes"].append(uc_passes)
-        results[f"[{cl_str}] UC fails"].append(uc_fails)
-        results[f"[{cl_str}] UC indeterminate"].append(entry[f"uc_nans_{cl_str}"])
-        results[f"[{cl_str}] Ind passes"].append(entry[f"ind_passes_{cl_str}"])
-        results[f"[{cl_str}] Ind fails"].append(entry[f"ind_fails_{cl_str}"])
-        results[f"[{cl_str}] Ind indeterminate"].append(entry[f"ind_nans_{cl_str}"])
-        results[f"[{cl_str}] CC passes"].append(entry[f"cc_passes_{cl_str}"])
-        results[f"[{cl_str}] CC fails"].append(entry[f"cc_fails_{cl_str}"])
-        results[f"[{cl_str}] CC indeterminate"].append(entry[f"cc_nans_{cl_str}"])
         q = (1 - cl) / 2
-        results[f"[{format_cl(q)}] QL"].append(
-            np.nanmean(entry.get(f"quantile_loss_{format_cl(q)}"))
+        q_str = format_cl(q)
+        results[f"[{q_str}] QL"].append(np.nanmean(entry.get(f"quantile_loss_{q_str}")))
+        results[f"[{q_str}] Lower PICP"].append(entry[f"picp_lb_{q_str}"])
+        results[f"[{q_str}] Lower PICP Miss"].append(
+            entry[f"picp_lb_{q_str}"] - (1 - q)
         )
+        uc_passes = entry[f"uc_passes_{q_str}"]
+        uc_fails = entry[f"uc_fails_{q_str}"]
+        uc_pass_pct = uc_passes / (uc_passes + uc_fails)
+        results[f"[{q_str}] UC pass pct"].append(uc_pass_pct)
+        results[f"[{q_str}] UC passes"].append(uc_passes)
+        results[f"[{q_str}] UC fails"].append(uc_fails)
+        results[f"[{q_str}] UC indeterminate"].append(entry[f"uc_nans_{q_str}"])
+        results[f"[{q_str}] Ind passes"].append(entry[f"ind_passes_{q_str}"])
+        results[f"[{q_str}] Ind fails"].append(entry[f"ind_fails_{q_str}"])
+        results[f"[{q_str}] Ind indeterminate"].append(entry[f"ind_nans_{q_str}"])
+        results[f"[{q_str}] CC passes"].append(entry[f"cc_passes_{q_str}"])
+        results[f"[{q_str}] CC fails"].append(entry[f"cc_fails_{q_str}"])
+        results[f"[{q_str}] CC indeterminate"].append(entry[f"cc_nans_{q_str}"])
     for cl in CONFIDENCE_LEVELS:
         es_alpha = 1 - (1 - cl) / 2
         es_str = format_cl(es_alpha)
@@ -1773,8 +1741,10 @@ for model in results_df.index:
     passes = 0
     fails = 0
     for cl in CONFIDENCE_LEVELS:
-        passes += results_df.loc[model, f"[{format_cl(cl)}] CC passes"]
-        fails += results_df.loc[model, f"[{format_cl(cl)}] CC fails"]
+        q = (1 - cl) / 2
+        q_str = format_cl(q)
+        passes += results_df.loc[model, f"[{q_str}] CC passes"]
+        fails += results_df.loc[model, f"[{q_str}] CC fails"]
     # if fails / (passes + fails) > 0.3:
     #     print(f"Removing {model} due to CC fails")
     #     results_df.drop(model, inplace=True)
@@ -1819,23 +1789,25 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] Lopez Loss"] = results_df[
         f"[{cl_str}] Lopez Loss"
     ].idxmin()
-    for chr_test in ["UC", "Ind", "CC"]:
-        results_df.loc["Winner", f"[{cl_str}] Pooled {chr_test} p-value"] = results_df[
-            f"[{cl_str}] Pooled {chr_test} p-value"
-        ].idxmax()
-        results_df.loc["Winner", f"[{cl_str}] {chr_test} passes"] = results_df[
-            f"[{cl_str}] {chr_test} passes"
-        ].idxmax()
-        results_df.loc["Winner", f"[{cl_str}] {chr_test} fails"] = results_df[
-            f"[{cl_str}] {chr_test} fails"
-        ].idxmin()
-    results_df.loc["Winner", f"[{cl_str}] UC pass pct"] = results_df[
-        f"[{cl_str}] UC pass pct"
-    ].idxmax()
     q = (1 - cl) / 2
-    results_df.loc["Winner", f"[{format_cl(q)}] QL"] = results_df[
-        f"[{format_cl(q)}] QL"
-    ].idxmin()
+    q_str = format_cl(q)
+    for chr_test in ["UC", "Ind", "CC"]:
+        results_df.loc["Winner", f"[{q_str}] {chr_test} passes"] = results_df[
+            f"[{q_str}] {chr_test} passes"
+        ].idxmax()
+        results_df.loc["Winner", f"[{q_str}] {chr_test} fails"] = results_df[
+            f"[{q_str}] {chr_test} fails"
+        ].idxmin()
+    results_df.loc["Winner", f"[{q_str}] UC pass pct"] = results_df[
+        f"[{q_str}] UC pass pct"
+    ].idxmax()
+    results_df.loc["Winner", f"[{q_str}] QL"] = results_df[f"[{q_str}] QL"].idxmin()
+    results_df.loc["Winner", f"[{q_str}] Lower PICP"] = (
+        results_df[f"[{q_str}] Lower PICP Miss"].abs().idxmin()
+    )
+    results_df.loc["Winner", f"[{q_str}] Lower PICP Miss"] = (
+        results_df[f"[{q_str}] Lower PICP Miss"].abs().idxmin()
+    )
     es_alpha = 1 - (1 - cl) / 2
     es_str = format_cl(es_alpha)
     results_df.loc["Winner", f"[{es_str}] Pooled Bayer-Dimitriadis p-value"] = (
@@ -1883,13 +1855,13 @@ results_df.style.apply(underline_winner, axis=1)
 
 # %%
 # Look at key adequacy metrics for each model
-results_df.T[["[90] CC fails", "[95] CC fails", "[98] CC fails"]].style.apply(
+results_df.T[["[1] CC fails", "[2.5] CC fails", "[5] CC fails"]].style.apply(
     underline_winner, axis=0
 )
 
 # %%
-# Look at PICP for each model
-results_df.T[["[90] PICP", "[95] PICP", "[98] PICP"]].style.apply(
+# Look at lower PICP for each model
+results_df.T[["[1] Lower PICP", "[2.5] Lower PICP", "[5] Lower PICP"]].style.apply(
     underline_winner, axis=0
 )
 
@@ -1902,10 +1874,10 @@ def color_uc_ind_dominator(row):
     if row.name == "Winner":
         return [""] * 6
     styles = []
-    for cl in [0.9, 0.95, 0.98]:
-        cl_str = format_cl(cl)
-        uc_stat = row[f"[{cl_str}] UC fails"]
-        ind_stat = row[f"[{cl_str}] Ind fails"]
+    for q in [0.01, 0.025, 0.05]:
+        q_str = format_cl(q)
+        uc_stat = row[f"[{q_str}] UC fails"]
+        ind_stat = row[f"[{q_str}] Ind fails"]
         if uc_stat > ind_stat:
             styles.append("color:red")
             styles.append("")
@@ -1921,12 +1893,12 @@ def color_uc_ind_dominator(row):
 
 results_df.T[
     [
-        "[90] UC fails",
-        "[90] Ind fails",
-        "[95] UC fails",
-        "[95] Ind fails",
-        "[98] UC fails",
-        "[98] Ind fails",
+        "[1] UC fails",
+        "[1] Ind fails",
+        "[2.5] UC fails",
+        "[2.5] Ind fails",
+        "[5] UC fails",
+        "[5] Ind fails",
     ]
 ].style.apply(color_uc_ind_dominator, axis=1)
 # %%
@@ -2276,9 +2248,9 @@ ml_benchmarks = [
     ("CatBoost-RV", "Benchmark Catboost RV"),
     ("CatBoost-IV", "Benchmark Catboost IV"),
     ("CatBoost-RV-IV", "Benchmark Catboost RV_IV"),
-    ("LigthGBM-RV", "Benchmark LightGBM RV"),
-    ("LigthGBM-IV", "Benchmark LightGBM IV"),
-    ("LigthGBM-RV-IV", "Benchmark LightGBM RV_IV"),
+    ("LightGBM-RV", "Benchmark LightGBM RV"),
+    ("LightGBM-IV", "Benchmark LightGBM IV"),
+    ("LightGBM-RV-IV", "Benchmark LightGBM RV_IV"),
 ]
 
 # %%
@@ -2427,9 +2399,9 @@ for model_set in [our, traditional, ml_benchmarks]:
         print(display_name, end=" ")
 
         # Calculate the number of passes, fails, and inconclusives for each confidence level
-        for cl in [0.90, 0.95, 0.98]:
-            cl_str = format_cl(cl)
-            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+        for q in [0.05, 0.025, 0.01]:
+            q_str = format_cl(q)
+            chr_results_df = entry.get(f"chr_results_df_{q_str}")
             if chr_results_df is None:
                 print("&", " & ".join(["-"] * 4), end="")
                 continue
@@ -2460,7 +2432,7 @@ for model_set in [our, traditional, ml_benchmarks]:
 print("=================================================")
 print("Table X: Determine cause of failures (UC vs. Ind)")
 print("=================================================")
-table_cls = [0.90, 0.95, 0.98]
+table_qs = [0.05, 0.025, 0.01]
 table_str = (
     """
 \\begin{table}[H]
@@ -2475,7 +2447,7 @@ table_str = (
     + """
         >{\\centering\\arraybackslash}p{0.1\\textwidth}
         >{\\centering\\arraybackslash}p{0.1\\textwidth}"""
-    * len(table_cls)
+    * len(table_qs)
     + """
     }
         \\toprule
@@ -2504,7 +2476,7 @@ for set_i, (set_name, model_set) in enumerate(
         """
 
     table_str += f"""
-        \\multicolumn{{{1+len(table_cls)*2}}}{{l}}{{\\textbf{{{set_name}}}}} \\\\\n"""
+        \\multicolumn{{{1+len(table_qs)*2}}}{{l}}{{\\textbf{{{set_name}}}}} \\\\\n"""
     for display_name, model_name in model_set:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
@@ -2517,9 +2489,9 @@ for set_i, (set_name, model_set) in enumerate(
         table_str += display_name
 
         # Calculate the number of passes, fails, and inconclusives for each confidence level
-        for cl in table_cls:
-            cl_str = format_cl(cl)
-            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+        for q in table_qs:
+            q_str = format_cl(q)
+            chr_results_df = entry.get(f"chr_results_df_{q_str}")
             if chr_results_df is None:
                 table_str += " ".join(["&", " & ".join(["-"] * 2)])
                 continue
@@ -2586,12 +2558,15 @@ for model_set in [our, traditional, ml_benchmarks]:
         for cl in table_cls:
             cl_str = format_cl(cl)
             chr_results_df = entry.get(f"chr_results_df_{cl_str}")
+            q_str = format_cl((1 - cl) / 2)
+            chr_results_df = entry.get(f"chr_results_df_{q_str}")
             if chr_results_df is None:
                 continue
             passes = chr_results_df[chr_results_df["cc_pass"] == True].shape[0]
             fails = chr_results_df[chr_results_df["cc_pass"] == False].shape[0]
             fail_rate = fails / (passes + fails) if (passes + fails) > 0 else 0
             if fail_rate > 0.2 and fails > 3:
+            if fail_rate > 0.15 and fails > 3:
                 # It is not adequate
                 continue
             else:
@@ -2600,20 +2575,28 @@ for model_set in [our, traditional, ml_benchmarks]:
 adequate_scores = pd.DataFrame(
     [
         [cl, entry["name"]]
-        + [entry.get(f"{key}_{format_cl(cl)}") for key in ["interval_score", "mpiw"]]
+        + [
+            entry.get(key)
+            for key in [
+                f"quantile_loss_{format_cl((1-cl)/2)}",
+                f"interval_score_{format_cl(cl)}",
+                f"mpiw_{format_cl(cl)}",
+            ]
+        ]
         for cl in table_cls
         for entry in adequacy_per_cl[cl]
     ],
     columns=[
         "Confidence Level",
         "Model Name",
+        "Quantile Loss",
         "Interval Score",
         "Mean Width",
     ],
 ).pivot_table(
     index="Model Name",
     columns="Confidence Level",
-    values=["Interval Score", "Mean Width"],
+    values=["Quantile Loss", "Interval Score", "Mean Width"],
 )
 adequate_scores.columns = adequate_scores.columns.swaplevel(0, 1)
 adequate_scores = adequate_scores.sort_index(axis=1, level=0)
