@@ -235,11 +235,11 @@ except FileNotFoundError:
 
 # GARCH Skewed-t Model
 try:
-    garch_skewt_vol_pred = pd.read_csv("predictions/garch_predictions_skewed_t.csv")
-    garch_skewt_vol_pred["Date"] = pd.to_datetime(garch_skewt_vol_pred["Date"])
-    garch_skewt_vol_pred = garch_skewt_vol_pred.set_index(["Date", "Symbol"])
-    garch_skewt_dates = garch_skewt_vol_pred.index.get_level_values("Date")
-    garch_skewt_vol_pred = garch_skewt_vol_pred[
+    garch_skewt_df = pd.read_csv("predictions/garch_predictions_skewed_t.csv")
+    garch_skewt_df["Date"] = pd.to_datetime(garch_skewt_df["Date"])
+    garch_skewt_df = garch_skewt_df.set_index(["Date", "Symbol"])
+    garch_skewt_dates = garch_skewt_df.index.get_level_values("Date")
+    garch_skewt_df = garch_skewt_df[
         (
             (garch_skewt_dates >= TRAIN_VALIDATION_SPLIT)
             & (garch_skewt_dates < VALIDATION_TEST_SPLIT)
@@ -247,21 +247,21 @@ try:
             else (garch_skewt_dates >= VALIDATION_TEST_SPLIT)
         )
     ]
-    if np.isnan(garch_skewt_vol_pred).all().all():
+    if np.isnan(garch_skewt_df).all().all():
         raise FileNotFoundError("All GARCH Skewed-t predictions are NaN")
-    combined_df = df_validation.join(
-        garch_skewt_vol_pred, how="left", rsuffix="_GARCH_skewt"
-    )
+    combined_df = df_validation.join(garch_skewt_df, how="left", rsuffix="_GARCH_skewt")
     garch_skewt_vol_pred = combined_df["GARCH_skewt_Vol"].values
     y_true = combined_df["LogReturn"].values
     mus = np.zeros_like(garch_skewt_vol_pred)
     nus = combined_df["GARCH_skewt_Nu"].values
     skew = combined_df["GARCH_skewt_Skew"].values
-    crps = combined_df["GARCH_skewt_CRPS"].values
-    nll = skewt_nll(y_true, garch_skewt_vol_pred, nus, skew, reduce=False)
+    crps = combined_df[
+        "GARCH_skewt_CRPS"
+    ].values  # crps_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
+    nll = combined_df[
+        "NLL"
+    ].values  # skewt_nll(y_true, garch_skewt_vol_pred, nus, skew, reduce=False)
     ece = ece_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
-    # crps = crps_skewt(y_true, mus, garch_skewt_vol_pred, nus, skew)
-    crps = None  # Takes too long
 
     entry = {
         "name": "GARCH Skewed-t",
@@ -1329,8 +1329,17 @@ for entry in preds_per_model:
         )
         entry[f"interval_score_{cl_str}"] = interval_score
 
-        # Calculate quantile loss
-        entry[f"quantile_loss_{cl_str}"] = np.maximum(
+        # Calculate quantile loss for the lower bound
+        q = (1 - cl) / 2
+        q_pred = entry[f"LB_{cl_str}"]
+        entry[f"quantile_loss_{format_cl(q)}"] = np.where(
+            y_test_actual >= q_pred,
+            q * (y_test_actual - q_pred),
+            (1 - q) * (q_pred - y_test_actual),
+        )
+
+        # Calculate interval pinball loss (symmetric interval score)
+        entry[f"interval_pinball_loss_{cl_str}"] = np.maximum(
             y_test_actual - entry[f"UB_{cl_str}"],
             entry[f"LB_{cl_str}"] - y_test_actual,
         )
@@ -1560,12 +1569,12 @@ for entry in preds_per_model:
 # Compile results into DataFrame
 pd.set_option("display.max_rows", 500)
 pd.set_option("display.max_columns", 500)
-quantile_metric_keys = [
+interval_metric_keys = [
     "PICP",
     "PICP Miss",
     "Mean width (MPIW)",
     "Interval Score",
-    "QL",
+    "Interval Pinball Loss",
     "Lopez Loss",
     "Pooled UC p-value",
     "Pooled UC pass?",
@@ -1596,6 +1605,9 @@ es_metric_keys = [
     "FZ Loss",
     "AL Loss",
 ]
+quantile_metric_keys = [
+    "QL",
+]
 results = {
     "Model": [],
     # Non-quantile-based metrics
@@ -1606,12 +1618,12 @@ results = {
     "RMSE_RV": [],
     "Sign accuracy": [],
     "Correlation (vol. vs. errors)": [],
-    # Quantile based metrics
+    # Interval based metrics
     **(
         {
             f"[{format_cl(cl)}] {key}": []
             for cl in CONFIDENCE_LEVELS
-            for key in quantile_metric_keys
+            for key in interval_metric_keys
         }
     ),
     # ES metrics
@@ -1620,6 +1632,14 @@ results = {
             f"[{format_cl(1-(1-cl)/2)}] {key}": []
             for cl in CONFIDENCE_LEVELS
             for key in es_metric_keys
+        }
+    ),
+    # Quantile metrics
+    **(
+        {
+            f"[{format_cl((1-cl)/2)}] {key}": []
+            for cl in CONFIDENCE_LEVELS
+            for key in quantile_metric_keys
         }
     ),
 }
@@ -1640,7 +1660,7 @@ for entry in preds_per_model:
     for cl in CONFIDENCE_LEVELS:
         cl_str = format_cl(cl)
         if entry.get(f"picp_{cl_str}") is None:
-            for key in quantile_metric_keys:
+            for key in interval_metric_keys:
                 results[f"[{cl_str}] {key}"].append(np.nan)
             continue
         picp_miss = entry[f"picp_{cl_str}"] - cl
@@ -1648,7 +1668,9 @@ for entry in preds_per_model:
         results[f"[{cl_str}] PICP Miss"].append(picp_miss)
         results[f"[{cl_str}] Mean width (MPIW)"].append(entry[f"mpiw_{cl_str}"])
         results[f"[{cl_str}] Interval Score"].append(entry[f"interval_score_{cl_str}"])
-        results[f"[{cl_str}] QL"].append(np.nanmean(entry[f"quantile_loss_{cl_str}"]))
+        results[f"[{cl_str}] Interval Pinball Loss"].append(
+            np.nanmean(entry[f"interval_pinball_loss_{cl_str}"])
+        )
         results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
         pooled_results = entry[f"christoffersen_test_{cl_str}"]["p-value"]
         for i, test in enumerate(["UC", "Ind", "CC"]):
@@ -1669,6 +1691,10 @@ for entry in preds_per_model:
         results[f"[{cl_str}] CC passes"].append(entry[f"cc_passes_{cl_str}"])
         results[f"[{cl_str}] CC fails"].append(entry[f"cc_fails_{cl_str}"])
         results[f"[{cl_str}] CC indeterminate"].append(entry[f"cc_nans_{cl_str}"])
+        q = (1 - cl) / 2
+        results[f"[{format_cl(q)}] QL"].append(
+            np.nanmean(entry.get(f"quantile_loss_{format_cl(q)}"))
+        )
     for cl in CONFIDENCE_LEVELS:
         es_alpha = 1 - (1 - cl) / 2
         es_str = format_cl(es_alpha)
@@ -1787,7 +1813,9 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] Interval Score"] = adequate_df[
         f"[{cl_str}] Interval Score"
     ].idxmin()
-    results_df.loc["Winner", f"[{cl_str}] QL"] = results_df[f"[{cl_str}] QL"].idxmax()
+    results_df.loc["Winner", f"[{cl_str}] Interval Pinball Loss"] = results_df[
+        f"[{cl_str}] Interval Pinball Loss"
+    ].idxmin()
     results_df.loc["Winner", f"[{cl_str}] Lopez Loss"] = results_df[
         f"[{cl_str}] Lopez Loss"
     ].idxmin()
@@ -1804,6 +1832,10 @@ for cl in CONFIDENCE_LEVELS:
     results_df.loc["Winner", f"[{cl_str}] UC pass pct"] = results_df[
         f"[{cl_str}] UC pass pct"
     ].idxmax()
+    q = (1 - cl) / 2
+    results_df.loc["Winner", f"[{format_cl(q)}] QL"] = results_df[
+        f"[{format_cl(q)}] QL"
+    ].idxmin()
     es_alpha = 1 - (1 - cl) / 2
     es_str = format_cl(es_alpha)
     results_df.loc["Winner", f"[{es_str}] Pooled Bayer-Dimitriadis p-value"] = (
@@ -2022,6 +2054,9 @@ loss_fns = [
     "AL_97.5",
     "FZ0_99",
     "AL_99",
+    "quantile_loss_1",
+    "quantile_loss_2.5",
+    "quantile_loss_5",
 ]
 
 # %%
@@ -2232,7 +2267,7 @@ traditional = [
     ("HAR-IV-QREG", "HAR_IVOL-QREG"),
     ("DB-RV", "Benchmark DB RV"),
     ("DB-IV", "Benchmark DB IV"),
-    ("DB-RV-IV", "Benchmark DB RV-IV"),
+    ("DB-RV-IV", "Benchmark DB RV_IV"),
 ]
 ml_benchmarks = [
     ("XgBoost-RV", "Benchmark XGBoost RV"),
@@ -2821,19 +2856,23 @@ for title, loss_fn in [
     ("Negative Log-Likelihood", "nll"),
     ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
     ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
-    ("Quantile Loss (QL) for the 95% confidence level", "quantile_loss_95"),
-    ("Quantile Loss (QL) for the 98% confidence level", "quantile_loss_98"),
+    ("Quantile Loss (QL) for the 2.5% quantile", "quantile_loss_2.5"),
+    ("Quantile Loss (QL) for the 1% quantile", "quantile_loss_1"),
 ]:
     plt.figure(figsize=(7, 4))
-    for name in [
-        # "HAR_IVOL-QREG",
-        "Benchmark DB IV",
-        "Benchmark Catboost RV_IV",
-        "GARCH",
-        "GARCH Skewed-t",
-        "LSTM MDN ivol-final-rolling",
-        "Transformer MDN ivol expanding",
-    ][::-1]:
+    for zorder, name in list(
+        enumerate(
+            [
+                # "HAR_IVOL-QREG",
+                "Benchmark DB IV",
+                "Benchmark Catboost RV_IV",
+                "GARCH",
+                "GARCH Skewed-t",
+                "LSTM MDN ivol-final-rolling",
+                "Transformer MDN ivol expanding",
+            ]
+        )
+    )[::-1]:
         display_name = model_name
         for model_set in [our, traditional, ml_benchmarks]:
             for d_name, model_name in model_set:
@@ -2856,6 +2895,7 @@ for title, loss_fn in [
             label=display_name,
             linewidth=1,
             alpha=0.8,
+            zorder=zorder,
         )
     plt.title(title)
     plt.tight_layout()
@@ -3254,7 +3294,7 @@ for entry in passing_models:
 # Examine correlation between predicted mean and actual return
 for entry in passing_models:
     mean_pred = entry.get("mean_pred")
-    if mean_pred is None or (mean_pred == 0).all():
+    if mean_pred is None or np.isnan(mean_pred).all() or np.all(mean_pred == 0):
         continue
     df_copy = df_validation.copy()
     df_copy["mean_pred"] = mean_pred
@@ -3313,7 +3353,7 @@ strat_results_df = pd.DataFrame(
 
 for entry in passing_models:
     mean_pred = entry.get("mean_pred")
-    if mean_pred is None or (mean_pred == 0).all():
+    if mean_pred is None or np.isnan(mean_pred).all() or np.all(mean_pred == 0):
         continue
     decisions_df = df_validation.copy()
     decisions_df["mean_pred"] = mean_pred

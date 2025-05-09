@@ -42,23 +42,12 @@ def skewt_nll(y_true, vol_pred, nu, skew, mu=None, reduce=True):
     return nll_vec.sum() if reduce else nll_vec
 
 
-def rvs_skewt(n, nu, lam, rng=None):
+def rvs_skewt(n, nu, lam):
     """
     Draw from Hansen's (1994) skewed Student-t.
-    Accepts either an RNG or a seed.
     """
-    if isinstance(rng, np.random.Generator):
-        gen = rng
-    else:
-        gen = np.random.default_rng(rng)
-    # Hansen constants
-    c = (nu - 2) / nu
-    omega = np.sqrt(1 + 3 * lam**2 - 4 * lam**2 / (1 + lam**2))
-    alpha = 2 / (1 + lam**2)
-    beta = -lam / np.sqrt(1 + lam**2)
-
-    z = gen.standard_t(df=nu, size=n)
-    return omega * (alpha * (beta + z) / np.sqrt(1 + beta**2 + (z + beta) ** 2 * c))
+    simulator = SkewStudent().simulate([nu, lam])
+    return simulator(n)
 
 
 if __name__ == "__main__":
@@ -70,7 +59,8 @@ if __name__ == "__main__":
     lam = 0.5
 
     # Generate samples
-    samples = rvs_skewt(n_samples, nu=nu, lam=lam, rng=42)
+    simulator = SkewStudent().simulate([nu, lam])
+    samples = simulator(n_samples)
 
     # Plot histogram
     plt.hist(samples, bins=100, density=True, alpha=0.6, color="g")

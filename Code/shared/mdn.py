@@ -12,7 +12,6 @@ from scipy.optimize import brentq
 from scipy.stats import norm
 
 from settings import TEST_ASSET
-from shared.numerical_mixture_moments import numerical_mixture_moments
 
 
 def get_mdn_kernel_initializer(n_mixtures):
@@ -258,6 +257,28 @@ def calculate_intervals(pis, mus, sigmas, confidence_levels):
     return intervals
 
 
+def mixture_moments(weights, mus, sigmas):
+    w = np.asarray(weights, float)
+    m = np.asarray(mus, float)
+    s = np.asarray(sigmas, float)
+    w = w / np.sum(w)
+
+    # mean and variance
+    μ = np.sum(w * m)
+    Var = np.sum(w * (s**2 + (m - μ) ** 2))
+    σ = np.sqrt(Var)
+
+    # skewness
+    m3 = np.sum(w * ((m - μ) ** 3 + 3 * (m - μ) * s**2))
+    skew = m3 / σ**3
+
+    # excess kurtosis
+    m4 = np.sum(w * ((m - μ) ** 4 + 6 * (m - μ) ** 2 * s**2 + 3 * s**4))
+    exk = m4 / Var**2 - 3
+
+    return {"mean": μ, "std": σ, "skewness": skew, "excess_kurtosis": exk}
+
+
 def plot_sample_day(
     y_dates: list[str],
     y_test: np.ndarray,
@@ -306,11 +327,10 @@ def plot_sample_day(
             color=colors[j % len(colors)] if colors is not None else None,
         )
     ax.axvline(y_test[-day], linestyle="--", label="Actual", color="#b2182b")
-    moment_estimates = numerical_mixture_moments(
+    moment_estimates = mixture_moments(
         np.array(pi_pred[-day]),
         np.array(mu_pred[-day]),
         np.array(sigma_pred[-day]),
-        range_factor=3,
     )
     ax.axvline(
         moment_estimates["mean"],
@@ -323,9 +343,8 @@ def plot_sample_day(
         5,
         f"Mean: {moment_estimates['mean']*100:.2f}%\n"
         f"Std: {moment_estimates['std']*100:.2f}%\n"
-        f"Skewness: {moment_estimates['skewness']:.4f}*\n"
-        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}*\n"
-        f"* Numerically estimated",
+        f"Skewness: {moment_estimates['skewness']:.4f}\n"
+        f"Excess kurtosis: {moment_estimates['excess_kurtosis']:.4f}\n",
         fontsize=10,
     )
     ax.set_xticklabels(["{:.1f}%".format(x * 100) for x in ax.get_xticks()])
@@ -333,7 +352,12 @@ def plot_sample_day(
         f"{timestamp.strftime('%Y-%m-%d')} - Predicted Return Distribution for {ticker}"
     )
     ax.set_ylim(0, 50)
-    ax.legend()
+    # Avoid legend overlapping with text
+    ax.legend(
+        loc="upper left",
+        bbox_to_anchor=(0.7, 0.9),
+        fontsize=10,
+    )
     ax.set_ylabel("Density")
 
 
