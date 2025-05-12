@@ -10,12 +10,12 @@ class MDNEnsemble(tf.keras.Model):
       2) Computes epistemic uncertainty = var(across-submodel-means).
     """
 
-    def __init__(self, submodels, n_mixtures, name="mdn_ensemble"):
+    def __init__(self, submodels, submodel_mixtures, name="mdn_ensemble"):
         super().__init__(name=name)
         # submodels: list of trained tf.keras.Models
         #   each must output shape (batch_size, 3*n_mixtures)
         self.submodels = submodels
-        self.n_mixtures = n_mixtures
+        self.n_mixtures = submodel_mixtures
 
     def call(self, inputs, training=False):
         # Each submodel's mixture weights get scaled by 1/ensemble_size
