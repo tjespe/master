@@ -2242,9 +2242,9 @@ traditional = [
     ("DB-RV-IV", "Benchmark DB RV_IV"),
 ]
 ml_benchmarks = [
-    ("XgBoost-RV", "Benchmark XGBoost RV"),
-    ("XgBoost-IV", "Benchmark XGBoost IV"),
-    ("XgBoost-RV-IV", "Benchmark XGBoost RV_IV"),
+    ("XGBoost-RV", "Benchmark XGBoost RV"),
+    ("XGBoost-IV", "Benchmark XGBoost IV"),
+    ("XGBoost-RV-IV", "Benchmark XGBoost RV_IV"),
     ("CatBoost-RV", "Benchmark Catboost RV"),
     ("CatBoost-IV", "Benchmark Catboost IV"),
     ("CatBoost-RV-IV", "Benchmark Catboost RV_IV"),
@@ -2535,19 +2535,14 @@ table_str += """
 print(table_str)
 
 # %%
-# Table 5: Interval Score and Mean Width
+# Table 5: VaR accuracy: Quantile Loss
 # Columns:
-# Model,	Interval Score 95%,	Mean Width 95%,	Interval Score 97.5%,	Mean Width 97.5%,	Interval Score 99%,	Mean Width 99%
-print("======================================")
-print("TABLE 5: Interval Score and Mean Width")
-print("======================================")
-table_cls = [0.90, 0.95, 0.98]
-res_df_keys = [
-    f"[{format_cl(cl)}] {key}"
-    for cl in table_cls
-    for key in ["Interval Score", "Mean width (MPIW)"]
-]
-adequacy_per_cl = {cl: [] for cl in table_cls}
+# Model,	Quantile Loss 95%, Quantile Loss 97.5%, Quantile Loss 99%
+print("=====================================")
+print("TABLE 5: VaR accuracy: Quantile Loss")
+print("=====================================")
+table_qs = [0.05, 0.025, 0.01]
+adequacy_per_q = {q: [] for q in table_qs}
 for model_set in [our, traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
@@ -2555,51 +2550,38 @@ for model_set in [our, traditional, ml_benchmarks]:
         )
         if entry is None:
             continue
-        for cl in table_cls:
-            cl_str = format_cl(cl)
-            chr_results_df = entry.get(f"chr_results_df_{cl_str}")
-            q_str = format_cl((1 - cl) / 2)
+        for q in table_qs:
             chr_results_df = entry.get(f"chr_results_df_{q_str}")
             if chr_results_df is None:
                 continue
             passes = chr_results_df[chr_results_df["cc_pass"] == True].shape[0]
             fails = chr_results_df[chr_results_df["cc_pass"] == False].shape[0]
             fail_rate = fails / (passes + fails) if (passes + fails) > 0 else 0
-            if fail_rate > 0.2 and fails > 3:
             if fail_rate > 0.15 and fails > 3:
                 # It is not adequate
                 continue
             else:
-                adequacy_per_cl[cl].append(entry)
+                adequacy_per_q[q].append(entry)
 # Values for all adequate benchmark models, index: [num_models, num_metrics]
 adequate_scores = pd.DataFrame(
     [
-        [cl, entry["name"]]
-        + [
-            entry.get(key)
-            for key in [
-                f"quantile_loss_{format_cl((1-cl)/2)}",
-                f"interval_score_{format_cl(cl)}",
-                f"mpiw_{format_cl(cl)}",
-            ]
-        ]
-        for cl in table_cls
-        for entry in adequacy_per_cl[cl]
+        [q, entry["name"], np.nanmean(entry.get(f"quantile_loss_{format_cl(q)}"))]
+        for q in table_qs
+        for entry in adequacy_per_q[q]
     ],
     columns=[
-        "Confidence Level",
+        "Quantile",
         "Model Name",
         "Quantile Loss",
-        "Interval Score",
-        "Mean Width",
     ],
 ).pivot_table(
     index="Model Name",
-    columns="Confidence Level",
-    values=["Quantile Loss", "Interval Score", "Mean Width"],
+    columns="Quantile",
+    values=["Quantile Loss"],
 )
-adequate_scores.columns = adequate_scores.columns.swaplevel(0, 1)
-adequate_scores = adequate_scores.sort_index(axis=1, level=0)
+adequate_scores.columns = adequate_scores.columns.droplevel(0)
+# Sort columns in same order as table_qs
+adequate_scores = adequate_scores[table_qs]
 # Set NaNs to inf so that they are not considered in the comparison
 adequate_scores[np.isnan(adequate_scores)] = np.inf
 # Create a filtered df with only the benchmarks
@@ -2631,19 +2613,13 @@ for model_set in [our, traditional, ml_benchmarks]:
 
         # Calculate the interval score and mean width for each confidence level
         numbers = np.array(
-            [
-                entry.get(f"{key}_{format_cl(cl)}")
-                for cl in table_cls
-                for key in ["interval_score", "mpiw"]
-            ]
+            [np.nanmean(entry.get(f"quantile_loss_{format_cl(q)}")) for q in table_qs]
         )
         bold = (numbers < benchmark_vals).all(axis=0)
         underline = numbers == best_vals
-        cl_per_col = [[cl, cl] for cl in table_cls]
-        cl_per_col = np.array(cl_per_col).flatten()
-        for i, (val, u, b, cl) in enumerate(zip(numbers, underline, bold, cl_per_col)):
-            adequate = any(e == entry for e in adequacy_per_cl[cl])
-            val = f"{val:.4f}"
+        for i, (val, u, b, q) in enumerate(zip(numbers, underline, bold, table_qs)):
+            adequate = any(e == entry for e in adequacy_per_q[q])
+            val = f"{val:.6f}"
             if adequate:
                 if u:
                     val = f"\\underline{{{val}}}"
