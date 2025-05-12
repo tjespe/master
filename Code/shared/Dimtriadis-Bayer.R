@@ -309,6 +309,7 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
 
 
           for (alpha in alpha_config$levels) {
+            cat("    Alpha level:", alpha, "\n")
             pass_count <- 0
             fail_count <- 0
 
@@ -356,6 +357,8 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
                 pval <- result$pvalue_twosided_asymptotic
                 if (!is.null(pval)) {
                   if (pval >= sig) pass_count <- pass_count + 1 else fail_count <- fail_count + 1
+                  # Print the result for each symbol
+                  cat("      Symbol:", sym, "p-value:", round(pval, 3), ifelse(pval >= sig, "[PASS]", "[FAIL]"), "\n")
                 }
               }
             }

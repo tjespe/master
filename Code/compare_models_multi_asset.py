@@ -1,5 +1,7 @@
 # %%
 import sys
+from scipy import stats
+from sklearn.linear_model import LinearRegression
 from shared.styling_guidelines_graphs import colors
 from shared.skew_t import skewt_nll
 from shared.adequacy import (
@@ -3208,6 +3210,8 @@ for benchmark in passing_model_names:
         if benchmark_crps is None or challenger_crps is None:
             p_value_df_crps.loc[benchmark, challenger] = np.nan
             continue
+        benchmark_crps = np.array(benchmark_crps)
+        challenger_crps = np.array(challenger_crps)
         mask = ~np.isnan(benchmark_crps) & ~np.isnan(challenger_crps)
         benchmark_crps = benchmark_crps[mask]
         challenger_crps = challenger_crps[mask]
@@ -3362,6 +3366,113 @@ for cl in CONFIDENCE_LEVELS:
         es_df.xs(example_stock, level="Symbol").plot(
             title=f"Expected Shortfall ({cl * 100}%) for {example_stock}"
         )
+
+# %%
+# Plot ES for failing stocks for LSTM-IV
+db_p_values = {
+    "AAPL": 0,
+    "AMGN": 0.601,
+    "AMZN": 0.221,
+    "AXP": 0.939,
+    "BA": 0.693,
+    "CAT": 0.721,
+    "CRM": 0.257,
+    "CSCO": 0.922,
+    "CVX": 0.312,
+    "DIS": 0.201,
+    "GS": 0.45,
+    "HD": 0.884,
+    "HON": 0.156,
+    "IBM": 0.976,
+    "INTC": 0.926,
+    "JNJ": 0.014,
+    "JPM": 0.179,
+    "KO": 0.658,
+    "MCD": 0.014,
+    "MMM": 0.765,
+    "MRK": 0.957,
+    "MSFT": 0.011,
+    "NKE": 0,
+    "PG": 0.976,
+    "TRV": 0.96,
+    "UNH": 0.541,
+    "V": 0.908,
+    "VZ": 0.695,
+    "WMT": 0.937,
+}
+entry = next(
+    entry for entry in passing_models if entry["name"] == "LSTM MDN ivol-final-rolling"
+)
+alpha = 0.99
+es_df = pd.DataFrame(
+    {
+        "Date": entry["dates"],
+        "Symbol": entry["symbols"],
+        "ES": entry[f"ES_{format_cl(alpha)}"],
+        "VaR": entry[f"LB_{format_cl(1-((1-alpha)*2))}"],
+    }
+).set_index(["Date", "Symbol"])
+es_df["Actual"] = df_validation["LogReturn"]
+es_df = np.exp(es_df) - 1
+for stock in es_df.index.get_level_values("Symbol").unique():
+    stock_df = es_df.xs(stock, level="Symbol")
+    stock_df = stock_df.dropna()
+    if stock_df.empty:
+        continue
+    stock_df[["ES", "VaR", "Actual"]].plot(linewidth=1)
+    violations = stock_df["Actual"] < stock_df["VaR"]
+    plt.scatter(
+        stock_df[violations].index,
+        stock_df[violations]["Actual"],
+        marker="x",
+        label="VaR Exceedances",
+        color="red",
+        s=50,
+        zorder=10,
+    )
+    for i, d in enumerate(stock_df[violations].index):
+        plt.axvline(d, color="red", linestyle="--", alpha=0.8, linewidth=1)
+        plt.text(
+            d,
+            stock_df.loc[d, "Actual"],
+            f"{i+1}",
+            fontsize=16,
+            ha="center",
+            va="bottom",
+        )
+    p = db_p_values.get(stock, None)
+    violations_df = stock_df[violations].copy()
+    violations_df["Loss - ES"] = violations_df["Actual"] - violations_df["ES"]
+    mean_diff = violations_df["Loss - ES"].mean()
+    # Do a t-test on the mean difference to see if it is significantly different from 0
+    t_stat, p_diff = ttest_1samp(violations_df["Loss - ES"], 0)
+    # Test whether the rate of exceedances is significantly different from the expected rate
+    p_rate = 1 - stats.binom.cdf(violations.sum(), len(stock_df), 1 - alpha)
+    # Do a joint test of the mean difference and the rate of exceedances
+    joint_stat = -2 * (np.log(p_rate) + np.log(p_diff))
+    recreated_p = 1 - stats.chi2.cdf(joint_stat, df=2)
+
+    plt.text(
+        stock_df.index[-1] + pd.Timedelta(days=10),
+        stock_df["ES"].min() * 1.05,
+        f"Mean diff: {mean_diff:.3f}\n"
+        f"$p$ for diff $\\ne$ 0: {p_diff:.3f}\n"
+        f"Rate of exceedances: {violations.sum()/len(stock_df):.3f}\n"
+        f"$p$ for rate $\\ne$ {1 - alpha:.2f}: {p_rate:.3f}\n"
+        f"Joint $p$-value: {recreated_p:.3f}\n"
+        f"Test Result: {'FAIL' if p < 0.05 else 'PASS'}\n"
+        f"$p$-value: {p:.3f}",
+    )
+    plt.title(f"ES and VaR ({alpha * 100}%) for {stock}")
+    plt.axhline(0, color="red", linestyle="--")
+    plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
+    plt.show()
+
+    # For failing models, also plot the violations_df
+    if p < 0.05:
+        violations_df.plot(title=f"Violations for {stock}")
+        plt.show()
+
 
 # %%
 # %%
