@@ -2415,18 +2415,21 @@ for alpha in mcs_per_stock_results.keys():
         b = 0
         return f"color: rgb({r}, {g}, {b})"
 
-    res = (100 * mcs_per_stock_results[alpha] / 29).astype(int)
-    res["Distributional Perf"] = res[["nll", "crps"]].mean(axis=1).astype(int)
-    res["ES Perf"] = (
-        res[[col for col in res.columns if "FZ0_" in col or "AL_" in col]]
-        .mean(axis=1)
-        .astype(int)
+    res = mcs_per_stock_results[alpha].copy()
+    non_nan = res.notna()
+    res[non_nan] = 100 * res[non_nan] / 29
+    res["Distributional Perf"] = np.nanmean(res[["nll", "crps"]].fillna(0), axis=1)
+    res["ES Perf"] = np.nanmean(
+        res[[col for col in res.columns if "FZ0_" in col or "AL_" in col]].fillna(0),
+        axis=1,
     )
-    res["VaR Perf"] = (
-        res[[col for col in res.columns if "quantile_loss" in col]]
-        .mean(axis=1)
-        .astype(int)
+    res["VaR Perf"] = np.nanmean(
+        res[[col for col in res.columns if "quantile_loss" in col]].fillna(0), axis=1
     )
+    # Convert to nullable floats
+    res = res.astype("Float64")
+    # Convert to nullable integers
+    res = res.astype("Int64")
 
     styled_df = res.sort_values(
         by=["ES Perf", "VaR Perf", "Distributional Perf"], ascending=False
@@ -2562,8 +2565,8 @@ for model_set in [our, traditional]:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
         )
-        mcs_95 = mcs_results[0.05]
-        mcs_75 = mcs_results[0.25]
+        mcs_95 = mcs_per_stock_results[0.05]
+        mcs_75 = mcs_per_stock_results[0.25]
         if (
             entry is None
             or model_name not in mcs_95.index
@@ -2577,38 +2580,28 @@ for model_set in [our, traditional]:
             continue
         vals_95 = mcs_95.loc[model_name]
         vals_75 = mcs_75.loc[model_name]
-        int_vals_95 = vals_95.fillna(False).astype(int)
-        int_vals_75 = vals_75.fillna(False).astype(int)
         metrics = [
-            (
-                ("\\checkmark" if vals_75["nll"] else " ")
-                if not np.isnan(vals_75["nll"])
-                else "?"
-            ),
-            (
-                ("\\checkmark" if vals_75["crps"] else " ")
-                if not np.isnan(vals_75["crps"])
-                else "?"
-            ),
-            int(100 * (int_vals_75["nll"] + int_vals_75["crps"]) / 2),
-            (
-                ("\\checkmark" if vals_95["nll"] else " ")
-                if not np.isnan(vals_95["nll"])
-                else "?"
-            ),
-            (
-                ("\\checkmark" if vals_95["crps"] else " ")
-                if not np.isnan(vals_95["crps"])
-                else "?"
-            ),
-            int(100 * (int_vals_95["nll"] + int_vals_95["crps"]) / 2),
+            vals_75["nll"],
+            vals_75["crps"],
+            np.nanmean([vals_75["nll"], vals_75["crps"]]),
+            vals_95["nll"],
+            vals_95["crps"],
+            np.nanmean([vals_95["nll"], vals_95["crps"]]),
         ]
         print(
             display_name,
-            "&",
-            " & ".join(str(val) for val in metrics),
-            "\\\\",
+            # "&",
+            # " & ".join(f"{int(100*val/29)}\\%" for val in metrics),
+            # "\\\\",
+            end=" ",
         )
+        for val in metrics:
+            pct = int(100 * val / 29)
+            formatted = f"{pct}\\%" if not np.isnan(pct) else "-"
+            if pct == 100:
+                formatted = f"\\textbf{{{formatted}}}"
+            print("&", formatted, end=" ")
+        print("\\\\")
 
 
 # %%
