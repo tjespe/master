@@ -213,6 +213,11 @@ if __name__ == "__main__":
 
     # %%
     # Calculate CRPS
+    # Free all memory before calculating CRPS because it is very resource intensive
+    del ensemble_model
+    del members
+    tf.keras.backend.clear_session()
+    gc.collect()
     df["CRPS"] = mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS)(
         true_y, y_pred_all
     )
