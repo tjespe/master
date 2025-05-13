@@ -49,7 +49,10 @@ lstm_IV_ensemble_rolling <- read.csv(file.path(base_path_predictions, "lstm_mdn_
 lstm_RV_IV_ensemble_rolling <- read.csv(file.path(base_path_predictions, "lstm_mdn_ensemble_stocks_vrv-and-ivol-final-rolling_test.csv"))
 
 ############## ENSEMBLE COMBINATIONS ###############
-# MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "ensemble_mdn_predictions_stocks_vrv-iv_ensemble.csv"))
+# %%
+MDN_ensemble_RV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_rv_test_expanding.csv"))
+MDN_ensemble_IV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_iv_test_expanding.csv"))
+MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_rv-iv_test_expanding.csv"))
 
 ########## GARCH MODELS ###########
 # %%
@@ -128,7 +131,9 @@ transformer_RV_IV_ensemble_rolling <- transformer_RV_IV_ensemble_rolling[transfo
 lstm_RV_ensemble_rolling <- lstm_RV_ensemble_rolling[lstm_RV_ensemble_rolling$Symbol != "DOW", ]
 lstm_IV_ensemble_rolling <- lstm_IV_ensemble_rolling[lstm_IV_ensemble_rolling$Symbol != "DOW", ]
 lstm_RV_IV_ensemble_rolling <- lstm_RV_IV_ensemble_rolling[lstm_RV_IV_ensemble_rolling$Symbol != "DOW", ]
-# MDN_ensemble_IV_RV <- MDN_ensemble_IV_RV[MDN_ensemble_IV_RV$Symbol != "DOW", ]
+MDN_ensemble_RV <- MDN_ensemble_RV[MDN_ensemble_RV$Symbol != "DOW", ]
+MDN_ensemble_IV <- MDN_ensemble_IV[MDN_ensemble_IV$Symbol != "DOW", ]
+MDN_ensemble_IV_RV <- MDN_ensemble_IV_RV[MDN_ensemble_IV_RV$Symbol != "DOW", ]
 catboost_RV <- catboost_RV[catboost_RV$Symbol != "DOW", ]
 catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
 catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
@@ -174,7 +179,10 @@ model_list_lstm_transformer <- list(
   "LSTM_RV_IV_ensemble_rolling" = lstm_RV_IV_ensemble_rolling,
   "Transformer_RV_ensemble_rolling" = transformer_RV_ensemble_rolling,
   "Transformer_IV_ensemble_rolling" = transformer_IV_ensemble_rolling,
-  "Transformer_RV_IV_ensemble_rolling" = transformer_RV_IV_ensemble_rolling
+  "Transformer_RV_IV_ensemble_rolling" = transformer_RV_IV_ensemble_rolling,
+  "MDN_ensemble_RV" = MDN_ensemble_RV,
+  "MDN_ensemble_IV" = MDN_ensemble_IV,
+  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV
 )
 
 

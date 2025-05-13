@@ -726,11 +726,10 @@ for version in [
         print(f"Transformer MDN {version} expanding predictions not found")
 
 # Ensemble MDN
-for version in ["rv-iv"]:
+for version in ["iv", "rv", "rv-iv"]:
     try:
-        ensemble_df = pd.read_csv(
-            f"predictions/ensemble_mdn_predictions{SUFFIX}_v{version}_ensemble.csv"
-        )
+        fname = f"predictions/mdn_ensemble_{version}_{TEST_SET}_expanding.csv"
+        ensemble_df = pd.read_csv(fname)
         ensemble_df["Symbol"] = ensemble_df["Symbol"].str.replace(".O", "")
         ensemble_df["Date"] = pd.to_datetime(ensemble_df["Date"])
         ensemble_df = ensemble_df.set_index(["Date", "Symbol"])
@@ -2106,6 +2105,7 @@ for loss_fn in loss_fns:
 # |  interest and we wish to evaluate models on their generalizability.
 #
 mcs_results = {0.05: None, 0.25: None, 0.5: None}
+loss_dfs = {}
 all_models = [e["name"] for e in preds_per_model]
 for alpha in mcs_results.keys():
     all_results = pd.DataFrame(index=all_models, columns=loss_fns)
@@ -2140,6 +2140,7 @@ for alpha in mcs_results.keys():
 
         # Remove rows that have NaNs in any model's losses
         df_losses = df_losses[~nan_mask]
+        loss_dfs[metric] = df_losses.copy()
 
         # Now pivot to have rows = time index, columns = model losses (index will be time_idx)
         # We take the mean across symbols at each time index for each model
@@ -2197,7 +2198,7 @@ for alpha in mcs_results.keys():
 
 
 # %%
-def color_cells(val):
+def color_mcs_cells(val):
     if np.isnan(val):
         return "color: gray"
     elif val:
@@ -2210,7 +2211,127 @@ def color_cells(val):
 for alpha in mcs_results.keys():
     cl = format_cl(1 - alpha)
     print(f"{cl}% MCS results")
-    styled_df = mcs_results[alpha].style.applymap(color_cells)
+    styled_df = mcs_results[alpha].style.applymap(color_mcs_cells)
+    try:
+        display(styled_df)
+    except Exception as e:
+        print(styled_df)
+
+
+# %%
+# To better understand MCS results: calculate p-values of pairwise outperformance but
+# averaged per day as in the MCS test.
+for loss_fn in loss_fns:
+    loss_df = loss_dfs[loss_fn]
+    per_day_p_value_df = pd.DataFrame(index=loss_df.columns, columns=loss_df.columns)
+    per_day_p_value_df.index.name = "Benchmark"
+    per_day_p_value_df.columns.name = "Challenger"
+    flat_p_value_df = pd.DataFrame(index=loss_df.columns, columns=loss_df.columns)
+    flat_p_value_df.index.name = "Benchmark"
+    flat_p_value_df.columns.name = "Challenger"
+
+    for benchmark in loss_df.columns:
+        for challenger in loss_df.columns:
+            if benchmark == challenger:
+                continue
+            benchmark_values = loss_df[benchmark]
+            challenger_values = loss_df[challenger]
+
+            # Flat test
+            flat_t_stat, flat_p_value = ttest_rel(
+                challenger_values, benchmark_values, alternative="less"
+            )
+            flat_p_value_df.loc[benchmark, challenger] = flat_p_value
+
+            # Avg per day
+            benchmark_avg_per_day = np.array(
+                benchmark_values.groupby(
+                    benchmark_values.index.get_level_values("Date")
+                ).mean()
+            )
+            challenger_avg_per_day = np.array(
+                challenger_values.groupby(
+                    challenger_values.index.get_level_values("Date")
+                ).mean()
+            )
+            per_day_t_stat, per_day_p_value = ttest_rel(
+                challenger_avg_per_day, benchmark_avg_per_day, alternative="less"
+            )
+            per_day_p_value_df.loc[benchmark, challenger] = per_day_p_value
+
+    print("\n\n===== Loss function:", loss_fn, "=====")
+    total_ps = per_day_p_value_df.fillna(1).sum(axis=0).T.sort_values().reset_index()
+    total_ps.columns = ["Model", "Sum of p-values"]
+    total_ps = total_ps.T
+    total_ps.columns.name = "Ranking"
+    try:
+
+        def color_p_values(val):
+            if val < 0.05:
+                return "color: gold"
+            else:
+                return ""  # No styling for other values
+
+        print("PER DAY TEST:")
+        styled_df = per_day_p_value_df.style.applymap(color_p_values)
+        display(styled_df)
+        print("FLAT TEST:")
+        styled_df = flat_p_value_df.style.applymap(color_p_values)
+        display(styled_df)
+    except Exception as e:
+        print(per_day_p_value_df)
+
+# %%
+# Second MCS approach: use all data points but cluster per date
+clustered_mcs_results = {key: None for key in mcs_results.keys()}
+for alpha in clustered_mcs_results.keys():
+    all_results = pd.DataFrame(index=all_models, columns=loss_fns)
+    for metric in loss_fns:
+        df_losses = loss_dfs[metric].copy()
+
+        df_flat = df_losses.sort_index(level=["Date", "Symbol"])
+
+        # build loss_matrix: shape = [T*N, num_models]
+        loss_matrix = df_flat.to_numpy()
+        assert np.isfinite(loss_matrix).all()
+
+        # recompute T, N, block size
+        dates = df_flat.index.get_level_values("Date").unique()
+        T = len(dates)
+        block_dates = int(np.sqrt(T))
+        N = df_flat.index.get_level_values("Symbol").nunique()
+        cluster_block = block_dates * N
+
+        # run MCS with cluster‐blocks
+        mcs = MCS(
+            loss_matrix,
+            size=alpha,
+            reps=1000,
+            block_size=cluster_block,
+            bootstrap="circular",
+            method="max",
+        )
+        mcs.compute()
+
+        # Get indices of models included in the MCS and their p-values
+        included_indices = mcs.included  # list of column indices that remain
+        pvals = mcs.pvalues.values  # array of p-values for each model
+        included_models = [avg_losses_by_time.columns[i] for i in included_indices]
+
+        for model in all_models:
+            if model in list(avg_losses_by_time.columns):
+                all_results.loc[model, metric] = False
+            if model in included_models:
+                all_results.loc[model, metric] = True
+
+    clustered_mcs_results[alpha] = all_results
+
+# %%
+# Display the results
+for alpha in clustered_mcs_results.keys():
+    cl = format_cl(1 - alpha)
+    print(f"{cl}% Clustered MCS results")
+    styled_df = clustered_mcs_results[alpha].style.applymap(color_mcs_cells)
     try:
         display(styled_df)
     except Exception as e:
@@ -2226,6 +2347,9 @@ our = [
     ("Transformer-MDN-RV", "Transformer MDN rvol expanding"),
     ("Transformer-MDN-IV", "Transformer MDN ivol expanding"),
     ("Transformer-MDN-RV-IV", "Transformer MDN rvol-ivol expanding"),
+    ("Ensemble-L+T-MDN-RV", "Ensemble MDN rv"),
+    ("Ensemble-L+T-MDN-IV", "Ensemble MDN iv"),
+    ("Ensemble-L+T-MDN-RV-IV", "Ensemble MDN rv-iv"),
 ]
 traditional = [
     ("GARCH", "GARCH"),
@@ -2262,19 +2386,23 @@ ml_benchmarks = [
 print("======================================================")
 print("TABLE 2: Distribution Accuracy and Calibration Metrics")
 print("======================================================")
-res_df_keys = [
+comparison_keys = [
     "NLL",
     "ECE",
     "CRPS",
     "[67] PICP Miss",
+    "[67] Mean width (MPIW)",
     "[90] PICP Miss",
+    "[90] Mean width (MPIW)",
     "[95] PICP Miss",
+    "[95] Mean width (MPIW)",
     "[98] PICP Miss",
+    "[98] Mean width (MPIW)",
 ]
 # Values for all benchmark models, shape: [num_models, num_metrics]
 benchmark_vals = np.array(
     [
-        [results_df.get(model_name, {}).get(key) for key in res_df_keys]
+        [results_df.get(model_name, {}).get(key) for key in comparison_keys]
         for _, model_name in [*traditional, *ml_benchmarks]
     ],
     dtype=float,
@@ -2294,45 +2422,31 @@ for model_set in [our, traditional, ml_benchmarks]:
             continue
 
         conf_levels = [0.67, 0.90, 0.95, 0.98]
-        numbers = [
-            (
-                np.nanmean(nll)
-                if (nll := entry.get("nll")) is not None and not np.isnan(nll).all()
-                else None
-            ),
-            ece if (ece := entry.get("ece")) is not None else None,
-            (
-                np.nanmean(crps)
-                if (crps := entry.get("crps")) is not None and not np.isnan(nll).all()
-                else None
-            ),
-            *(entry.get(f"picp_{format_cl(cl)}") for cl in conf_levels),
-        ]
-        comp_numbers = np.array(numbers, dtype=float)
-        for i, cl in enumerate(conf_levels):
-            comp_numbers[i + 3] = np.abs(cl - comp_numbers[i + 3])
+        comp_numbers = results_df.loc[comparison_keys, model_name].values
+        comp_numbers[3:] = np.abs(comp_numbers[3:])
+        display_value_keys = [k.replace("PICP Miss", "PICP") for k in comparison_keys]
+        display_numbers = results_df.loc[display_value_keys, model_name].values
 
-        metrics = [f"{val:.4f}" if val is not None else "-" for val in numbers[:3]] + [
-            f"{val * 100:.2f}\\%" if val is not None else "-" for val in numbers[3:]
-        ]
-        results_df_keys = [
-            "NLL",
-            "ECE",
-            "CRPS",
-            "[67] PICP",
-            "[90] PICP",
-            "[95] PICP",
-            "[98] PICP",
+        metrics = [
+            f"{val:.4f}" if val is not None and not np.isnan(val) else "-"
+            for val in display_numbers[:3]
+        ] + [
+            (
+                (f"{val * 100:.2f}\\%" if i % 2 == 0 else f"{val:.4f}")
+                if val is not None and not np.isnan(val)
+                else "-"
+            )
+            for i, val in enumerate(display_numbers[3:])
         ]
         underline = []
-        for k, row in results_df.loc[results_df_keys].iterrows():
+        for k, row in results_df.loc[display_value_keys].iterrows():
             underline.append(row.get(model_name) == row[row["Winner"]])
         bold = (comp_numbers < benchmark_vals).all(axis=0)
         print(display_name, end=" ")
         for val, under, b in zip(metrics, underline, bold):
             if under:
                 val = f"\\underline{{{val}}}"
-            if b:
+            if b and model_set == our:
                 val = f"\\textbf{{{val}}}"
             print("&", val, end=" ")
         print("\\\\")
@@ -2363,15 +2477,33 @@ for model_set in [our, traditional]:
             )
         ):
             continue
-        vals_95 = mcs_95.loc[model_name].fillna(False).astype(int)
-        vals_75 = mcs_75.loc[model_name].fillna(False).astype(int)
+        vals_95 = mcs_95.loc[model_name]
+        vals_75 = mcs_75.loc[model_name]
+        int_vals_95 = vals_95.fillna(False).astype(int)
+        int_vals_75 = vals_75.fillna(False).astype(int)
         metrics = [
-            "\\checkmark" if vals_75["nll"] else " ",
-            "\\checkmark" if vals_75["crps"] else " ",
-            int(100 * (vals_75["nll"] + vals_75["crps"]) / 2),
-            "\\checkmark" if vals_95["nll"] else " ",
-            "\\checkmark" if vals_95["crps"] else " ",
-            int(100 * (vals_95["nll"] + vals_95["crps"]) / 2),
+            (
+                ("\\checkmark" if vals_75["nll"] else " ")
+                if not np.isnan(vals_75["nll"])
+                else "?"
+            ),
+            (
+                ("\\checkmark" if vals_75["crps"] else " ")
+                if not np.isnan(vals_75["crps"])
+                else "?"
+            ),
+            int(100 * (int_vals_75["nll"] + int_vals_75["crps"]) / 2),
+            (
+                ("\\checkmark" if vals_95["nll"] else " ")
+                if not np.isnan(vals_95["nll"])
+                else "?"
+            ),
+            (
+                ("\\checkmark" if vals_95["crps"] else " ")
+                if not np.isnan(vals_95["crps"])
+                else "?"
+            ),
+            int(100 * (int_vals_95["nll"] + int_vals_95["crps"]) / 2),
         ]
         print(
             display_name,
@@ -2445,10 +2577,10 @@ table_str = (
     \\label{table:var_adequacy_explanation}
     \\begin{adjustbox}{width=1\\textwidth,center}
     \\begin{tabular}{
-        p{0.24\\textwidth}"""
+        p{0.26\\textwidth}"""
     + """
-        >{\\centering\\arraybackslash}p{0.1\\textwidth}
-        >{\\centering\\arraybackslash}p{0.1\\textwidth}"""
+        >{\\centering\\arraybackslash}p{0.12\\textwidth}
+        >{\\centering\\arraybackslash}p{0.12\\textwidth}"""
     * len(table_qs)
     + """
     }
