@@ -2175,7 +2175,7 @@ for alpha in mcs_results.keys():
             reps=1000,
             block_size=block_len,
             bootstrap="stationary",
-            method="max",
+            method="R",
         )
         mcs.compute()  # run the bootstrap elimination procedure
 
@@ -2337,6 +2337,104 @@ for alpha in clustered_mcs_results.keys():
     except Exception as e:
         print(styled_df)
 
+
+# %%
+# Third MCS approach: do it per symbol and count inclusions
+mcs_per_stock_results = {0.05: None, 0.25: None}
+all_models = [e["name"] for e in preds_per_model]
+for alpha in mcs_per_stock_results.keys():
+    print(f"Alpha: {alpha}")
+    all_results = pd.DataFrame(index=all_models, columns=loss_fns)
+    for metric in loss_fns:
+        print(f"\tMetric: {metric}")
+        df_losses = loss_dfs[metric].copy()
+        for symbol in df_losses.index.get_level_values("Symbol").unique():
+            print(f"\t\tSymbol: {symbol}")
+            symbol_losses = df_losses.xs(symbol, level="Symbol")
+
+            # Remove degenenerate columns (no variation in losses)
+            symbol_losses = symbol_losses.loc[:, symbol_losses.nunique() > 1]
+            # print(f"Competitors for {metric}:", list(symbol_losses.columns))
+
+            # Convert the DataFrame of average losses to a numpy array for MCS (T x M)
+            loss_matrix = symbol_losses.to_numpy()  # shape: [T, num_models]
+
+            # Ensure no NaNs or infs
+            assert np.isfinite(loss_matrix).all(), "loss_matrix contains NaN or inf"
+
+            # Skip if no models remain
+            if loss_matrix.shape[1] == 0:
+                print(f"No models remain for {metric}, skipping MCS")
+                continue
+
+            # Perform the MCS procedure at 5% significance (95% confidence)
+            # Choose a block length for bootstrap (e.g., sqrt(T) or a value based on autocorrelation analysis)
+            T = loss_matrix.shape[0]
+            # using sqrt(T) as a rule of thumb&#8203;:contentReference[oaicite:13]{index=13}
+            block_len = int(T**0.5)
+            mcs = MCS(
+                loss_matrix,
+                size=alpha,
+                reps=1000,
+                block_size=block_len,
+                bootstrap="stationary",
+                method="max",
+            )
+            mcs.compute()  # run the bootstrap elimination procedure
+
+            # Get indices of models included in the MCS and their p-values
+            included_indices = mcs.included  # list of column indices that remain
+            pvals = mcs.pvalues.values  # array of p-values for each model
+            included_models = [symbol_losses.columns[i] for i in included_indices]
+            for model in symbol_losses.columns:
+                if np.isnan(all_results.loc[model, metric]):
+                    all_results.loc[model, metric] = 0
+                if model in included_models:
+                    all_results.loc[model, metric] += 1
+    mcs_per_stock_results[alpha] = all_results
+
+# %%
+# Display the results
+for alpha in mcs_per_stock_results.keys():
+    cl = format_cl(1 - alpha)
+    print(f"{cl}% MCS results")
+
+    def color_percentage_cells(val):
+        """
+        Returns a background color on a scale from red to green:
+        0   = red,
+        50  = white,
+        100 = green
+        """
+        if np.isnan(val):
+            return "color: gray"
+        # interpolate from red to white to green
+        ratio = val / 100
+        r = int(255 * (1 - ratio))
+        g = int(255 * ratio)
+        b = 0
+        return f"color: rgb({r}, {g}, {b})"
+
+    res = (100 * mcs_per_stock_results[alpha] / 29).astype(int)
+    res["Distributional Perf"] = res[["nll", "crps"]].mean(axis=1).astype(int)
+    res["ES Perf"] = (
+        res[[col for col in res.columns if "FZ0_" in col or "AL_" in col]]
+        .mean(axis=1)
+        .astype(int)
+    )
+    res["VaR Perf"] = (
+        res[[col for col in res.columns if "quantile_loss" in col]]
+        .mean(axis=1)
+        .astype(int)
+    )
+
+    styled_df = res.sort_values(
+        by=["ES Perf", "VaR Perf", "Distributional Perf"], ascending=False
+    ).style.applymap(color_percentage_cells)
+    try:
+        display(styled_df)
+    except Exception as e:
+        print(styled_df)
 
 # %%
 # Generate tables for Latex document
@@ -2867,7 +2965,7 @@ for model_set in [our, traditional, ml_benchmarks]:
         print(display_name, end=" ")
 
         # Calculate the number of wins for each scoring rule at each confidence level
-        for alpha in [0.5, 0.05]:
+        for alpha in [0.25, 0.05]:
             mcs = mcs_results[alpha]
             if model_name not in mcs.index or mcs.loc[model_name].isna().all():
                 print("&", " & ".join(["-"] * 7), end="")
@@ -2916,7 +3014,7 @@ def sci_notation_latex(val, decimals=1):
     mantissa, exp_str = s.split("e")
     exp = int(exp_str)  # convert e.g. '-09' -> -9
     # build the desired string, e.g. '5.8 \times $10^-9$'
-    return f"${mantissa} \\times 10^{exp}$"
+    return f"${mantissa} \\times 10^{{{exp}}}$"
 
 
 for display_name, model_name in our:
