@@ -51,7 +51,7 @@ capire_df
 
 # %%
 # Format the capire data, remove all coloumns expect: Date, Symbol, RV_5
-capire_df = capire_df[["Date", "Symbol", "RV_5"]]
+capire_df = capire_df[["Date", "Symbol", "RV_5", "RQ_5"]]
 
 # Ensure the Date column is in datetime format
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
