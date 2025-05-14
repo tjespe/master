@@ -778,6 +778,55 @@ for version in ["iv", "rv", "rv-iv"]:
     except FileNotFoundError:
         print(f"Ensemble MDN {version} predictions not found")
 
+# LSTM QR
+for version in ["iv", "rv", "rv-iv"]:
+    try:
+        fname = f"predictions/lstm_qr{SUFFIX}_{version}.csv"
+        lstm_qr_df = pd.read_csv(fname)
+        lstm_qr_df["Symbol"] = lstm_qr_df["Symbol"].str.replace(".O", "")
+        lstm_qr_df["Date"] = pd.to_datetime(lstm_qr_df["Date"])
+        lstm_qr_df = lstm_qr_df.set_index(["Date", "Symbol"])
+        lstm_mdn_dates = lstm_qr_df.index.get_level_values("Date")
+        lstm_qr_df = lstm_qr_df[
+            (
+                (lstm_mdn_dates >= TRAIN_VALIDATION_SPLIT)
+                & (lstm_mdn_dates < VALIDATION_TEST_SPLIT)
+                if TEST_SET == "validation"
+                else (lstm_mdn_dates >= VALIDATION_TEST_SPLIT)
+            )
+        ]
+        if np.isnan(lstm_qr_df["LB_90"]).all():
+            raise Exception(f"All LSTM QREG {version} predictions are NaN")
+        combined_df = df_validation.join(lstm_qr_df, how="left", rsuffix="_LSTM_MDN")
+        ece_col = combined_df.get("ECE")
+        entry = {
+            "name": f"LSTM QREG {version}",
+            "mean_pred": np.zeros_like(combined_df["LB_90"].values),
+            "volatility_pred": None,
+            "nll": None,
+            "symbols": combined_df.index.get_level_values("Symbol"),
+            "dates": combined_df.index.get_level_values("Date"),
+            "crps": None,
+            "ece": None,
+        }
+        for cl in ALL_CONFIDENCE_LEVELS:
+            lb = combined_df.get(f"LB_{format_cl(cl)}")
+            ub = combined_df.get(f"UB_{format_cl(cl)}")
+            if lb is None or ub is None:
+                print(f"Missing {format_cl(cl)}% interval for LSTM QREG {version}")
+            entry[f"LB_{format_cl(cl)}"] = lb
+            entry[f"UB_{format_cl(cl)}"] = ub
+            alpha = 1 - (1 - cl) / 2
+            entry[f"ES_{format_cl(alpha)}"] = combined_df.get(f"ES_{format_cl(alpha)}")
+        preds_per_model.append(entry)
+        nans = combined_df["LB_90"].isnull().sum()
+        if nans > 0:
+            print(f"LSTM QREG {version} has {nans} NaN predictions")
+    except FileNotFoundError:
+        print(f"LSTM QREG {version} predictions not found")
+    except Exception as e:
+        print(f"Issue loading LSTM QREG {version} predictions: {e}")
+
 # VAE based models
 for version in [4]:
     for predictor in [
@@ -1523,10 +1572,18 @@ for entry in preds_per_model:
             )
 
     # Calculate RMSE
-    rmse = calculate_rmse(y_test_actual, entry["mean_pred"])
+    rmse = (
+        calculate_rmse(y_test_actual, entry["mean_pred"])
+        if entry["mean_pred"] is not None
+        else np.nan
+    )
     entry["rmse"] = rmse
 
-    rmse_RV = calculate_rmse(y_test_RV, entry["volatility_pred"] ** 2)
+    rmse_RV = (
+        calculate_rmse(y_test_RV, entry["volatility_pred"] ** 2)
+        if entry["volatility_pred"] is not None
+        else np.nan
+    )
     entry["rmse_RV"] = rmse_RV
 
     correlation = calculate_uncertainty_error_correlation(
@@ -1618,7 +1675,9 @@ results = {
 
 for entry in preds_per_model:
     results["Model"].append(entry["name"])
-    results["NLL"].append(np.nanmean(entry["nll"]))
+    results["NLL"].append(
+        np.nanmean(entry["nll"]) if entry["nll"] is not None else None
+    )
     results["CRPS"].append(
         np.nanmean(crps) if (crps := entry.get("crps")) is not None else None
     )
@@ -1631,9 +1690,13 @@ for entry in preds_per_model:
     )
     for cl in CONFIDENCE_LEVELS:
         cl_str = format_cl(cl)
+        q = (1 - cl) / 2
+        q_str = format_cl(q)
         if entry.get(f"picp_{cl_str}") is None:
             for key in interval_metric_keys:
                 results[f"[{cl_str}] {key}"].append(np.nan)
+            for key in quantile_metric_keys:
+                results[f"[{q_str}] {key}"].append(np.nan)
             continue
         picp_miss = entry[f"picp_{cl_str}"] - cl
         results[f"[{cl_str}] PICP"].append(entry[f"picp_{cl_str}"])
@@ -1644,8 +1707,6 @@ for entry in preds_per_model:
             np.nanmean(entry[f"interval_pinball_loss_{cl_str}"])
         )
         results[f"[{cl_str}] Lopez Loss"].append(entry[f"lopez_loss_{cl_str}"])
-        q = (1 - cl) / 2
-        q_str = format_cl(q)
         results[f"[{q_str}] QL"].append(np.nanmean(entry.get(f"quantile_loss_{q_str}")))
         results[f"[{q_str}] Lower PICP"].append(entry[f"picp_lb_{q_str}"])
         results[f"[{q_str}] Lower PICP Miss"].append(
