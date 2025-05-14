@@ -61,6 +61,13 @@ capire_df["RV"] = (
     capire_df["RV_5"] / 100
 ) / 252.0  # annual percentage^2 --> daily decimal^2
 
+# transform the RQ to become log_daily_rq
+capire_df["RQ"] = capire_df["RQ_5"] / (
+    100.0**4
+)  # annual percent^4 --> annual decimal^4
+capire_df["RQ"] = capire_df["RQ"] / (
+    252.0**2
+)  # annual decimal^4 / 252^2 --> daily decimal^4
 capire_df
 # %%
 # Merge the two dataframes
