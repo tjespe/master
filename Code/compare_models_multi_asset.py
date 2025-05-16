@@ -2571,8 +2571,8 @@ for model_set in [our, traditional]:
         entry = next(
             (entry for entry in preds_per_model if entry["name"] == model_name), None
         )
-        mcs_95 = mcs_per_stock_results[0.05]
-        mcs_75 = mcs_per_stock_results[0.25]
+        mcs_95 = mcs_per_stock_results[0.05].copy()
+        mcs_75 = mcs_per_stock_results[0.25].copy()
         if (
             entry is None
             or model_name not in mcs_95.index
@@ -3012,31 +3012,22 @@ for model_set in [our, traditional, ml_benchmarks]:
 
         # Calculate the number of wins for each scoring rule at each confidence level
         for alpha in [0.25, 0.05]:
-            mcs = mcs_results[alpha]
+            mcs = mcs_per_stock_results[alpha].copy()
             if model_name not in mcs.index or mcs.loc[model_name].isna().all():
                 print("&", " & ".join(["-"] * 7), end="")
                 continue
             row = mcs.loc[model_name].fillna(False)
-            fz_wins = 0
-            al_wins = 0
+            values = []
             for cl in [0.95, 0.975, 0.99]:
                 cl_str = format_cl(cl)
-                fz_win = row[f"FZ0_{cl_str}"]
-                al_win = row[f"AL_{cl_str}"]
-                print("& \\checkmark" if fz_win else "&", end=" ")
-                print("& \\checkmark" if al_win else "&", end=" ")
-                fz_wins += fz_win
-                al_wins += al_win
-            perf = int(
-                100
-                * (fz_wins + al_wins)
-                / sum(1 for key in row.keys() if "FZ" in key or "AL" in key)
-            )
-            print(
-                "&",
-                perf,
-                end=" ",
-            )
+                values += [row[f"FZ0_{cl_str}"], row[f"AL_{cl_str}"]]
+            values += [np.mean(values)]
+            for v in values:
+                v = int(100 * v / 29)
+                s = f"{v}\\%"
+                if v == 100:
+                    s = f"\\textbf{{{s}}}"
+                print("&", s, end=" ")
 
         print("\\\\")
 
