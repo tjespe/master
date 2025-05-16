@@ -496,7 +496,7 @@ for version in ["python"]:
         print(f"HARQ_{version} predictions not found")
 
 # HAR quantile regression model
-for version in ["", "_IVOL"]:
+for version in ["", "Q", "_IVOL"]:
     try:
         har_qreg_preds = pd.read_csv(f"predictions/HAR{version}_qreg_{TEST_SET}.csv")
         har_qreg_preds["Date"] = pd.to_datetime(har_qreg_preds["Date"])
@@ -2343,64 +2343,7 @@ for loss_fn in loss_fns:
         print(per_day_p_value_df)
 
 # %%
-# Second MCS approach: use all data points but cluster per date
-clustered_mcs_results = {key: None for key in mcs_results.keys()}
-for alpha in clustered_mcs_results.keys():
-    all_results = pd.DataFrame(index=all_models, columns=loss_fns)
-    for metric in loss_fns:
-        df_losses = loss_dfs[metric].copy()
-
-        df_flat = df_losses.sort_index(level=["Date", "Symbol"])
-
-        # build loss_matrix: shape = [T*N, num_models]
-        loss_matrix = df_flat.to_numpy()
-        assert np.isfinite(loss_matrix).all()
-
-        # recompute T, N, block size
-        dates = df_flat.index.get_level_values("Date").unique()
-        T = len(dates)
-        block_dates = int(np.sqrt(T))
-        N = df_flat.index.get_level_values("Symbol").nunique()
-        cluster_block = block_dates * N
-
-        # run MCS with cluster‐blocks
-        mcs = MCS(
-            loss_matrix,
-            size=alpha,
-            reps=1000,
-            block_size=cluster_block,
-            bootstrap="circular",
-            method="max",
-        )
-        mcs.compute()
-
-        # Get indices of models included in the MCS and their p-values
-        included_indices = mcs.included  # list of column indices that remain
-        pvals = mcs.pvalues.values  # array of p-values for each model
-        included_models = [avg_losses_by_time.columns[i] for i in included_indices]
-
-        for model in all_models:
-            if model in list(avg_losses_by_time.columns):
-                all_results.loc[model, metric] = False
-            if model in included_models:
-                all_results.loc[model, metric] = True
-
-    clustered_mcs_results[alpha] = all_results
-
-# %%
-# Display the results
-for alpha in clustered_mcs_results.keys():
-    cl = format_cl(1 - alpha)
-    print(f"{cl}% Clustered MCS results")
-    styled_df = clustered_mcs_results[alpha].style.applymap(color_mcs_cells)
-    try:
-        display(styled_df)
-    except Exception as e:
-        print(styled_df)
-
-
-# %%
-# Third MCS approach: do it per symbol and count inclusions
+# Alternative MCS approach: do it per symbol and count inclusions
 mcs_per_stock_results = {0.05: None, 0.25: None}
 all_models = [e["name"] for e in preds_per_model]
 for alpha in mcs_per_stock_results.keys():
@@ -2410,7 +2353,7 @@ for alpha in mcs_per_stock_results.keys():
         print(f"\tMetric: {metric}")
         df_losses = loss_dfs[metric].copy()
         for symbol in df_losses.index.get_level_values("Symbol").unique():
-            print(f"\t\tSymbol: {symbol}")
+            print(f"\t\tSymbol: {symbol}", end="\r")
             symbol_losses = df_losses.xs(symbol, level="Symbol")
 
             # Remove degenenerate columns (no variation in losses)
@@ -2619,9 +2562,9 @@ for model_set in [our, traditional, ml_benchmarks]:
 # Table: Model Confidence Set Analysis
 # Columns:
 # Model,	NLL MCS 95%,	CRPS MCS 95%,	Perf score 95%,	NLL MCS 75%,	CRPS MCS 75%,	Perf score 75%
-print("============================================================")
-print("TABLE: Distributional Accuracy Model Confidence Set Analysis")
-print("============================================================")
+print("================================================================")
+print("TABLE: Model Confidence Set Analysis for Distributional Accuracy")
+print("================================================================")
 for model_set in [our, traditional]:
     print("")
     for display_name, model_name in model_set:
@@ -2896,7 +2839,7 @@ for model_set in [our, traditional, ml_benchmarks]:
         print(display_name, end=" ")
 
         if entry is None:
-            print("&", " & ".join(["-"] * 6), "\\\\")
+            print("&", " & ".join(["-"] * 3), "\\\\")
             continue
 
         # Calculate the interval score and mean width for each confidence level
