@@ -2845,7 +2845,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             # Print
             for val in values:
                 fmtd = f"{val:.0f}\\%"
-                if avg_inclusion_rate == 100:
+                if int(val) == 100:
                     fmtd = f"\\textbf{{{fmtd}}}"
                 print("&", fmtd, end=" ")
         print("\\\\")
