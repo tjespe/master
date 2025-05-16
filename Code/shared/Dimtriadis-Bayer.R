@@ -3,6 +3,7 @@
 library(esback)
 library(dplyr)
 
+# %%
 # UPDATE BASEPATH TO YOUR FILE PATH
 base_path_return_data <- "C:///Users/tordjes/Github/master/Code/data/dow_jones/processed_data"
 base_path_predictions <- "C:///Users/tordjes/Github/master/Code/predictions"
@@ -54,6 +55,12 @@ MDN_ensemble_RV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_rv_te
 MDN_ensemble_IV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_iv_test_expanding.csv"))
 MDN_ensemble_IV_RV <- read.csv(file.path(base_path_predictions, "mdn_ensemble_rv-iv_test_expanding.csv"))
 
+############ LSTM QREG benchmarks ###################
+# %%
+lstm_qreg_RV <- read.csv(file.path(base_path_predictions, "lstm_qr_stocks_rv.csv"))
+lstm_qreg_IV <- read.csv(file.path(base_path_predictions, "lstm_qr_stocks_iv.csv"))
+lstm_qreg_RV_IV <- read.csv(file.path(base_path_predictions, "lstm_qr_stocks_rv-iv.csv"))
+
 ########## GARCH MODELS ###########
 # %%
 garch_norm <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriched.csv"))
@@ -89,6 +96,7 @@ egarch$Symbol <- gsub("\\.O$", "", egarch$Symbol)
 har <- read.csv(file.path(base_path_predictions, "HAR_python.csv"))
 harq <- read.csv(file.path(base_path_predictions, "HARQ_python.csv"))
 har_qreq <- read.csv(file.path(base_path_predictions, "HAR_qreg_test.csv"))
+harq_qreq <- read.csv(file.path(base_path_predictions, "HARQ_qreg_test.csv"))
 har_ivol_qreq <- read.csv(file.path(base_path_predictions, "HAR_IVOL_qreg_test.csv"))
 
 ########### BOOSTERS ###########
@@ -134,6 +142,9 @@ lstm_RV_IV_ensemble_rolling <- lstm_RV_IV_ensemble_rolling[lstm_RV_IV_ensemble_r
 MDN_ensemble_RV <- MDN_ensemble_RV[MDN_ensemble_RV$Symbol != "DOW", ]
 MDN_ensemble_IV <- MDN_ensemble_IV[MDN_ensemble_IV$Symbol != "DOW", ]
 MDN_ensemble_IV_RV <- MDN_ensemble_IV_RV[MDN_ensemble_IV_RV$Symbol != "DOW", ]
+lstm_qreg_RV <- lstm_qreg_RV[lstm_qreg_RV$Symbol != "DOW", ]
+lstm_qreg_IV <- lstm_qreg_IV[lstm_qreg_IV$Symbol != "DOW", ]
+lstm_qreg_RV_IV <- lstm_qreg_RV_IV[lstm_qreg_RV_IV$Symbol != "DOW", ]
 catboost_RV <- catboost_RV[catboost_RV$Symbol != "DOW", ]
 catboost_IV <- catboost_IV[catboost_IV$Symbol != "DOW", ]
 catboost_RV_IV <- catboost_RV_IV[catboost_RV_IV$Symbol != "DOW", ]
@@ -149,6 +160,7 @@ DB_RV_IV <- DB_RV_IV[DB_RV_IV$Symbol != "DOW", ]
 har <- har[har$Symbol != "DOW", ]
 harq <- harq[harq$Symbol != "DOW", ]
 har_qreq <- har_qreq[har_qreq$Symbol != "DOW", ]
+harq_qreq <- harq_qreq[harq_qreq$Symbol != "DOW", ]
 har_ivol_qreq <- har_ivol_qreq[har_ivol_qreq$Symbol != "DOW", ]
 garch_norm <- garch_norm[garch_norm$Symbol != "DOW", ]
 garch_t <- garch_t[garch_t$Symbol != "DOW", ]
@@ -182,7 +194,10 @@ model_list_lstm_transformer <- list(
   "Transformer_RV_IV_ensemble_rolling" = transformer_RV_IV_ensemble_rolling,
   "MDN_ensemble_RV" = MDN_ensemble_RV,
   "MDN_ensemble_IV" = MDN_ensemble_IV,
-  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV
+  "MDN_ensemble_IV_RV" = MDN_ensemble_IV_RV,
+  "LSTM_QREG_RV" = lstm_qreg_RV,
+  "LSTM_QREG_IV" = lstm_qreg_IV,
+  "LSTM_QREG_RV_IV" = lstm_qreg_RV_IV
 )
 
 
@@ -282,7 +297,8 @@ model_list_HAR <- list(
   "HAR" = har,
   "HARQ" = harq,
   "HAR_QREG" = har_qreq,
-  "HAR_IVOL_QREG" = har_ivol_qreq
+  "HAR_IVOL_QREG" = har_ivol_qreq,
+  "HARQ_QREG" = harq_qreq
 )
 
 #####################################################
