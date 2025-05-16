@@ -2093,67 +2093,6 @@ loss_fns = [
     "quantile_loss_5",
 ]
 
-# %%
-# Calculate p-value of outperformance in terms of each loss fn
-for loss_fn in loss_fns:
-    passing_model_names = [entry["name"] for entry in passing_models]
-    p_value_df = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
-    p_value_df.index.name = "Benchmark"
-    p_value_df.columns.name = "Challenger"
-
-    for benchmark in passing_model_names:
-        for challenger in passing_model_names:
-            if benchmark == challenger:
-                continue
-            benchmark_entry = next(
-                entry for entry in passing_models if entry["name"] == benchmark
-            )
-            challenger_entry = next(
-                entry for entry in passing_models if entry["name"] == challenger
-            )
-            benchmark_values = benchmark_entry.get(loss_fn)
-            challenger_values = challenger_entry.get(loss_fn)
-            if (
-                benchmark_values is None
-                or challenger_values is None
-                or np.isnan(challenger_values).all()
-                or np.isnan(benchmark_values).all()
-            ):
-                p_value_df.loc[benchmark, challenger] = np.nan
-                continue
-            benchmark_values = np.array(benchmark_values)
-            challenger_values = np.array(challenger_values)
-            mask = ~np.isnan(benchmark_values) & ~np.isnan(challenger_values)
-            benchmark_values = benchmark_values[mask]
-            challenger_values = challenger_values[mask]
-
-            # Paired one-sided t-test
-            t_stat, p_value = ttest_rel(
-                challenger_values, benchmark_values, alternative="less"
-            )
-
-            # Store the p-value in the dataframe
-            p_value_df.loc[benchmark, challenger] = p_value
-
-    print("\n\n===== Loss function:", loss_fn, "=====")
-    total_ps = p_value_df.fillna(1).sum(axis=0).T.sort_values().reset_index()
-    total_ps.columns = ["Model", "Sum of p-values"]
-    total_ps = total_ps.T
-    total_ps.columns.name = "Ranking"
-    try:
-
-        def color_cells(val):
-            if val < 0.05:
-                return "color: gold"
-            else:
-                return ""  # No styling for other values
-
-        styled_df = p_value_df.style.applymap(color_cells)
-        display(styled_df)
-        print("Sum of p-values (for ranking):")
-        display(total_ps)
-    except Exception as e:
-        print(p_value_df)
 
 # %%
 # Perform Model Confidence Set analysis
@@ -3080,62 +3019,79 @@ for display_name, model_name in our:
 
 # %%
 # Look at how different loss functions change over time for the best performing models of each type
-for title, loss_fn in [
-    ("Negative Log-Likelihood", "nll"),
-    ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
-    ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
-    ("Quantile Loss (QL) for the 2.5% quantile", "quantile_loss_2.5"),
-    ("Quantile Loss (QL) for the 1% quantile", "quantile_loss_1"),
-]:
-    plt.figure(figsize=(7, 4))
-    for zorder, name in list(
-        enumerate(
-            [
-                # "HAR_IVOL-QREG",
-                "Benchmark DB IV",
-                "Benchmark Catboost RV_IV",
-                "GARCH",
-                "GARCH Skewed-t",
-                "LSTM MDN ivol-final-rolling",
-                "Transformer MDN ivol expanding",
-            ]
+for variant in ["", "cumulative_"]:
+    for title, loss_fn in [
+        ("Negative Log-Likelihood", "nll"),
+        ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
+        ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
+        ("Quantile Loss (QL) for the 2.5% quantile", "quantile_loss_2.5"),
+        ("Quantile Loss (QL) for the 1% quantile", "quantile_loss_1"),
+    ]:
+        plt.figure(figsize=(7, 4))
+        series = []
+        models = [
+            # "HAR_IVOL-QREG",
+            "Benchmark DB IV",
+            "Benchmark Catboost RV_IV",
+            "GARCH",
+            "GARCH Skewed-t",
+            "LSTM MDN ivol-final-rolling",
+            "Transformer MDN ivol expanding",
+        ]
+        for model_name in models:
+            entry = next(
+                (entry for entry in preds_per_model if entry["name"] == model_name),
+                None,
+            )
+            s = pd.DataFrame(
+                {
+                    "Date": entry["dates"],
+                    "Symbol": entry["symbols"],
+                    model_name: entry[loss_fn],
+                }
+            ).set_index(["Date", "Symbol"])[model_name]
+            if s.isnull().all():
+                continue
+            series.append(s)
+        # Merge all series into a single DataFrame
+        loss_df = pd.concat(series, axis=1)
+        # Loop through the models and plot them
+        for zorder, name in list(enumerate(models))[::-1]:
+            display_name = model_name
+            for model_set in [our, traditional, ml_benchmarks]:
+                for d_name, model_name in model_set:
+                    if name == model_name:
+                        display_name = d_name
+                        break
+            entry = next(entry for entry in passing_models if entry["name"] == name)
+            if name not in loss_df.columns:
+                print(f"Model {name} not found in loss_df")
+                continue
+            x = loss_df.groupby("Date")[name].mean()
+            if variant == "cumulative_":
+                cum_sums = loss_df.groupby("Date").mean().cumsum()
+                x = x.cumsum() - cum_sums.max(axis=1)
+            else:
+                x = x.rolling(30).mean()
+            plt.plot(
+                x,
+                label=display_name,
+                linewidth=1,
+                alpha=0.8,
+                zorder=zorder,
+            )
+        if variant == "cumulative_":
+            title = f"Cumulative {title}"
+        plt.title(title)
+        plt.tight_layout()
+        plt.legend(
+            loc="upper center",
+            bbox_to_anchor=(0.5, -0.15),
+            ncol=4,
+            fontsize=10,
+            frameon=False,
         )
-    )[::-1]:
-        display_name = model_name
-        for model_set in [our, traditional, ml_benchmarks]:
-            for d_name, model_name in model_set:
-                if name == model_name:
-                    display_name = d_name
-                    break
-        entry = next(entry for entry in passing_models if entry["name"] == name)
-        loss_df = pd.DataFrame(
-            {
-                "Date": entry["dates"],
-                "Symbol": entry["symbols"],
-                loss_fn: entry[loss_fn],
-                "Model": entry["name"],
-            }
-        ).set_index(["Date", "Symbol"])
-        if loss_df[loss_fn].isnull().all():
-            continue
-        plt.plot(
-            loss_df.groupby("Date")[loss_fn].mean().rolling(30).mean(),
-            label=display_name,
-            linewidth=1,
-            alpha=0.8,
-            zorder=zorder,
-        )
-    plt.title(title)
-    plt.tight_layout()
-    plt.legend(
-        loc="upper center",
-        bbox_to_anchor=(0.5, -0.15),
-        ncol=4,
-        fontsize=10,
-        frameon=False,
-    )
-    plt.savefig(f"results/loss/{loss_fn}.pdf")
-
+        plt.savefig(f"results/loss/{variant}{loss_fn}.pdf")
 
 # %%
 # Generate time series chart with confidence intervals for each model
