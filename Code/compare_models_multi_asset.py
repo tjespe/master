@@ -2788,15 +2788,11 @@ for model_set in [our, traditional, ml_benchmarks]:
         bold = (numbers < benchmark_vals).all(axis=0)
         underline = numbers == best_vals
         for i, (val, u, b, q) in enumerate(zip(numbers, underline, bold, table_qs)):
-            adequate = any(e == entry for e in adequacy_per_q[q])
             val = f"{val:.6f}"
-            if adequate:
-                if u:
-                    val = f"\\underline{{{val}}}"
-                if b and model_set == our:
-                    val = f"\\textbf{{{val}}}"
-            else:
-                val += "*"
+            if u:
+                val = f"\\underline{{{val}}}"
+            if b and model_set == our:
+                val = f"\\textbf{{{val}}}"
             print("&", val, end=" ")
 
         print("\\\\")
@@ -3340,6 +3336,85 @@ for model_set in [our, traditional, ml_benchmarks]:
                 f"results/time_series/epistemic/{ticker}_{model_name}.pdf",
             )
             plt.show()
+
+# %%
+# Second epistemic variance plot: only predicted mean and epistemic variance
+# without actual returns, and without a zoomed inset
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            continue
+        epistemic_var = entry.get("epistemic_var")
+        if epistemic_var is None or pd.isnull(epistemic_var).all():
+            continue
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        log_df["EpistemicSD"] = np.sqrt(np.array(epistemic_var))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            ticker_df = df.xs(ticker, level="Symbol")
+            # Filter on first year
+            ticker_df = ticker_df.loc[
+                (ticker_df.index >= "2020-01-01") & (ticker_df.index < "2021-01-01")
+            ]
+            dates = ticker_df.index
+            filtered_mean = ticker_df["Mean"]
+            filtered_epistemic_sd = ticker_df["EpistemicSD"]
+            plt.figure(figsize=(8, 5))
+            plt.plot(
+                dates,
+                filtered_mean,
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - filtered_epistemic_sd,
+                filtered_mean + filtered_epistemic_sd,
+                color=colors["primary"],
+                alpha=0.8,
+                label="Epistemic Uncertainty (67%)",
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - 2 * filtered_epistemic_sd,
+                filtered_mean + 2 * filtered_epistemic_sd,
+                color=colors["primary"],
+                alpha=0.5,
+                label="Epistemic Uncertainty (95%)",
+            )
+            plt.fill_between(
+                dates,
+                filtered_mean - 2.57 * filtered_epistemic_sd,
+                filtered_mean + 2.57 * filtered_epistemic_sd,
+                color=colors["primary"],
+                alpha=0.3,
+                label="Epistemic Uncertainty (99%)",
+            )
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+            plt.title(
+                f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
+            )
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=3,
+                fontsize=10,
+                frameon=False,
+            )
+            plt.tight_layout()
+            plt.savefig(
+                f"results/time_series/epistemic_no_actual/{ticker}_{model_name}.pdf",
+            )
+            plt.show()
+            plt.close()
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
