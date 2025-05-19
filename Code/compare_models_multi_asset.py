@@ -2788,15 +2788,11 @@ for model_set in [our, traditional, ml_benchmarks]:
         bold = (numbers < benchmark_vals).all(axis=0)
         underline = numbers == best_vals
         for i, (val, u, b, q) in enumerate(zip(numbers, underline, bold, table_qs)):
-            adequate = any(e == entry for e in adequacy_per_q[q])
             val = f"{val:.6f}"
-            if adequate:
-                if u:
-                    val = f"\\underline{{{val}}}"
-                if b and model_set == our:
-                    val = f"\\textbf{{{val}}}"
-            else:
-                val += "*"
+            if u:
+                val = f"\\underline{{{val}}}"
+            if b and model_set == our:
+                val = f"\\textbf{{{val}}}"
             print("&", val, end=" ")
 
         print("\\\\")
@@ -3363,6 +3359,10 @@ for model_set in [our, traditional, ml_benchmarks]:
         df = np.exp(log_df) - 1
         for ticker in example_tickers:
             ticker_df = df.xs(ticker, level="Symbol")
+            # Filter on first year
+            ticker_df = ticker_df.loc[
+                (ticker_df.index >= "2020-01-01") & (ticker_df.index < "2021-01-01")
+            ]
             dates = ticker_df.index
             filtered_mean = ticker_df["Mean"]
             filtered_epistemic_sd = ticker_df["EpistemicSD"]
