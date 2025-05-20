@@ -27,6 +27,33 @@ df_rv_capire
 df_iv_bloomberg
 # %%
 
+# EXPLORE THE DATA (DELETE LATER)
+print(df_rv_capire["RQ"].describe())
+max_rq = df_rv_capire['RQ'].max()
+max_rq_date = df_rv_capire[df_rv_capire['RQ'] == max_rq]['Date'].values[0]
+max_rq_symbol = df_rv_capire[df_rv_capire['RQ'] == max_rq]['Symbol'].values[0]
+print(f"Max RQ: {max_rq} on {max_rq_date} for {max_rq_symbol}")
+print(f"Mean RQ: {df_rv_capire['RQ'].mean()} with std: {df_rv_capire['RQ'].std()}")
+print(f"Average max RQ: {df_rv_capire.groupby('Symbol')['RQ'].max().mean()} with std: {df_rv_capire.groupby('Symbol')['RQ'].max().std()}")
+
+# count of non zero and not non na values for rq
+print(f"Count of non-zero and non-NaN values for RQ: {df_rv_capire['RQ'].notna().sum()}")
+
+# count number of non nan and not zero values for each column
+print(df_rv_capire.notna().sum())
+# count number of non nan and not zero values for each column
+print(df_rv_capire[df_rv_capire != 0].count())
+# count number of non nan and not zero values for each column
+# count number that is neither nan or zero values for each column
+print(df_rv_capire[(df_rv_capire != 0) & (df_rv_capire.notna())].count())
+# count number of non nan and not zero values for each column
+
+
+
+
+
+# %%
+
 # Remove all data in df_return_eikon tht is from before the first data and after the last date in df_rv_capire
 df_return_eikon = df_return_eikon[(df_return_eikon['Date'] >= df_rv_capire['Date'].min()) & (df_return_eikon['Date'] <= df_rv_capire['Date'].max())]
 # Remove all data in df_iv_bloomberg that is from before the first data and after the last date in df_rv_capire
@@ -192,6 +219,7 @@ import numpy as np
 from scipy.stats import norm
 import shared.styling_guidelines_graphs
 from shared.styling_guidelines_graphs import colors
+import matplotlib.dates as mdates
 
 
 
@@ -211,7 +239,21 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
     # --- Sub-function 1: Time-Series Plot ---
     def plot_time_series(data, symbol, return_col):
         plt.figure(figsize=(10, 6))
+
+        # Make sure Date is datetime
+        data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
+        data = data.dropna(subset=['Date'])
+
         plt.plot(data['Date'], data[return_col], color='black', linewidth=0.5)
+
+        ax = plt.gca()
+
+        # Set x-axis limits to actual data range
+        ax.set_xlim([data['Date'].min(), data['Date'].max()])
+
+        ax.xaxis.set_major_locator(mdates.YearLocator(2))  # One tick per year
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+
         plt.title(f"{symbol} Daily Returns")
         plt.xlabel("Date")
         plt.ylabel("Returns")
@@ -267,5 +309,4 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
 # %% Example usage
 plot_return_analysis(df_return_eikon, 'AAPL')
 plot_return_analysis(df_return_eikon, 'WMT')
-# %%
 # %%
