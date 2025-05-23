@@ -5,7 +5,7 @@
 # %%
 # Define what to include, RV and/or IV
 INCLUDE_RV = True
-INCLUDE_IV = False
+INCLUDE_IV = True
 
 # version name is "RV" if only RV is included, "IV" if only IV is included, and "RV_IV" if both are included
 VERSION = (
