@@ -3422,6 +3422,71 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.close()
 
 # %%
+# Plot VaR 97.5% and ES 97.5% per model
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            continue
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        var_key = "LB_95"
+        log_df[var_key] = np.array(entry.get(var_key))
+        es_key = "ES_97.5"
+        log_df[es_key] = np.array(entry.get(es_key))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            # true_log_ret = true_log_ret.loc["2020":"2021"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            # ticker_df = ticker_df.loc["2020":"2021"]
+            plt.figure(figsize=(16, 4))
+            plt.plot(
+                true_ret,
+                label="Actual Returns",
+                color="black",
+                alpha=0.5,
+                linewidth=1,
+            )
+            plt.plot(
+                ticker_df["Mean"],
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
+            )
+            plt.plot(
+                ticker_df[var_key],
+                label="VaR 97.5%",
+                color=colors["primary"],
+                linewidth=1,
+                alpha=0.5,
+            )
+            plt.plot(
+                ticker_df[es_key],
+                label="ES 97.5%",
+                color=colors["primary"],
+                linewidth=1,
+            )
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+            plt.ylim(-0.25, 0.15)
+            plt.title(f"{display_name} predictions for {ticker} on test data")
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=4,
+                fontsize=10,
+                frameon=False,
+            )
+            plt.tight_layout()
+            plt.savefig(f"results/time_series/var_es/{ticker}_{model_name}.pdf")
+
+# %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
 p_value_df_picp = pd.DataFrame(index=passing_model_names, columns=passing_model_names)
 p_value_df_picp.index.name = "Benchmark"
