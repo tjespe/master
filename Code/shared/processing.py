@@ -807,12 +807,9 @@ def get_lstm_train_test_new(
                 *(["RV_5", "BPV_5", "Good_5", "Bad_5"] if include_5min_rv else []),
             ]
             for key in variance_keys:
-                # annualized variance in "percent^2" => convert to decimal => then daily
-                annual_var_pct2 = group[key].values.reshape(
-                    -1, 1
-                )  # e.g. 8.31 => 8.31%²
-                annual_var_decimal = annual_var_pct2 / 100.0  # => 0.0831
-                daily_var_decimal = annual_var_decimal / 252.0  # => daily variance
+                dailoy_vol_pct = group[key].values.reshape(-1, 1)
+                daily_vol_decimal = dailoy_vol_pct / 100.0
+                daily_var_decimal = daily_vol_decimal**2  # => 0.0001
                 log_daily_var = np.log(
                     daily_var_decimal + 1e-10
                 )  # small offset to avoid log(0)
