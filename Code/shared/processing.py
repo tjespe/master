@@ -272,6 +272,7 @@ def get_lstm_train_test_new(
     """
     Prepare data for LSTM
     """
+    # %%
     print("Processing data...")
     print("Multiply by beta:", multiply_by_beta)
     print("Include FNG:", include_fng)
@@ -823,16 +824,21 @@ def get_lstm_train_test_new(
             for key in quarticity_keys:
                 daily_rq_pct4 = group[key].values.reshape(-1, 1)
                 daily_rq_decimal = daily_rq_pct4 / (100.0**4)
-                log_daily_rq = np.log(daily_rq_decimal + 1e-10)
-                data = np.hstack((data, log_daily_rq))
+                data = np.hstack(
+                    (
+                        data,
+                        # Scale by 1e5 to get a number appropriate for ML models
+                        daily_rq_decimal * 1e5,
+                    )
+                )
                 col_names.append(key)
 
             # 3) Estimate realized skewness and kurtosis
             if include_others:
-                daily_good_var = (group["Good"].values / 100) / 252.0
-                daily_bad_var = (group["Bad"].values / 100) / 252.0
-                daily_rv = (group["RV"].values / 100) / 252.0
-                daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+                daily_good_var = (group["Good"].values / 100) ** 2
+                daily_bad_var = (group["Bad"].values / 100) ** 2
+                daily_rv = (group["RV"].values / 100) ** 2
+                daily_rq = group["RQ"].values / (100**4)
                 daily_skew = (
                     (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
                 ).reshape(-1, 1)
