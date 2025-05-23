@@ -3010,7 +3010,11 @@ for display_name, model_name in our:
         break
 
     for val in [avg_aleatoric_var, avg_epistemic_var, avg_total_var]:
-        print("&", sci_notation_latex(val), end=" ")
+        # Transform from variance of log returns to variance of normal returns
+        log_sd = np.sqrt(val)
+        sd = np.exp(log_sd) - 1
+        var = sd**2
+        print("&", sci_notation_latex(var), end=" ")
 
     print("\\\\")
 
