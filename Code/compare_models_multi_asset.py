@@ -3473,8 +3473,10 @@ for model_set in [our, traditional, ml_benchmarks]:
                 color=colors["primary"],
                 linewidth=1,
             )
+            # Add y ticks per 5%
+            plt.gca().yaxis.set_major_locator(mtick.MultipleLocator(0.05))
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
-            plt.ylim(-0.25, 0.15)
+            plt.ylim(-0.27, 0.15)
             plt.title(f"{display_name} predictions for {ticker} on test data")
             plt.legend(
                 loc="upper center",
@@ -3485,6 +3487,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
             plt.tight_layout()
             plt.savefig(f"results/time_series/var_es/{ticker}_{model_name}.pdf")
+            plt.show()
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock
