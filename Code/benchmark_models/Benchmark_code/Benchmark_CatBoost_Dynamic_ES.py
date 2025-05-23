@@ -239,6 +239,10 @@ def train_and_predict_catboost(
     preds = model.predict(X_test)
 
     if label:
+        try:
+            os.mkdir("trained")
+        except FileExistsError:
+            pass
         model.save_model(
             f"trained/cat_{VERSION}_{label}_{quantile_alpha}.cbm",
             format="cbm",
