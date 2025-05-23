@@ -59,9 +59,7 @@ capire_df = capire_df[["Date", "Symbol", "RV_5"]]
 capire_df["Date"] = pd.to_datetime(capire_df["Date"])
 
 # transform the RV to become daily_rv
-capire_df["RV"] = (
-    capire_df["RV_5"] / 100
-) / 252.0  # annual percentage^2 --> daily decimal^2
+capire_df["RV"] = capire_df["RV_5"] / (100**2)
 
 capire_df
 # %%
