@@ -807,8 +807,8 @@ def get_lstm_train_test_new(
                 *(["RV_5", "BPV_5", "Good_5", "Bad_5"] if include_5min_rv else []),
             ]
             for key in variance_keys:
-                dailoy_vol_pct = group[key].values.reshape(-1, 1)
-                daily_vol_decimal = dailoy_vol_pct / 100.0
+                daily_vol_pct = group[key].values.reshape(-1, 1)
+                daily_vol_decimal = daily_vol_pct / 100.0
                 daily_var_decimal = daily_vol_decimal**2  # => 0.0001
                 log_daily_var = np.log(
                     daily_var_decimal + 1e-10
@@ -821,16 +821,10 @@ def get_lstm_train_test_new(
                 ["RQ_5"] if include_5min_rv else []
             )
             for key in quarticity_keys:
-                # annualized quarticity in "percent^4" => decimal => daily
-                annual_q_pct4 = group[key].values.reshape(-1, 1)  # e.g. 263 => 263%²
-                annual_q_decimal = annual_q_pct4 / (100.0**2)  # => 2.63 in decimal^2
-                data = np.hstack(
-                    (
-                        data,
-                        # Log for scale
-                        np.log(annual_q_decimal + 1e-12),
-                    )
-                )
+                daily_rq_pct4 = group[key].values.reshape(-1, 1)
+                daily_rq_decimal = daily_rq_pct4 / (100.0**4)
+                log_daily_rq = np.log(daily_rq_decimal + 1e-10)
+                data = np.hstack((data, log_daily_rq))
                 col_names.append(key)
 
             # 3) Estimate realized skewness and kurtosis
