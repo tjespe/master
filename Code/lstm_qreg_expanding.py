@@ -30,7 +30,7 @@ from settings import (
 
 # %% PARAMETERS
 
-VERSION = "iv"
+VERSION = "rv-iv"
 MODEL_NAME = f"lstm_qr{SUFFIX}_{VERSION}"
 # feature flags (as before)
 INCLUDE_TICKERS = False
