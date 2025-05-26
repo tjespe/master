@@ -2600,9 +2600,6 @@ for model_set in [our, traditional, ml_benchmarks]:
 # For each model, look at the series where the model failed CC and calculate how often UC and Ind failed.
 # Columns:
 # Model, % UC fails 95% VaR, % Ind fails 95% VaR, % UC fails 97.5% VaR, % Ind fails 97.5% VaR, % UC fails 99% VaR, % Ind fails 99% VaR
-print("===============================================")
-print("Table: Determine cause of failures (UC vs. Ind)")
-print("===============================================")
 table_qs = [0.05, 0.025, 0.01]
 table_str = (
     """

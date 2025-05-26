@@ -219,8 +219,13 @@ if __name__ == "__main__":
     del members
     tf.keras.backend.clear_session()
     gc.collect()
-    df["CRPS"] = mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS)(
-        true_y, y_pred_all
+    # Calculate per symbol to avoid OOM errors
+    df.groupby("Symbol").apply(
+        lambda group: group.assign(
+            CRPS=mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS)(
+                true_y[group.index], y_pred_all[group.index]
+            )
+        )
     )
 
     # %%
