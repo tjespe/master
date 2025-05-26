@@ -1,6 +1,7 @@
 # %%
 # Expanding‐Window Ensemble Predictions
 import subprocess
+import sys
 from datetime import date
 from lstm_mdn_ensemble_expanding import build_lstm_mdn
 from transformer_mdn_ensemble import add_day_indices, build_transformer_mdn
@@ -34,7 +35,7 @@ from shared.loss import (
 warnings.filterwarnings("ignore")
 
 # Ensemble parameters
-VERSION = "iv"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "rv-iv"
 MODEL_NAME = f"mdn_ensemble_{VERSION}_{TEST_SET}_expanding"
 WINDOW_DAYS = 30
 
