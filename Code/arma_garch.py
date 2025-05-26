@@ -59,18 +59,19 @@ df: pd.DataFrame = df.set_index(["Date", "Symbol"])
 df
 
 # %%
-# Filter away data before 1990
+# Filter away data before the start of the training set
 df = df[df.index.get_level_values("Date") >= "1990-01-01"]
 df
 
 # %%
-# FIT THE AR GARCH MODEL AND PREDICT
+# Get all symbols
 symbols = df.index.get_level_values("Symbol").unique()
+
 
 # %% FUNCTION: process one symbol
 
 
-def process_symbol(symbol):
+def process_symbol(symbol,df):
     print(f"Processing {symbol}")
     df_filtered = df.xs(symbol, level="Symbol")
 
@@ -123,7 +124,7 @@ def process_symbol(symbol):
 
 # %% RUN IN PARALLEL
 
-results = Parallel(n_jobs=-1)(delayed(process_symbol)(symbol) for symbol in symbols)
+results = Parallel(n_jobs=-1)(delayed(process_symbol)(symbol, df) for symbol in symbols)
 
 # Combine all results
 df_validation = pd.concat(results)
@@ -210,3 +211,82 @@ for cl in confidence_levels:
 df_validation.to_csv(f"predictions/predictions_{VERSION}.csv")
 
 # %%
+################################ Code to determine the optimal number of lags based on the training data fit #########################
+
+# filter df from 2 January 2003 to TRAIN_VALIDATION_SPLIT
+df_filtered = df[
+    (df.index.get_level_values("Date") >= "2003-01-02")
+    & (df.index.get_level_values("Date") <= TRAIN_VALIDATION_SPLIT)
+]
+df_filtered
+
+
+# %%
+
+def fit_garch_and_get_ic(returns, lag, dist):
+    try:
+        am  = arch_model(returns, vol="GARCH", p=1, q=1, mean="ARX",
+                         dist=dist, lags=lag)
+        res = am.fit(disp="off")
+        llf = res.loglikelihood        # log‐likelihood
+        k   = res.params.shape[0]      # number of estimated params
+        n   = res.nobs                  # number of observations
+
+        # Information criteria
+        aic   = res.aic
+        bic   = res.bic
+        hqic  = -2 * llf + 2 * k * np.log(np.log(n))
+        return aic, bic, hqic
+
+    except Exception:
+        return np.nan, np.nan, np.nan
+
+
+def ic_for_symbol_lag(symbol, lag, df, dist):
+    returns = df.xs(symbol, level="Symbol")["LogReturn"] * 100
+    aic, bic, hqic = fit_garch_and_get_ic(returns, lag, dist)
+    return {
+        "AR Lags": lag,
+        "Symbol" : symbol,
+        "AIC"     : aic,
+        "BIC"     : bic,
+        "HQIC"    : hqic
+    }
+    
+
+
+# %% - Run parrallel computation to find the optimal number of lags
+lags_to_check = 30  # Define the maximum number of lags to check
+lags = list(range(lags_to_check + 1))
+symbols = df_filtered.index.get_level_values("Symbol").unique()
+dist = DIST  # Use the same distribution as in the main model
+
+# 1 Parallel loop over all lag-symbol pairs
+all_results = Parallel(n_jobs=-1)(
+    delayed(ic_for_symbol_lag)(symbol, lag, df_filtered, dist)
+    for lag in lags
+    for symbol in symbols
+)
+
+# 2 Aggregate into a DataFrame
+results_df = pd.DataFrame(all_results)
+
+# 3 Compute mean AIC/BIC for each lag
+info_results = (
+    results_df
+    .groupby("AR Lags")
+    .agg(
+        Mean_AIC  = ("AIC",  "mean"),
+        Mean_BIC  = ("BIC",  "mean"),
+        Mean_HQIC = ("HQIC","mean"),
+        # add one that averages all
+        Mean_All  = ("AIC", lambda x: np.mean(x) + np.mean(results_df["BIC"]) + np.mean(results_df["HQIC"]))
+    )
+    .reset_index()
+)
+
+df_ic = pd.DataFrame(info_results)
+df_ic
+#%%
+# Save the information criteria results to a CSV file
+df_ic.to_csv(f"predictions/ic_results_{VERSION}.csv", index=False)
