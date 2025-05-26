@@ -10,7 +10,7 @@
 # Specify which file to run, e.g.
 # `qsub run_python.pbs lstm_mdn.py`
 
-cd /storage/users/tordjes/Git/master/Code
+cd /storage/users/$USER/Git/master/Code
 module use /share/apps/modulefiles/all
 module load Python/3.11.5-GCCcore-13.2.0 || echo "Python module not found, using system Python"
 source env/bin/activate
