@@ -213,6 +213,14 @@ def train_and_predict_catboost(
     label=None,
 ):
     """Trains a CatBoost model for a specific quantile and predicts on test data."""
+    fname = f"trained/cat_{VERSION}_{label}_{quantile_alpha}.cbm"
+    # See if the model already exists, and if so, load it
+    if os.path.exists(fname):
+        print(f"Loading existing model from {fname}")
+        model = CatBoostRegressor()
+        model.load_model(fname, format="cbm")
+        return model.predict(X_test)
+
     model = CatBoostRegressor(
         loss_function=f"Quantile:alpha={quantile_alpha}",
         # loss_function='Quantile',
@@ -244,7 +252,7 @@ def train_and_predict_catboost(
         except FileExistsError:
             pass
         model.save_model(
-            f"trained/cat_{VERSION}_{label}_{quantile_alpha}.cbm",
+            fname,
             format="cbm",
         )
 
