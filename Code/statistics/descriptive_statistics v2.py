@@ -12,8 +12,7 @@ from shared.processing import get_lstm_train_test_new
 
 
 #%% 
-# Load raw data
-
+# # Load raw data
 df_return_eikon = pd.read_csv("data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned.csv")
 df_rv_capire = pd.read_csv("data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
 df_iv_bloomberg = pd.read_csv("data/dow_jones/processed_data/processed_ivol_data.csv")
@@ -25,35 +24,10 @@ df_return_eikon
 df_rv_capire
 # %%
 df_iv_bloomberg
-# %%
-
-# EXPLORE THE DATA (DELETE LATER)
-print(df_rv_capire["RQ"].describe())
-max_rq = df_rv_capire['RQ'].max()
-max_rq_date = df_rv_capire[df_rv_capire['RQ'] == max_rq]['Date'].values[0]
-max_rq_symbol = df_rv_capire[df_rv_capire['RQ'] == max_rq]['Symbol'].values[0]
-print(f"Max RQ: {max_rq} on {max_rq_date} for {max_rq_symbol}")
-print(f"Mean RQ: {df_rv_capire['RQ'].mean()} with std: {df_rv_capire['RQ'].std()}")
-print(f"Average max RQ: {df_rv_capire.groupby('Symbol')['RQ'].max().mean()} with std: {df_rv_capire.groupby('Symbol')['RQ'].max().std()}")
-
-# count of non zero and not non na values for rq
-print(f"Count of non-zero and non-NaN values for RQ: {df_rv_capire['RQ'].notna().sum()}")
-
-# count number of non nan and not zero values for each column
-print(df_rv_capire.notna().sum())
-# count number of non nan and not zero values for each column
-print(df_rv_capire[df_rv_capire != 0].count())
-# count number of non nan and not zero values for each column
-# count number that is neither nan or zero values for each column
-print(df_rv_capire[(df_rv_capire != 0) & (df_rv_capire.notna())].count())
-# count number of non nan and not zero values for each column
-
-
 
 
 
 # %%
-
 # Remove all data in df_return_eikon tht is from before the first data and after the last date in df_rv_capire
 df_return_eikon = df_return_eikon[(df_return_eikon['Date'] >= df_rv_capire['Date'].min()) & (df_return_eikon['Date'] <= df_rv_capire['Date'].max())]
 # Remove all data in df_iv_bloomberg that is from before the first data and after the last date in df_rv_capire
@@ -132,15 +106,19 @@ average_stats = average_stats.round(3)
 sds = sds.round(3)
 
 # Format average ± std for all stats except Count
-# average_stats_formatted = average_stats.astype(str) + " ± " + sds.astype(str)
-# average_stats_formatted = average_stats.astype(str) + " {\\scriptsize$\\pm$ " + sds.astype(str) + "}"
-# average_stats_formatted = average_stats.round(2).astype(str) + " {\\scriptsize$\\pm$ " + sds.round(2).astype(str) + "}"
 average_stats_formatted = average_stats.applymap(lambda x: f"{x:.2f}") + " {\\tiny$\\pm$ " + sds.applymap(lambda x: f"{x:.2f}") + "}"
 
 # Add Count separately
 # Count non-zero and non-NaN values per column (not grouped by asset)
-counts = df_combined.select_dtypes(include=[np.number]).apply(lambda col: ((col != 0) & (~col.isna())).sum())
-counts = counts.astype(int).astype(str)  # convert to string for formatting
+# Count logic: include zeros for 'Total Return', exclude zeros for others
+def custom_count(series):
+    if series.name == "Total Return":
+        return series.notna().sum()  # Include zeros
+    else:
+        return ((series != 0) & series.notna()).sum()  # Exclude zeros
+
+counts = df_combined.select_dtypes(include=[np.number]).apply(custom_count)
+counts = counts.astype(str)
 average_stats_formatted.insert(0, "Count", counts[average_stats_formatted.index])
 
 
@@ -207,7 +185,122 @@ average_stats_formatted_no_return = average_stats_formatted_no_return.drop(colum
 print(average_stats_formatted_no_return.to_latex(index=True, escape=False))
 
 
-# %% 
+# %% Gemerate LaTeX code for descriptive statistics tables per stock
+
+cols_to_keep = ["Count", "Mean", "Min", "Median", "Max", "Skewness", "Kurtosis"]
+
+ticker_to_name = {
+    "AAPL": "Apple Inc.",
+    "AMGN": "Amgen Inc.",
+    "AMZN": "Amazon.com Inc.",
+    "AXP": "American Express Company",
+    "BA": "Boeing Company",
+    "CAT": "Caterpillar Inc.",
+    "CRM": "Salesforce Inc.",
+    "CSCO": "Cisco Systems Inc.",
+    "CVX": "Chevron Corporation",
+    "DIS": "The Walt Disney Company",
+    "DOW": "Dow Inc.",
+    "GS": "Goldman Sachs Group Inc.",
+    "HD": "Home Depot Inc.",
+    "HON": "Honeywell International Inc.",
+    "IBM": "International Business Machines Corporation",
+    "INTC": "Intel Corporation",
+    "JNJ": "Johnson \& Johnson",
+    "JPM": "JPMorgan Chase & Co.",
+    "KO": "The Coca-Cola Company",
+    "MCD": "McDonald’s Corporation",
+    "MMM": "3M Company",
+    "MRK": "Merck \& Co. Inc.",
+    "MSFT": "Microsoft Corporation",
+    "NKE": "NIKE Inc.",
+    "PG": "Procter \& Gamble Company",
+    "TRV": "Travelers Companies Inc.",
+    "UNH": "UnitedHealth Group Incorporated",
+    "V": "Visa Inc.",
+    "VZ": "Verizon Communications Inc.",
+    "WMT": "Walmart Inc.",
+}
+
+latex_blocks = []
+
+# Generate LaTeX code
+for symbol, group_df in df_combined.groupby("Symbol"):
+    stats = descriptive_stats(group_df)
+    # Count of non-zero and non-NaN values - but if the series is Return, count all non-null values
+    if "Total Return" in group_df.columns:
+        counts = group_df["Total Return"].notna().sum()
+    else:
+        # For other series, count non-zero and non-NaN values
+        counts = group_df.select_dtypes(include=[np.number]).apply(lambda col: ((col != 0) & (~col.isna())).sum())
+    #counts = group_df.select_dtypes(include=[np.number]).apply(lambda col: ((col != 0) & (~col.isna())).sum())
+    stats.insert(0, "Count", counts)
+    stats = stats[cols_to_keep]
+    stats = stats.round(2)
+    stats = stats.applymap(lambda x: f"{x:.2f}".rstrip("0").rstrip("."))
+
+    stats.rename(index=latex_name_map, inplace=True)
+    stats = stats.loc[[latex_name_map[col] for col in desired_main_order if col in latex_name_map]]
+    stats["Skewness"] = stats["Skewness"].astype(object)
+    stats["Kurtosis"] = stats["Kurtosis"].astype(object)
+    stats.loc[stats.index != "Return", ["Skewness", "Kurtosis"]] = ""
+
+    body = stats.to_latex(index=True, escape=False, header=True, column_format="lrrrrrll").splitlines()
+    body = "\n".join(body[3:-2])  # Remove the \begin{tabular} and \end{tabular}
+
+    company_name = ticker_to_name.get(symbol, symbol)
+    caption = f"{company_name} ({symbol})"
+    table_code = (
+        "\\begin{minipage}{0.48\\textwidth}\n"
+        "    \\centering\n"
+        f"    \\caption*{{{caption}}}\n"
+        "    \\vspace{-0.4em}\n"
+        "    \\scriptsize\n"
+        "    \\setlength{\\tabcolsep}{4pt}\n"
+        "    \\renewcommand{\\arraystretch}{0.95}\n"
+        "    \\resizebox{\\textwidth}{!}{%\n"
+        "    \\begin{tabular}{lrrrrrrr}\n"
+        "        \\toprule\n"
+        "        & Count & Mean & Min & Median & Max & Skew & Kurtosis \\\\\n"
+        f"      {body}\n"
+        "        \\bottomrule\n"
+        "    \\end{tabular}%\n"
+        "    }\n"
+        "\\end{minipage}%\n"
+    )
+    latex_blocks.append(table_code)
+
+# Combine into figures with 2 tables per row, 5 rows per figure
+grouped_figures = []
+
+for i in range(0, len(latex_blocks), 10):  # 10 tables per figure (2 x 5 grid)
+    chunk = latex_blocks[i:i+10]
+    figure_lines = ["\\begin{figure}[H]", "\\centering"]
+
+    for j in range(0, len(chunk), 2):
+        left_table = chunk[j]
+        right_table = chunk[j+1] if j+1 < len(chunk) else None
+
+        # Append the left table
+        figure_lines.append(left_table.strip())
+
+        # If there's a right table, add hfill and then it
+        if right_table:
+            figure_lines.append("\\hfill")
+            figure_lines.append(right_table.strip())
+
+        # Add vertical spacing after each row of up to 2 tables
+        figure_lines.append("\\vspace{1em}")
+
+    figure_lines.append("\\end{figure}")
+    grouped_figures.append("\n".join(figure_lines))
+
+# Output all LaTeX figure blocks
+full_latex_output = "\n\n".join(grouped_figures)
+print(full_latex_output)
+
+
+# %% RETURN HISTOGRAM AND TIME SERIES PLOT
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
