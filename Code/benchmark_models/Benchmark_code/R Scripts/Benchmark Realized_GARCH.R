@@ -1,12 +1,14 @@
 # Following the Hansen et al. (2012), (2014) papers, we will use the realized GARCH model to forecast volatility.
-
+install.packages("rugarch")
 # Load libraries #
-library(realized) # TURNS OUT THIS PACKAGE IS NOT AVAILABLE ON CRAN, SO IT IS NOT POSSIBLE TO INSTALL IT
+library(rugarch)
 library(readr)
 
+dist_assumption <- "norm" # set "norm" for normal and "std" for student-t
+
 # Load data #
-capire_data = read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
-return_data = read.csv("~/Masterv3/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
+capire_data = read.csv("~/Master/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
+return_data = read.csv("~/Master/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # Clean data #
 
@@ -17,14 +19,19 @@ return_data = return_data[,c("Date", "Symbol", "TotalReturn", "LogReturn")]
 return_data$Symbol = gsub("\\.O", "", return_data$Symbol)
 # ensure that the Date column is in the correct format
 return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
+# remove the symbo DOW from the data
+return_data = return_data[return_data$Symbol != "DOW",]
 
 # Capire data/RV data
 # Remove all coloumns except Date, Symbol and RV_5
 capire_data = capire_data[,c("Date", "Symbol", "RV_5")]
 # ensure that the Date column is in the correct format
 capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
-# transform the RV to become daily_rv
-capire_data$RV_5 = (capire_data$RV_5/100)/252
+# transform the RV to become decimal
+capire_data$RV_5 = (capire_data$RV_5/10000)
+# no need to log RV data as th realGARCH model will do that internally
+# remove the symbo DOW from the data
+capire_data = capire_data[capire_data$Symbol != "DOW",]
 
 # sort data by Date and Symbol
 return_data = return_data[order(return_data$Date, return_data$Symbol),]
@@ -33,9 +40,9 @@ capire_data = capire_data[order(capire_data$Date, capire_data$Symbol),]
 # Merge data on Date and Symbol
 data = merge(return_data, capire_data, by = c("Date", "Symbol"))
 
-# define training and validation data
-training_data = data[data$Date < as.Date("2021-12-31"),]
-validation_data = data[data$Date >= as.Date("2021-12-31") & data$Date <= as.Date("2023-12-31"),]
+# define training and test data
+training_data = data[data$Date >= as.Date("2003-01-02") & data$Date < as.Date("2019-12-31"),]
+test_data = data[data$Date >= as.Date("2021-12-31"),]
 
 # Loop trough symbols and fit model
 symbols = unique(data$Symbol)
@@ -43,59 +50,81 @@ symbols = unique(data$Symbol)
 # inititialize list to store results
 results = list()
 
-for (symbol in symbols) {
-    print(paste0("Fitting model for symbol: ", symbol))
-    # filter data for symbol
-    symbol_data = data[data$Symbol == symbol,]
-    symbol_training_data = training_data[training_data$Symbol == symbol,]
-    symbol_validation_data = validation_data[validation_data$Symbol == symbol,]
-    
-    # define initial window size
-    window_size = length(symbol_training_data$Date)
+# --- Function to Fit Realized GARCH Model for One Symbol --- #
+fit_symbol_garch <- function(symbol) {
+  print(paste0("Fitting model for symbol: ", symbol))
 
-    # concatenate training and validation data
-    symbol_data = rbind(symbol_training_data, symbol_validation_data)
+  symbol_data <- data[data$Symbol == symbol, ]
+  symbol_training_data <- training_data[training_data$Symbol == symbol, ]
+  symbol_test_data <- test_data[test_data$Symbol == symbol, ]
 
-    returns = as.numeric(symbol_data$LogReturn)
-    rv = as.numeric(symbol_data$RV_5)
-    dates = as.Date(symbol_data$Date)
+  window_size <- length(symbol_training_data$Date)
+  symbol_data <- rbind(symbol_training_data, symbol_test_data)
 
-    total_observations = length(returns)
-    forecast_volatility <- rep(NA, total_obs - initial_window_size)
-    forecast_dates <- dates[(initial_window_size + 1):total_obs] 
+  returns <- as.numeric(symbol_data$LogReturn)
+  rv <- as.numeric(symbol_data$RV_5)
+  epsilon <- 1e-8
+  rv <- pmax(rv, epsilon)
+  dates <- as.Date(symbol_data$Date)
 
-    for (i in seq(initial_window_size, total_obs - 1)) {
-        # define expanding window
-        returns_train = returns[1:i]
-        rv_train = rv[1:i]
+  total_observations <- length(returns)
+  forecast_volatility <- rep(NA, total_observations - window_size)
+  forecast_dates <- dates[(window_size + 1):total_observations]
 
-        # fit realized garch model
-        rgarch_model <- realizedGARCH(r = returns_train, realized = RV_train)
-        rgarch_forecast <- predict(rgarch_model, n.ahead = 1)
+  for (i in seq(window_size, total_observations - 1)) {
+    # 1) expanding-window data. # no need to lag returns and RV as the realGARCH model will do that internally
+    returns_train <- returns[1:i] 
+    RV_train      <- rv[1:i]
 
-        # store forecasted volatility
-        forecast_volatility[i - initial_window_size + 1] <- rgarch_forecast$vol
+    # 2) RealGARCH(1,1) spec
+    spec <- ugarchspec(
+        variance.model = list(model = "realGARCH",
+                            garchOrder = c(1,1)),
+        mean.model     = list(armaOrder  = c(0,0),
+                            include.mean = TRUE),
+        distribution.model = dist_assumption
+    )
 
-        # Progress indicator
-        if ((i - initial_window_size + 1) %% 10 == 0) {
-            print(paste0("Progress: ", round(100 * (i - initial_window_size + 1) / (total_obs - initial_window_size), 2), "%"))
+    # 3) fit with realizedVol = RV_train
+    fit <- tryCatch(
+        ugarchfit(spec, data = returns_train, realizedVol = RV_train,
+                solver = "hybrid"),
+        error = function(e) {
+        message("Fit error at i=", i, ": ", e$message)
+        return(NULL)
+        }
+    )
+    if (is.null(fit)) next
+
+    # 4) next-day forecast: pass rv[i] (the last observed RV) as the next realizedVol
+    fc <- ugarchforecast(fit, n.ahead = 1, realizedVol = rv[i])
+    forecast_volatility[i - window_size + 1] <- sigma(fc)
+
+    # 5) progress
+    if (((i - window_size + 1) %% 10) == 0) {
+        pct <- round(100 * (i - window_size + 1) / (total_observations - window_size), 1)
+        message(symbol, ": ", pct, "% done")
         }
     }
 
-
-    # store results
-    # === Combine results into a forecast data frame ===
-    forecast_results <- data.frame(
+  forecast_results <- data.frame(
     Date = forecast_dates,
-    Forecast_Volatility = forecast_volatility,
-    Forecast_Realized = forecast_realized,
-    Mean = 0
-)
+    Symbol = symbol,
+    Forecast_Volatility_real_garch = forecast_volatility,
+    Mean_real_garch = 0,
+    LogReturn = symbol_data$LogReturn[(window_size + 1):total_observations]
+  )
 
-    results[[symbol]] = forecast_results
+  return(forecast_results)
 }
 
-# write results to csv
-write.csv(results, "~/Masterv3/master/Code/predictions/realized_garch_forecast.csv")
+# --- Parallel execution across symbols --- #
+results_list <- future_lapply(symbols, fit_symbol_garch)
+
+# Combine results
+final_results <- rbindlist(results_list)
+
+# write results to csv including the distribution assumption at the end of the file name
+write.csv(final_results, paste0("~/Master/master/Code/predictions/realized_garch_forecast_actual", dist_assumption, ".csv"))
 
 

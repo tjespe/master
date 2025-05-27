@@ -547,7 +547,7 @@ for version in ["", "Q", "_IVOL"]:
 for version in ["norm", "std"]:
     try:
         realized_garch_preds = pd.read_csv(
-            f"predictions/realized_garch_forecast_{version}.csv"
+            f"predictions/realized_garch_forecast_actual_{version}.csv"
         )
         realized_garch_preds["Date"] = pd.to_datetime(realized_garch_preds["Date"])
         realized_garch_preds = realized_garch_preds.set_index(["Date", "Symbol"])
@@ -565,9 +565,9 @@ for version in ["norm", "std"]:
         combined_df = df_validation.join(
             realized_garch_preds, how="left", rsuffix="_Realized_GARCH"
         )
-        realized_garch_preds = combined_df["Forecast_Volatility"].values
+        realized_garch_preds = combined_df["Forecast_Volatility_real_garch"].values
         y_true = combined_df["LogReturn"].values
-        mus = combined_df["Mean"].values
+        mus = combined_df["Mean_real_garch"].values
 
         entry = {
             "name": f"Realized GARCH {version}",
