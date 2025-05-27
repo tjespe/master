@@ -2417,9 +2417,9 @@ ml_benchmarks = [
     ("LightGBM-RV", "Benchmark LightGBM RV"),
     ("LightGBM-IV", "Benchmark LightGBM IV"),
     ("LightGBM-RV-IV", "Benchmark LightGBM RV_IV"),
-    ("LSTM-RV", "LSTM QREG rv"),
-    ("LSTM-IV", "LSTM QREG iv"),
-    ("LSTM-RV-IV", "LSTM QREG rv-iv"),
+    ("LSTM-QREG-RV", "LSTM QREG rv"),
+    ("LSTM-QREG-IV", "LSTM QREG iv"),
+    ("LSTM-QREG-RV-IV", "LSTM QREG rv-iv"),
 ]
 
 # %%
