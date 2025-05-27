@@ -604,7 +604,7 @@ for version in ["norm", "std"]:
         if nans > 0:
             print(f"Realized GARCH {version} has {nans} NaN predictions")
     except FileNotFoundError:
-        print("Realized GARCH predictions not found")
+        print(f"Realized GARCH {version} predictions not found")
 
 # LSTM MDN, new naming convention
 for version in [
