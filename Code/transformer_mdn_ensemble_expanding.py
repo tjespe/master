@@ -1,5 +1,6 @@
 # %%
 # Define parameters (based on settings)
+import sys
 from datetime import date
 import subprocess
 from typing import Optional
@@ -11,7 +12,7 @@ import multiprocessing as mp
 import shared.styling_guidelines_graphs
 
 
-VERSION = "rvol"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "rvol"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}_expanding"
 
 # %%
