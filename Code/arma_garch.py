@@ -1,7 +1,7 @@
 # %%
 # Define version paramaters
 AR_LAGS = 1
-DIST = "t"  # "normal" or "t"
+DIST = "normal"  # "normal" or "t"
 
 VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
@@ -21,7 +21,7 @@ import pandas as pd
 from arch import arch_model
 import warnings
 from scipy.stats import t
-from shared.loss import crps_student_t, crps_normal_univariate
+from shared.loss import crps_student_t, crps_normal_univariate, nll_loss_mean_and_vol, student_t_nll
 from scipy.stats import norm
 from shared.mdn import calculate_es_for_quantile
 from joblib import Parallel, delayed
@@ -64,6 +64,10 @@ df = df[df.index.get_level_values("Date") >= "1990-01-01"]
 df
 
 # %%
+# filter out the symbol DOW
+df = df[df.index.get_level_values("Symbol") != "DOW"]
+
+# %%
 # Get all symbols
 symbols = df.index.get_level_values("Symbol").unique()
 
@@ -93,7 +97,7 @@ def process_symbol(symbol,df):
         returns_sample = returns_combined.iloc[:end]
 
         am = arch_model(
-            returns_sample, vol="GARCH", p=1, q=1, mean="ARX", dist=DIST, lags=AR_LAGS
+            returns_sample, vol="GARCH", p=1, q=1, mean="AR", dist=DIST, lags=AR_LAGS
         )
         res = am.fit(disp="off")
 
@@ -209,7 +213,6 @@ for cl in confidence_levels:
 
 # %%
 df_validation.to_csv(f"predictions/predictions_{VERSION}.csv")
-
 # %%
 ################################ Code to determine the optimal number of lags based on the training data fit #########################
 
@@ -222,7 +225,6 @@ df_filtered
 
 
 # %%
-
 def fit_garch_and_get_ic(returns, lag, dist):
     try:
         am  = arch_model(returns, vol="GARCH", p=1, q=1, mean="ARX",
@@ -254,9 +256,9 @@ def ic_for_symbol_lag(symbol, lag, df, dist):
     }
     
 
-
+## 
 # %% - Run parrallel computation to find the optimal number of lags
-lags_to_check = 30  # Define the maximum number of lags to check
+lags_to_check = 10  # Define the maximum number of lags to check
 lags = list(range(lags_to_check + 1))
 symbols = df_filtered.index.get_level_values("Symbol").unique()
 dist = DIST  # Use the same distribution as in the main model
@@ -279,8 +281,6 @@ info_results = (
         Mean_AIC  = ("AIC",  "mean"),
         Mean_BIC  = ("BIC",  "mean"),
         Mean_HQIC = ("HQIC","mean"),
-        # add one that averages all
-        Mean_All  = ("AIC", lambda x: np.mean(x) + np.mean(results_df["BIC"]) + np.mean(results_df["HQIC"]))
     )
     .reset_index()
 )
@@ -290,3 +290,140 @@ df_ic
 #%%
 # Save the information criteria results to a CSV file
 df_ic.to_csv(f"predictions/ic_results_{VERSION}.csv", index=False)
+
+
+
+
+
+# %%
+##################### Determine the optimal number of lags based on NLL on the test set ##########
+def nll_for_symbol_lag(symbol, lag, df, dist):
+
+    # compute the absolute minimum sample you need…
+    min_obs = max(lag, 1 + 1, 1) + 1  # e.g. AR lag, p+q for GARCH, plus 1
+    # filter on the symbol
+    df = df.xs(symbol, level="Symbol")
+    # extract the returns for the training period for the given symbol
+    returns_train = df["LogReturn"].loc[:TRAIN_VALIDATION_SPLIT] * 100
+    returns_validation = df["LogReturn"].loc[TRAIN_VALIDATION_SPLIT:]
+    scaled_returns_test = returns_validation * 100
+
+    returns_combined = pd.concat([returns_train, scaled_returns_test])
+
+    # list for storing predictions
+    garch_vol_pred = []
+    garch_mean_pred = []
+    nu_values = [] if dist == "t" else None
+
+    # fit the ar garch model and do rolling predictions on the validation set
+    for i in range(len(scaled_returns_test)):
+        end = len(returns_train) + i
+
+        if end < min_obs:
+            garch_vol_pred.append(np.nan)
+            garch_mean_pred.append(np.nan)
+            if dist == "t":
+                nu_values.append(np.nan)
+            continue
+        
+        returns_sample = returns_combined.iloc[:end]
+
+        am = arch_model(returns_sample, vol="GARCH", p=1, q=1, mean="AR", dist=dist, lags=lag)
+        res = am.fit(disp="off")
+        # forecast the next time point
+        forecast = res.forecast(horizon=1)
+        forecast_var = forecast.variance.iloc[-1].values[0]
+        forecast_vol = np.sqrt(forecast_var) / 100
+        forecast_mean = forecast.mean.iloc[-1].values[0] / 100
+
+        garch_vol_pred.append(forecast_vol)
+        garch_mean_pred.append(forecast_mean)
+
+
+
+        if dist == "t":
+            nu_value = res.params.get("nu")
+            nu_values.append(nu_value)
+
+    # Calculate the negative log-likelihood for the validation set
+    if dist == "normal":
+        nll = nll_loss_mean_and_vol(
+            returns_validation.values.astype(np.float32),
+            np.array(garch_mean_pred).astype(np.float32),
+            np.array(garch_vol_pred).astype(np.float32),
+        )
+    elif dist == "t":
+        nll = student_t_nll(
+            returns_validation.values.astype(np.float32),
+            np.array(garch_mean_pred).astype(np.float32),
+            np.array(garch_vol_pred).astype(np.float32),
+            np.array(nu_values).astype(np.float32),
+        )
+    
+    nll_scalar = float(np.mean(nll))
+    return {
+        "AR Lags": lag,
+        "Symbol" : symbol,
+        "NLL"    : nll_scalar
+    }
+
+
+
+# %% - Run parrallel computation to find the optimal number of lags
+# filter df from 2 January 2003 to TEST_VALIDATION_SPLIT
+df_filtered = df[
+    (df.index.get_level_values("Date") >= "2003-01-02")
+    & (df.index.get_level_values("Date") <= VALIDATION_TEST_SPLIT)
+]
+df_filtered
+#%%
+lags_to_check = 20  # Define the maximum number of lags to check
+lags = list(range(lags_to_check + 1))
+symbols = df.index.get_level_values("Symbol").unique()
+dist_dict = {}
+
+for dist in ["normal", "t"]:
+    # 1 Parallel loop over all lag-symbol pairs
+    all_results = Parallel(n_jobs=-1)(
+        delayed(nll_for_symbol_lag)(symbol, lag, df_filtered, dist)
+        for lag in lags
+        for symbol in symbols
+    )
+    
+    # 2 Aggregate into a DataFrame and remove NaN values
+    results_df = pd.DataFrame(all_results)
+    results_df = results_df.dropna(subset=["NLL"])
+
+    # 3 Compute mean NLL for each lag
+    info_results = (
+        results_df
+        .groupby("AR Lags")
+        .agg(
+            Mean_NLL = ("NLL", "mean"),
+        )
+        .reset_index()
+    )
+    df_nll = pd.DataFrame(info_results)
+    dist_dict[dist] = df_nll
+
+# %%
+print("Normal:")
+dist_dict["normal"]
+
+# %%
+print("Student-t:")
+dist_dict["t"]
+# %%
+# Save the NLL results to a CSV file
+df_nll.to_csv(f"predictions/nll_results_{VERSION}.csv", index=False)
+
+# %%
+# load the predictions from predictions_AR(1)-GARCH(1,1)-normal
+df_predictions = pd.read_csv(f"predictions/predictions_AR(1)-GARCH(1,1)-{DIST}.csv")
+# calculate the mean NLL for the predictions
+mean_nll = nll_loss_mean_and_vol(
+    df_predictions["LogReturn"].values.astype(np.float32),
+    df_predictions["AR_GARCH_Mean"].values.astype(np.float32),
+    df_predictions["AR_GARCH_Vol"].values.astype(np.float32),
+)
+mean_nll_scalar = float(np.mean(mean_nll))
