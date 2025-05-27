@@ -2400,7 +2400,8 @@ traditional = [
     ("GARCH-t", "GARCH Student-t"),
     ("GARCH Skewed-t", "GARCH Skewed-t"),
     ("EGARCH", "EGARCH"),
-    ("RV-GARCH", "Realized GARCH std"),
+    ("RV-GARCH", "Realized GARCH norm"),
+    ("RV-GARCH-t", "Realized GARCH std"),
     ("AR-GARCH", "AR(1)-GARCH(1,1)-normal"),
     ("AR-GARCH-t", "AR(1)-GARCH(1,1)-t"),
     ("HAR-QREG", "HAR-QREG"),
@@ -2599,9 +2600,6 @@ for model_set in [our, traditional, ml_benchmarks]:
 # For each model, look at the series where the model failed CC and calculate how often UC and Ind failed.
 # Columns:
 # Model, % UC fails 95% VaR, % Ind fails 95% VaR, % UC fails 97.5% VaR, % Ind fails 97.5% VaR, % UC fails 99% VaR, % Ind fails 99% VaR
-print("===============================================")
-print("Table: Determine cause of failures (UC vs. Ind)")
-print("===============================================")
 table_qs = [0.05, 0.025, 0.01]
 table_str = (
     """
@@ -3009,7 +3007,11 @@ for display_name, model_name in our:
         break
 
     for val in [avg_aleatoric_var, avg_epistemic_var, avg_total_var]:
-        print("&", sci_notation_latex(val), end=" ")
+        # Transform from variance of log returns to variance of normal returns
+        log_sd = np.sqrt(val)
+        sd = np.exp(log_sd) - 1
+        var = sd**2
+        print("&", sci_notation_latex(var), end=" ")
 
     print("\\\\")
 
@@ -3415,6 +3417,74 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
             plt.show()
             plt.close()
+
+# %%
+# Plot VaR 97.5% and ES 97.5% per model
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            continue
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        var_key = "LB_95"
+        log_df[var_key] = np.array(entry.get(var_key))
+        es_key = "ES_97.5"
+        log_df[es_key] = np.array(entry.get(es_key))
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            # true_log_ret = true_log_ret.loc["2020":"2021"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            # ticker_df = ticker_df.loc["2020":"2021"]
+            plt.figure(figsize=(16, 4))
+            plt.plot(
+                true_ret,
+                label="Actual Returns",
+                color="black",
+                alpha=0.5,
+                linewidth=1,
+            )
+            plt.plot(
+                ticker_df["Mean"],
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
+            )
+            plt.plot(
+                ticker_df[var_key],
+                label="VaR 97.5%",
+                color=colors["primary"],
+                linewidth=1,
+                alpha=0.5,
+            )
+            plt.plot(
+                ticker_df[es_key],
+                label="ES 97.5%",
+                color=colors["primary"],
+                linewidth=1,
+            )
+            # Add y ticks per 5%
+            plt.gca().yaxis.set_major_locator(mtick.MultipleLocator(0.05))
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+            plt.ylim(-0.27, 0.15)
+            plt.title(f"{display_name} predictions for {ticker} on test data")
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.15),
+                ncol=4,
+                fontsize=10,
+                frameon=False,
+            )
+            plt.tight_layout()
+            plt.savefig(f"results/time_series/var_es/{ticker}_{model_name}.pdf")
+            plt.show()
 
 # %%
 # Calculate p-value of outperformance in terms of PICP miss per stock

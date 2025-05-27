@@ -11,7 +11,7 @@ import multiprocessing as mp
 import shared.styling_guidelines_graphs
 
 
-VERSION = "rvol-ivol"
+VERSION = "rvol"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_{TEST_SET}_expanding"
 
 # %%

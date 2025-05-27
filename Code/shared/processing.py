@@ -272,6 +272,7 @@ def get_lstm_train_test_new(
     """
     Prepare data for LSTM
     """
+    # %%
     print("Processing data...")
     print("Multiply by beta:", multiply_by_beta)
     print("Include FNG:", include_fng)
@@ -807,12 +808,9 @@ def get_lstm_train_test_new(
                 *(["RV_5", "BPV_5", "Good_5", "Bad_5"] if include_5min_rv else []),
             ]
             for key in variance_keys:
-                # annualized variance in "percent^2" => convert to decimal => then daily
-                annual_var_pct2 = group[key].values.reshape(
-                    -1, 1
-                )  # e.g. 8.31 => 8.31%²
-                annual_var_decimal = annual_var_pct2 / 100.0  # => 0.0831
-                daily_var_decimal = annual_var_decimal / 252.0  # => daily variance
+                # Raw data is assumed to be the sum of squared percentage returns
+                daily_var_pct2 = group[key].values.reshape(-1, 1)
+                daily_var_decimal = daily_var_pct2 / (100.0**2)
                 log_daily_var = np.log(
                     daily_var_decimal + 1e-10
                 )  # small offset to avoid log(0)
@@ -824,24 +822,23 @@ def get_lstm_train_test_new(
                 ["RQ_5"] if include_5min_rv else []
             )
             for key in quarticity_keys:
-                # annualized quarticity in "percent^4" => decimal => daily
-                annual_q_pct4 = group[key].values.reshape(-1, 1)  # e.g. 263 => 263%²
-                annual_q_decimal = annual_q_pct4 / (100.0**2)  # => 2.63 in decimal^2
+                daily_rq_pct4 = group[key].values.reshape(-1, 1)
+                daily_rq_decimal = daily_rq_pct4 / (100.0**4)
                 data = np.hstack(
                     (
                         data,
-                        # Log for scale
-                        np.log(annual_q_decimal + 1e-12),
+                        # Scale by 1e5 to get a number appropriate for ML models
+                        daily_rq_decimal * 1e5,
                     )
                 )
                 col_names.append(key)
 
             # 3) Estimate realized skewness and kurtosis
             if include_others:
-                daily_good_var = (group["Good"].values / 100) / 252.0
-                daily_bad_var = (group["Bad"].values / 100) / 252.0
-                daily_rv = (group["RV"].values / 100) / 252.0
-                daily_rq = (group["RQ"].values / 10000.0) / (252.0**2)
+                daily_good_var = (group["Good"].values / 100) ** 2
+                daily_bad_var = (group["Bad"].values / 100) ** 2
+                daily_rv = (group["RV"].values / 100) ** 2
+                daily_rq = group["RQ"].values / (100**4)
                 daily_skew = (
                     (1.5 * (daily_good_var - daily_bad_var)) / (daily_rv**1.5 + 1e-12)
                 ).reshape(-1, 1)

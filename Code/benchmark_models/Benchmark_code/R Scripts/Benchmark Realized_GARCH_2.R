@@ -11,49 +11,48 @@ library(future.apply) # For parallel processing
 plan(multisession, workers = parallel::detectCores() - 1)
 
 # Load data #
-repo_path = "C:///Users/tordjes/Github/master"
+repo_path <- "C:///Users/tordjes/Github/master"
 setwd(repo_path)
 capire_data <- read.csv("Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
 return_data <- read.csv("Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
 
 # define what distribution assumption we would like to use
-dist_assumption <- "std"  # set "norm" for normal and "std" for student-t
+dist_assumption <- "std" # set "norm" for normal and "std" for student-t
 
 
 # Clean data #
 
 # Return data
 # Define what columns to keep
-return_data <- return_data[,c("Date", "Symbol", "Total.Return", "LogReturn")]
+return_data <- return_data[, c("Date", "Symbol", "Total.Return", "LogReturn")]
 # remove .O at the end of all symbols
-return_data$Symbol = gsub("\\.O", "", return_data$Symbol)
+return_data$Symbol <- gsub("\\.O", "", return_data$Symbol)
 # ensure that the Date column is in the correct format
-return_data$Date = as.Date(return_data$Date, format = "%Y-%m-%d")
+return_data$Date <- as.Date(return_data$Date, format = "%Y-%m-%d")
 
 # Capire data/RV data
 # Define what coloumns to keep
-capire_data <- capire_data[,c("Date", "Symbol", "RV_5")]
+capire_data <- capire_data[, c("Date", "Symbol", "RV_5")]
 # ensure that the Date column is in the correct format
-capire_data$Date = as.Date(capire_data$Date, format = "%Y-%m-%d")
+capire_data$Date <- as.Date(capire_data$Date, format = "%Y-%m-%d")
 
-# transform the RV to become log_daily_rv
-capire_data$RV_5 = (capire_data$RV_5/100)/252 # annual percentage^2 --> daily decimal^2
-capire_data$RV_5 <- log(capire_data$RV_5 + 1e-10) # log transformation
+# transform the RV from daily SD in pct to daily RV in decimal
+capire_data$RV_5 <- (capire_data$RV_5 / 100)^2
 # sort data by Date and Symbol
-return_data <- return_data[order(return_data$Symbol, return_data$Date),]
-capire_data <- capire_data[order(capire_data$Symbol, capire_data$Date),]
+return_data <- return_data[order(return_data$Symbol, return_data$Date), ]
+capire_data <- capire_data[order(capire_data$Symbol, capire_data$Date), ]
 
 # Merge data on Date and Symbol
 data <- merge(return_data, capire_data, by = c("Date", "Symbol"))
-data <- data[order(data$Symbol, data$Date),]
+data <- data[order(data$Symbol, data$Date), ]
 
 # remove rows with NA values
-data <- data[complete.cases(data),]
+data <- data[complete.cases(data), ]
 
 
 # define training and validation data
-training_data <- data[data$Date < as.Date("2019-12-31"),]
-test_data <- data[data$Date >= as.Date("2019-12-31"),]
+training_data <- data[data$Date < as.Date("2019-12-31"), ]
+test_data <- data[data$Date >= as.Date("2019-12-31"), ]
 
 
 ############################################
@@ -63,22 +62,22 @@ symbols <- unique(data$Symbol)
 
 
 for (symbol in symbols) {
-  symbol_data <- data[data$Symbol == symbol,]
+  symbol_data <- data[data$Symbol == symbol, ]
   rv_values <- symbol_data$RV_5
-  
+
   # Percent of zeros
   percent_zeros <- sum(rv_values == 0) / length(rv_values)
-  
+
   cat(paste0("Symbol: ", symbol, " | Percent Zeros in RV: ", round(percent_zeros * 100, 2), "%\n"))
 }
 
 # --- Function to Fit Realized GARCH Model for One Symbol --- #
 fit_symbol_garch <- function(symbol) {
   print(paste0("Fitting model for symbol: ", symbol))
-  
-  symbol_data <- data[data$Symbol == symbol,]
-  symbol_training_data <- training_data[training_data$Symbol == symbol,]
-  symbol_test_data <- test_data[test_data$Symbol == symbol,]
+
+  symbol_data <- data[data$Symbol == symbol, ]
+  symbol_training_data <- training_data[training_data$Symbol == symbol, ]
+  symbol_test_data <- test_data[test_data$Symbol == symbol, ]
 
   window_size <- length(symbol_training_data$Date)
   symbol_data <- rbind(symbol_training_data, symbol_test_data)
@@ -113,12 +112,15 @@ fit_symbol_garch <- function(symbol) {
       distribution.model = dist_assumption
     )
 
-    fit <- tryCatch({
-      ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
-    }, error = function(e) {
-      print(paste0("ugarchfit error for symbol", symbol, " at i = ", i, ": ", e$message))
-      return(NULL)
-    })
+    fit <- tryCatch(
+      {
+        ugarchfit(spec = spec, data = returns_train_trimmed, solver = "hybrid")
+      },
+      error = function(e) {
+        print(paste0("ugarchfit error for symbol", symbol, " at i = ", i, ": ", e$message))
+        return(NULL)
+      }
+    )
 
     if (is.null(fit)) next
 
@@ -154,5 +156,3 @@ final_results <- rbindlist(results_list)
 write.csv(final_results, paste0("Code/predictions/realized_garch_forecast_", dist_assumption, ".csv"), row.names = FALSE)
 
 print("Done")
-
-
