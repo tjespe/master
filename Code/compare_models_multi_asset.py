@@ -3473,7 +3473,12 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.gca().yaxis.set_major_locator(mtick.MultipleLocator(0.05))
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.ylim(-0.27, 0.15)
-            # plt.title(f"{display_name} predictions for {ticker} on test data")
+            # Place title inside the plot (top center) to save space
+            plt.title(
+                f"{display_name} predictions for {ticker} on test data",
+                loc="center",
+                pad=-10,
+            )
             # Place legend in the right corner
             plt.legend(
                 loc="lower right",
