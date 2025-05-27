@@ -297,8 +297,8 @@ except FileNotFoundError:
 
 # AR GARCH Model
 for version in [
-    "AR(1)-GARCH(1,1)-normal",
-    "AR(1)-GARCH(1,1)-t",
+    "AR(3)-GARCH(1,1)-normal",
+    "AR(3)-GARCH(1,1)-t",
     "AR(10)-GARCH(1,1)-normal",
 ]:
     try:

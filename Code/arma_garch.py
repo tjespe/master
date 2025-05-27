@@ -1,7 +1,7 @@
 # %%
 # Define version paramaters
 AR_LAGS = 3
-DIST = "normal"  # "normal" or "t"
+DIST = "t"  # "normal" or "t"
 
 VERSION = f"AR({AR_LAGS})-GARCH({1},{1})-{DIST}"
 
@@ -60,7 +60,7 @@ df
 
 # %%
 # Filter away data before the start of the training set
-df = df[df.index.get_level_values("Date") >= "1990-01-01"]
+df = df[df.index.get_level_values("Date") >= "2003-01-02"]
 df
 
 # %%
@@ -121,7 +121,7 @@ def process_symbol(symbol,df):
     df_validation_symbol["AR_GARCH_Vol"] = np.array(garch_vol_pred)
     if DIST == "t":
         df_validation_symbol["AR_GARCH_Nu"] = np.array(nu_values)
-    df_validation_symbol["AR_GARCH_Mean"] = np.zeros_like(garch_vol_pred)
+    df_validation_symbol["AR_GARCH_Mean"] = np.array(garch_mean_pred)
 
     return df_validation_symbol
 
@@ -213,6 +213,9 @@ for cl in confidence_levels:
 
 # %%
 df_validation.to_csv(f"predictions/predictions_{VERSION}.csv")
+
+
+
 # %%
 ################################ Code to determine the optimal number of lags based on the training data fit #########################
 
