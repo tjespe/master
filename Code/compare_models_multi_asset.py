@@ -1186,10 +1186,9 @@ for version in ["RV", "IV", "RV_IV"]:
         if np.isnan(DB_preds).all().all():
             raise FileNotFoundError(f"All DB RV_only predictions are NaN")
         combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
-        # make a Mean_SP column full of 0s for now
-        combined_df["Mean_SP"] = None
+        combined_df["Mean_SP"] = np.nan
         # same for Vol_SP
-        combined_df["Vol_SP"] = None
+        combined_df["Vol_SP"] = np.nan
         # same for NLL
         combined_df["nll"] = np.nan
 
@@ -1221,10 +1220,6 @@ for version in ["RV", "IV", "RV_IV"]:
                 "ES_0.01": combined_df[f"DB_{key}_ES_0.99"].values,
             }
         )
-        # nans = combined_df["Mean_SP"].isnull().sum()
-        nans = 0
-        if nans > 0:
-            print(f"DB has {nans} NaN predictions")
     except FileNotFoundError:
         print(f"DB {version} predictions not found")
 ###########################################
@@ -3438,12 +3433,13 @@ for model_set in [our, traditional, ml_benchmarks]:
         log_df[es_key] = np.array(entry.get(es_key))
         df = np.exp(log_df) - 1
         for ticker in example_tickers:
+            print(display_name, ":", ticker)
             true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
             # true_log_ret = true_log_ret.loc["2020":"2021"]
             true_ret = np.exp(true_log_ret) - 1
             ticker_df = df.xs(ticker, level="Symbol")
             # ticker_df = ticker_df.loc["2020":"2021"]
-            plt.figure(figsize=(16, 4))
+            plt.figure(figsize=(12, 3))
             plt.plot(
                 true_ret,
                 label="Actual Returns",
@@ -3451,12 +3447,13 @@ for model_set in [our, traditional, ml_benchmarks]:
                 alpha=0.5,
                 linewidth=1,
             )
-            plt.plot(
-                ticker_df["Mean"],
-                label="Predicted Mean",
-                color=colors["secondary"],
-                linewidth=1,
-            )
+            if not ticker_df["Mean"].isnull().all():
+                plt.plot(
+                    ticker_df["Mean"],
+                    label="Predicted Mean",
+                    color=colors["secondary"],
+                    linewidth=1,
+                )
             plt.plot(
                 ticker_df[var_key],
                 label="VaR 97.5%",
@@ -3474,14 +3471,15 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.gca().yaxis.set_major_locator(mtick.MultipleLocator(0.05))
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.ylim(-0.27, 0.15)
-            plt.title(f"{display_name} predictions for {ticker} on test data")
+            # plt.title(f"{display_name} predictions for {ticker} on test data")
+            # Place legend in the right corner
             plt.legend(
-                loc="upper center",
-                bbox_to_anchor=(0.5, -0.15),
-                ncol=4,
+                loc="lower right",
                 fontsize=10,
                 frameon=False,
             )
+            # Make x-axis fill the whole width
+            plt.xlim(ticker_df.index.min(), ticker_df.index.max())
             plt.tight_layout()
             plt.savefig(f"results/time_series/var_es/{ticker}_{model_name}.pdf")
             plt.show()

@@ -38,9 +38,9 @@ mpl.rcParams.update(
 # === Akser og Rutenett ===
 mpl.rcParams.update(
     {
-        "axes.grid": True,
-        "grid.linestyle": "--",
-        "grid.linewidth": 0.5,
+        "axes.grid": False,
+        # "grid.linestyle": "--",
+        # "grid.linewidth": 0.5,
         "axes.spines.top": False,
         "axes.spines.right": False,
         "legend.frameon": False,
