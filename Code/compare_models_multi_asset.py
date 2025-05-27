@@ -799,9 +799,10 @@ for version in ["iv", "rv", "rv-iv"]:
             raise Exception(f"All LSTM QREG {version} predictions are NaN")
         combined_df = df_validation.join(lstm_qr_df, how="left", rsuffix="_LSTM_MDN")
         ece_col = combined_df.get("ECE")
+        combined_df["Mean"] = np.nan
         entry = {
             "name": f"LSTM QREG {version}",
-            "mean_pred": np.zeros_like(combined_df["LB_90"].values),
+            "mean_pred": combined_df["Mean"],
             "volatility_pred": None,
             "nll": None,
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -3439,7 +3440,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             true_ret = np.exp(true_log_ret) - 1
             ticker_df = df.xs(ticker, level="Symbol")
             # ticker_df = ticker_df.loc["2020":"2021"]
-            plt.figure(figsize=(12, 3))
+            plt.figure(figsize=(13, 2.5))
             plt.plot(
                 true_ret,
                 label="Actual Returns",
