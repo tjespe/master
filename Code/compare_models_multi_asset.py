@@ -1583,7 +1583,7 @@ for entry in preds_per_model:
     entry["rmse_RV"] = rmse_RV
 
     correlation = calculate_uncertainty_error_correlation(
-        y_test_actual, entry["mean_pred"], interval_width
+        y_test_actual, np.array(entry["mean_pred"]), interval_width
     )
     entry["uncertainty_error_correlation"] = correlation
 
@@ -3416,6 +3416,7 @@ for model_set in [our, traditional, ml_benchmarks]:
 
 # %%
 # Plot VaR 97.5% and ES 97.5% per model
+example_tickers = ["AAPL", "WMT"]
 for model_set in [our, traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
