@@ -799,9 +799,10 @@ for version in ["iv", "rv", "rv-iv"]:
             raise Exception(f"All LSTM QREG {version} predictions are NaN")
         combined_df = df_validation.join(lstm_qr_df, how="left", rsuffix="_LSTM_MDN")
         ece_col = combined_df.get("ECE")
+        combined_df["Mean"] = np.nan
         entry = {
             "name": f"LSTM QREG {version}",
-            "mean_pred": np.zeros_like(combined_df["LB_90"].values),
+            "mean_pred": combined_df["Mean"],
             "volatility_pred": None,
             "nll": None,
             "symbols": combined_df.index.get_level_values("Symbol"),
@@ -1582,7 +1583,7 @@ for entry in preds_per_model:
     entry["rmse_RV"] = rmse_RV
 
     correlation = calculate_uncertainty_error_correlation(
-        y_test_actual, entry["mean_pred"], interval_width
+        y_test_actual, np.array(entry["mean_pred"]), interval_width
     )
     entry["uncertainty_error_correlation"] = correlation
 
@@ -2416,9 +2417,9 @@ ml_benchmarks = [
     ("LightGBM-RV", "Benchmark LightGBM RV"),
     ("LightGBM-IV", "Benchmark LightGBM IV"),
     ("LightGBM-RV-IV", "Benchmark LightGBM RV_IV"),
-    ("LSTM-RV", "LSTM QREG rv"),
-    ("LSTM-IV", "LSTM QREG iv"),
-    ("LSTM-RV-IV", "LSTM QREG rv-iv"),
+    ("LSTM-QREG-RV", "LSTM QREG rv"),
+    ("LSTM-QREG-IV", "LSTM QREG iv"),
+    ("LSTM-QREG-RV-IV", "LSTM QREG rv-iv"),
 ]
 
 # %%
@@ -3415,6 +3416,7 @@ for model_set in [our, traditional, ml_benchmarks]:
 
 # %%
 # Plot VaR 97.5% and ES 97.5% per model
+example_tickers = ["AAPL", "WMT"]
 for model_set in [our, traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
@@ -3439,7 +3441,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             true_ret = np.exp(true_log_ret) - 1
             ticker_df = df.xs(ticker, level="Symbol")
             # ticker_df = ticker_df.loc["2020":"2021"]
-            plt.figure(figsize=(12, 3))
+            plt.figure(figsize=(13, 2.5))
             plt.plot(
                 true_ret,
                 label="Actual Returns",
@@ -3471,7 +3473,12 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.gca().yaxis.set_major_locator(mtick.MultipleLocator(0.05))
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.ylim(-0.27, 0.15)
-            # plt.title(f"{display_name} predictions for {ticker} on test data")
+            # Place title inside the plot (top center) to save space
+            plt.title(
+                f"{display_name} predictions for {ticker} on test data",
+                loc="center",
+                pad=-10,
+            )
             # Place legend in the right corner
             plt.legend(
                 loc="lower right",
