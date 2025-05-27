@@ -216,6 +216,12 @@ def train_and_predict_lgb(
     label=None,
 ):
     """Trains an LGBMRegressor model for a specific quantile and predicts on test data."""
+    fname = f"trained/lgb_{VERSION}_{label}_{quantile_alpha}.txt"
+    if os.path.exists(fname):
+        print(f"Model {fname} already exists, loading it.")
+        model = lgb.Booster(model_file=fname)
+        return model.predict(X_test)
+
     model = LGBMRegressor(
         objective="quantile",
         alpha=quantile_alpha,
@@ -248,7 +254,7 @@ def train_and_predict_lgb(
 
     # Save model in case we need it later
     if label:
-        model.booster_.save_model(f"trained/lgb_{VERSION}_{label}_{quantile_alpha}.txt")
+        model.booster_.save_model(fname)
 
     return model.predict(X_test)
 

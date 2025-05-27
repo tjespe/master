@@ -215,6 +215,15 @@ def train_and_predict_xgb(
     X_train, y_train, X_val, y_val, X_test, quantile_alpha, label=None
 ):
     """Trains an XGBoost model for a specific quantile and predicts."""
+    fname = f"trained/xgb_{VERSION}_{label}_{quantile_alpha}.json"
+    if label is not None and os.path.exists(fname):
+        print(
+            f"Model for {label} and quantile {quantile_alpha} already exists. Loading..."
+        )
+        model = XGBRegressor()
+        model.load_model(fname)
+        return model.predict(X_test)
+
     model = XGBRegressor(
         quantile_alpha=quantile_alpha,
         objective="reg:quantileerror",

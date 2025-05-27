@@ -106,6 +106,7 @@ from tensorflow.keras.regularizers import l2
 
 warnings.filterwarnings("ignore")
 
+
 # %%
 def build_lstm_mdn(
     num_features: int,
@@ -523,28 +524,6 @@ if __name__ == "__main__":
         var_estimates = intervals[:, i, 0]
         es = calculate_es_for_quantile(pi_pred, mu_pred, sigma_pred, var_estimates)
         df_validation[f"ES_{format_cl(1-alpha)}"] = es
-
-    # %%
-    # Example plot of ES
-    df_validation.set_index(["Date", "Symbol"]).xs("AAPL", level="Symbol").sort_index()[
-        ["LB_90", "ES_95", "LB_98", "ES_99"]
-    ].rename(
-        columns={
-            "LB_90": "95% VaR",
-            "ES_95": "95% ES",
-            "LB_98": "99% VaR",
-            "ES_99": "99% ES",
-        }
-    ).plot(
-        title="99% VaR and ES for AAPL",
-        # Color appropriately
-        color=["#ffaaaa", "#ff0000", "#aaaaff", "#0000ff"],
-        figsize=(12, 6),
-    )
-    plt.savefig(f"results/ES/AAPL_{MODEL_NAME}.pdf")
-    if is_notebook():
-        plt.show()
-    plt.close()
 
     # %%
     # Calculate probability of price increase
