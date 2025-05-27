@@ -327,6 +327,15 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
 
         for (model_name in names(model_list)) {
           model_data <- model_list[[model_name]]
+          bad <- names(model_data) == "" | is.na(names(model_data))
+
+          if (any(bad)) {
+            dropped_cols <- names(model_data)[bad]
+            model_data <- model_data[ , !bad]
+            cat("  ⚠️  Dropped", sum(bad), "column(s) with empty or NA names from", model_name, "\n")
+            cat("  Columns dropped: "); dput(dropped_cols)
+          }
+
           symbols <- unique(model_data$Symbol)
           # Print model name
           cat("  Model:", model_name, "\n")
@@ -360,6 +369,23 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
               r <- joint$LogReturn
               q <- joint[[alpha_col]]
               e <- joint[[es_col]]
+
+              # Check if r, q or e has any NA values
+              if (any(is.na(r)) || any(is.na(q)) || any(is.na(e))) {
+                cat("      Symbol:", sym, "has NA values in returns or predictions. Skipping.\n")
+                if (any(is.na(r))) {
+                  cat("        Returns have NA values.\n")
+                }
+                if (any(is.na(q))) {
+                  cat("        Quantile predictions have NA values.\n")
+                  cat("        Alpha column used:", alpha_col, "\n")
+                }
+                if (any(is.na(e))) {
+                  cat("        Expected shortfall predictions have NA values.\n")
+                  cat("        ES column used:", es_col, "\n")
+                }
+                next
+              }
 
               result <- tryCatch(
                 {

@@ -1187,9 +1187,9 @@ for version in ["RV", "IV", "RV_IV"]:
             raise FileNotFoundError(f"All DB RV_only predictions are NaN")
         combined_df = df_validation.join(DB_preds, how="left", rsuffix="_DB")
         # make a Mean_SP column full of 0s for now
-        combined_df["Mean_SP"] = 0
+        combined_df["Mean_SP"] = None
         # same for Vol_SP
-        combined_df["Vol_SP"] = 0
+        combined_df["Vol_SP"] = None
         # same for NLL
         combined_df["nll"] = np.nan
 
