@@ -1,11 +1,22 @@
 # Following the Hansen et al. (2012), (2014) papers, we will use the realized GARCH model to forecast volatility.
+#%%
 install.packages("rugarch")
+install.packages("data.table")
+install.packages("readr")
+install.packages("future.apply")
+install.packages("xts")
 # Load libraries #
 library(rugarch)
 library(readr)
-
+library(data.table)
+library(future.apply)
+library(xts) # For time series data handling
+# %%
+# Plan how to parallelize: multiprocess works on Windows/Linux/Mac
+plan(multisession, workers = parallel::detectCores() - 1)
+# %%
 dist_assumption <- "norm" # set "norm" for normal and "std" for student-t
-
+# %%
 # Load data #
 capire_data = read.csv("~/Master/master/Code/data/dow_jones/processed_data/processed_capire_stock_data_dow_jones.csv")
 return_data = read.csv("~/Master/master/Code/data/dow_jones/processed_data/dow_jones_stocks_1990_to_today_19022025_cleaned_garch.csv")
@@ -14,7 +25,7 @@ return_data = read.csv("~/Master/master/Code/data/dow_jones/processed_data/dow_j
 
 # Return data
 # Remove all coloumns except Date, Symbol, Total Return and LogReturn
-return_data = return_data[,c("Date", "Symbol", "TotalReturn", "LogReturn")]
+return_data = return_data[,c("Date", "Symbol", "LogReturn")]
 # remove .O at the end of all symbols
 return_data$Symbol = gsub("\\.O", "", return_data$Symbol)
 # ensure that the Date column is in the correct format
@@ -47,8 +58,7 @@ test_data = data[data$Date >= as.Date("2021-12-31"),]
 # Loop trough symbols and fit model
 symbols = unique(data$Symbol)
 
-# inititialize list to store results
-results = list()
+#%%
 
 # --- Function to Fit Realized GARCH Model for One Symbol --- #
 fit_symbol_garch <- function(symbol) {
@@ -67,14 +77,18 @@ fit_symbol_garch <- function(symbol) {
   rv <- pmax(rv, epsilon)
   dates <- as.Date(symbol_data$Date)
 
+  # make two xts series in order to use the ugarchfit function
+  returns_xts <- xts(returns, order.by = dates)
+  rv_xts      <- xts(rv, order.by = dates)
+
   total_observations <- length(returns)
   forecast_volatility <- rep(NA, total_observations - window_size)
   forecast_dates <- dates[(window_size + 1):total_observations]
 
   for (i in seq(window_size, total_observations - 1)) {
     # 1) expanding-window data. # no need to lag returns and RV as the realGARCH model will do that internally
-    returns_train <- returns[1:i] 
-    RV_train      <- rv[1:i]
+    returns_train_xts <- returns_xts[1:i]
+    rv_train_xts      <- rv_xts[1:i]
 
     # 2) RealGARCH(1,1) spec
     spec <- ugarchspec(
@@ -87,7 +101,7 @@ fit_symbol_garch <- function(symbol) {
 
     # 3) fit with realizedVol = RV_train
     fit <- tryCatch(
-        ugarchfit(spec, data = returns_train, realizedVol = RV_train,
+        ugarchfit(spec, data = returns_train_xts, realizedVol = rv_train_xts,
                 solver = "hybrid"),
         error = function(e) {
         message("Fit error at i=", i, ": ", e$message)
@@ -97,8 +111,13 @@ fit_symbol_garch <- function(symbol) {
     if (is.null(fit)) next
 
     # 4) next-day forecast: pass rv[i] (the last observed RV) as the next realizedVol
-    fc <- ugarchforecast(fit, n.ahead = 1, realizedVol = rv[i])
+    next_date <- index(returns_xts)[i]  # date of observation i
+    fc <- ugarchforecast(
+    fit, n.ahead=1,
+    realizedVol = xts(rv_xts[i], order.by = next_date)
+  )
     forecast_volatility[i - window_size + 1] <- sigma(fc)
+  
 
     # 5) progress
     if (((i - window_size + 1) %% 10) == 0) {
@@ -117,12 +136,13 @@ fit_symbol_garch <- function(symbol) {
 
   return(forecast_results)
 }
-
+# %%
 # --- Parallel execution across symbols --- #
 results_list <- future_lapply(symbols, fit_symbol_garch)
-
+# %%
 # Combine results
 final_results <- rbindlist(results_list)
+# %%
 
 # write results to csv including the distribution assumption at the end of the file name
 write.csv(final_results, paste0("~/Master/master/Code/predictions/realized_garch_forecast_actual", dist_assumption, ".csv"))
