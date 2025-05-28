@@ -560,7 +560,7 @@ for version in ["norm", "std"]:
                 else (realized_garch_dates >= VALIDATION_TEST_SPLIT)
             )
         ]
-        if np.isnan(realized_garch_preds["Forecast_Volatility"]).all():
+        if np.isnan(realized_garch_preds["Forecast_Volatility_real_garch"]).all():
             raise FileNotFoundError("All Realized GARCH predictions are NaN")
         combined_df = df_validation.join(
             realized_garch_preds, how="left", rsuffix="_Realized_GARCH"

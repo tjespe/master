@@ -53,7 +53,7 @@ data = merge(return_data, capire_data, by = c("Date", "Symbol"))
 
 # define training and test data
 training_data = data[data$Date >= as.Date("2003-01-02") & data$Date < as.Date("2019-12-31"),]
-test_data = data[data$Date >= as.Date("2021-12-31"),]
+test_data = data[data$Date >= as.Date("2019-12-31"),]
 
 # Loop trough symbols and fit model
 symbols = unique(data$Symbol)
