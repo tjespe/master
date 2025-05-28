@@ -67,7 +67,7 @@ from shared.mdn import (
     calculate_es_for_quantile,
     calculate_intervals_vectorized,
     parse_mdn_output,
-    univariate_mixture_mean_and_var_approx,
+    mdn_mean_and_var,
 )
 from settings import (
     LOOKBACK_DAYS,
@@ -129,10 +129,11 @@ if __name__ == "__main__":
 
     def predict(x_flat: np.ndarray) -> np.ndarray:
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
-        raw, _ = ensemble_model.predict(X)
+        raw, epistemic_var = ensemble_model.predict(X)
         pi, mu, sigma = parse_mdn_output(raw, N_MIXTURES * N_ENSEMBLE_MEMBERS)
-        mean, var = univariate_mixture_mean_and_var_approx(pi, mu, sigma)
-        vol = np.sqrt(var)
+        mean, var = mdn_mean_and_var(pi, mu, sigma)
+        aleatoric_var = var - epistemic_var
+        vol = np.sqrt(aleatoric_var)
         intervals = calculate_intervals_vectorized(pi, mu, sigma, confidence_levels)
         VaR_estimates = []
         ES_estimates = []

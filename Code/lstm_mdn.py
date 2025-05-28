@@ -49,7 +49,7 @@ from shared.mdn import (
     parse_mdn_output,
     plot_sample_days,
     predict_with_mc_dropout_mdn,
-    univariate_mixture_mean_and_var_approx,
+    mdn_mean_and_var,
 )
 from shared.loss import (
     ece_mdn,
@@ -359,9 +359,7 @@ df_validation = pd.DataFrame(
 )
 # %%
 # For comparison to other models, compute mixture means & variances
-uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
-    pi_pred, mu_pred, sigma_pred
-)
+uni_mixture_mean_sp, uni_mixture_var_sp = mdn_mean_and_var(pi_pred, mu_pred, sigma_pred)
 uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
 uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
 df_validation["Mean_SP"] = uni_mixture_mean_sp

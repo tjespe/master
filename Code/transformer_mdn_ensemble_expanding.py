@@ -67,7 +67,7 @@ from shared.mdn import (
     parse_mdn_output,
     plot_sample_day,
     plot_sample_days,
-    univariate_mixture_mean_and_var_approx,
+    mdn_mean_and_var,
 )
 from transformer_mdn_ensemble import FixedLearningRateSchedule, build_transformer_mdn
 from shared.loss import (
@@ -418,13 +418,12 @@ if __name__ == "__main__":
     )
     # %%
     # For comparison to other models, compute mixture means & variances
-    uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
-        pi_pred, mu_pred, sigma_pred
-    )
-    uni_mixture_mean_sp = uni_mixture_mean_sp.numpy()
-    uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
-    df_validation["Mean_SP"] = uni_mixture_mean_sp
-    df_validation["Vol_SP"] = uni_mixture_std_sp
+    mixture_mean_sp, total_var = mdn_mean_and_var(pi_pred, mu_pred, sigma_pred)
+    aleatoric_var = total_var - epistemic_var
+    mixture_mean_sp = mixture_mean_sp.numpy()
+    mixture_vol = np.sqrt(aleatoric_var.numpy())
+    df_validation["Mean_SP"] = mixture_mean_sp
+    df_validation["Vol_SP"] = mixture_vol
 
     # %%
     # Calculate loss

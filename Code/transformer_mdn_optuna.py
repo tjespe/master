@@ -46,7 +46,6 @@ from shared.mdn import (
     get_mdn_kernel_initializer,
     parse_mdn_output,
     predict_with_mc_dropout_mdn,
-    univariate_mixture_mean_and_var_approx,
 )
 from shared.loss import (
     mdn_crps_tf,
