@@ -3589,10 +3589,12 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.ylim(-0.27, 0.15)
             # Place title inside the plot (top center) to save space
             plt.title(
-                f"{display_name} predictions for {ticker} on test data",
+                f"{display_name} 97.5% VaR and ES predictions for {ticker} on test data",
                 loc="center",
                 pad=-10,
             )
+            plt.xlabel("Date")
+            plt.ylabel("Returns")
             # Place legend in the right corner
             plt.legend(loc="lower right", frameon=False)
             # Make x-axis fill the whole width
