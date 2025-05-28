@@ -30,7 +30,7 @@ mpl.rcParams.update(
         "axes.labelsize": 12,
         "xtick.labelsize": 11,
         "ytick.labelsize": 11,
-        "legend.fontsize": 11,
+        "legend.fontsize": 10,
         "font.size": 12,
     }
 )
@@ -38,9 +38,9 @@ mpl.rcParams.update(
 # === Akser og Rutenett ===
 mpl.rcParams.update(
     {
-        "axes.grid": False,
-        # "grid.linestyle": "--",
-        # "grid.linewidth": 0.5,
+        "axes.grid": True,
+        "grid.linestyle": "--",
+        "grid.linewidth": 0.5,
         "axes.spines.top": False,
         "axes.spines.right": False,
         "legend.frameon": False,

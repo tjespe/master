@@ -37,6 +37,7 @@ from scipy.stats import ttest_1samp
 from arch.bootstrap import MCS
 import matplotlib.ticker as mtick
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
+from matplotlib import dates as mdates
 
 
 # %%
@@ -376,7 +377,7 @@ for version in [
 
 # HAR Model
 for version in [
-    "python",
+    # "python",
     # "R",
 ]:
     try:
@@ -437,7 +438,7 @@ for version in [
         print(f"HAR_{version} predictions not found")
 
 # HARQ Model
-for version in ["python"]:
+for version in []:  # "python"]:
     try:
         harq_preds = pd.read_csv(f"predictions/HARQ_{version}.csv")
         harq_preds["Date"] = pd.to_datetime(harq_preds["Date"])
@@ -566,6 +567,8 @@ for version in ["norm", "std"]:
             realized_garch_preds, how="left", rsuffix="_Realized_GARCH"
         )
         realized_garch_preds = combined_df["Forecast_Volatility_real_garch"].values
+        # Replace extremely low volatility predictions with NaN, because there is some issue with the model
+        realized_garch_preds[realized_garch_preds < 1e-10] = np.nan
         y_true = combined_df["LogReturn"].values
         mus = combined_df["Mean_real_garch"].values
 
@@ -1774,10 +1777,10 @@ for entry in preds_per_model:
                 passes / (passes + fails) if passes or fails else np.nan
             )
             results[f"[{format_cl(es_alpha)}] FZ Loss"].append(
-                np.mean(entry[f"FZ0_{es_str}"])
+                np.nanmean(entry[f"FZ0_{es_str}"])
             )
             results[f"[{format_cl(es_alpha)}] AL Loss"].append(
-                np.mean(entry[f"AL_{es_str}"])
+                np.nanmean(entry[f"AL_{es_str}"])
             )
 
 
@@ -2397,9 +2400,8 @@ traditional = [
     ("GARCH Skewed-t", "GARCH Skewed-t"),
     ("EGARCH", "EGARCH"),
     ("Realized GARCH", "Realized GARCH norm"),
-    ("Realized GARCH-t", "Realized GARCH std"),
-    ("AR-GARCH", "AR(1)-GARCH(1,1)-normal"),
-    ("AR-GARCH-t", "AR(1)-GARCH(1,1)-t"),
+    ("AR-GARCH", "AR(3)-GARCH(1,1)-normal"),
+    ("AR-GARCH-t", "AR(3)-GARCH(1,1)-t"),
     ("HAR-QREG", "HAR-QREG"),
     ("HARQ-QREG", "HARQ-QREG"),
     ("HAR-IV-QREG", "HAR_IVOL-QREG"),
@@ -2486,11 +2488,13 @@ for model_set in [our, traditional, ml_benchmarks]:
             underline.append(row.get(model_name) == row[row["Winner"]])
         bold = (comp_numbers < benchmark_vals).all(axis=0)
         print(display_name, end=" ")
-        for val, under, b in zip(metrics, underline, bold):
-            if under:
-                val = f"\\underline{{{val}}}"
-            if b and model_set == our:
-                val = f"\\textbf{{{val}}}"
+        for val, under, b, key in zip(metrics, underline, bold, comparison_keys):
+            # Don't underline or bold PICP and MPIW metrics as it does not make much sense
+            if "MPIW" not in key and "PICP" not in key:
+                if under:
+                    val = f"\\underline{{{val}}}"
+                if b and model_set == our:
+                    val = f"\\textbf{{{val}}}"
             print("&", val, end=" ")
         print("\\\\")
 
@@ -3015,7 +3019,7 @@ for display_name, model_name in our:
 # Look at how different loss functions change over time for the best performing models of each type
 for variant in ["", "cumulative_"]:
     for title, loss_fn in [
-        ("Negative Log-Likelihood", "nll"),
+        ("Negative Log-Likelihood (NLL)", "nll"),
         ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
         ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
         ("Quantile Loss (QL) for the 2.5% quantile", "quantile_loss_2.5"),
@@ -3050,6 +3054,7 @@ for variant in ["", "cumulative_"]:
         # Merge all series into a single DataFrame
         loss_df = pd.concat(series, axis=1)
         # Loop through the models and plot them
+        n_models = 0
         for zorder, name in list(enumerate(models))[::-1]:
             display_name = model_name
             for model_set in [our, traditional, ml_benchmarks]:
@@ -3074,15 +3079,21 @@ for variant in ["", "cumulative_"]:
                 alpha=0.8,
                 zorder=zorder,
             )
+            n_models += 1
         if variant == "cumulative_":
             title = f"Cumulative {title}"
         plt.title(title)
         plt.tight_layout()
+        plt.xlim(
+            loss_df.index.get_level_values("Date").min(),
+            loss_df.index.get_level_values("Date").max(),
+        )
+        plt.ylabel("Loss")
+        plt.xlabel("Date")
         plt.legend(
             loc="upper center",
             bbox_to_anchor=(0.5, -0.15),
-            ncol=4,
-            fontsize=10,
+            ncol=n_models / 2,
             frameon=False,
         )
         plt.savefig(f"results/loss/{variant}{loss_fn}.pdf")
@@ -3171,9 +3182,10 @@ for model_set in [our, traditional, ml_benchmarks]:
                 loc="upper center",
                 bbox_to_anchor=(0.5, -0.15),
                 ncol=4,
-                fontsize=10,
                 frameon=False,
             )
+            plt.ylabel("Returns")
+            plt.xlabel("Date")
             # Ensure everything fits in the figure
             plt.tight_layout()
             plt.savefig(f"results/time_series/{ticker}_{model_name}.pdf")
@@ -3256,7 +3268,6 @@ for model_set in [our, traditional, ml_benchmarks]:
                 loc="upper center",
                 bbox_to_anchor=(0.5, -0.15),
                 ncol=3,
-                fontsize=10,
                 frameon=False,
             )
             fig, ax = plt.gcf(), plt.gca()
@@ -3404,7 +3415,6 @@ for model_set in [our, traditional, ml_benchmarks]:
                 loc="upper center",
                 bbox_to_anchor=(0.5, -0.15),
                 ncol=3,
-                fontsize=10,
                 frameon=False,
             )
             plt.tight_layout()
@@ -3480,11 +3490,7 @@ for model_set in [our, traditional, ml_benchmarks]:
                 pad=-10,
             )
             # Place legend in the right corner
-            plt.legend(
-                loc="lower right",
-                fontsize=10,
-                frameon=False,
-            )
+            plt.legend(loc="lower right", frameon=False)
             # Make x-axis fill the whole width
             plt.xlim(ticker_df.index.min(), ticker_df.index.max())
             plt.tight_layout()

@@ -67,9 +67,10 @@ garch_norm <- read.csv(file.path(base_path_predictions, "GARCH_preds_enriched.cs
 garch_t <- read.csv(file.path(base_path_predictions, "garch_predictions_student_t.csv"))
 garch_skew_t <- read.csv(file.path(base_path_predictions, "garch_predictions_skewed_t.csv"))
 rv_garch <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_std.csv"))
-ar_garch_norm <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-normal.csv"))
-ar_garch_t <- read.csv(file.path(base_path_predictions, "predictions_AR(1)-GARCH(1,1)-t.csv")) # Not included because file name is missing
+ar_garch_norm <- read.csv(file.path(base_path_predictions, "predictions_AR(3)-GARCH(1,1)-normal.csv"))
+ar_garch_t <- read.csv(file.path(base_path_predictions, "predictions_AR(3)-GARCH(1,1)-t.csv")) # Not included because file name is missing
 egarch <- read.csv(file.path(base_path_predictions, "EGARCH_preds_enriched.csv"))
+realized_garch <- read.csv(file.path(base_path_predictions, "realized_garch_forecast_actual_norm.csv"))
 
 
 # filter only for test set, from test_set_start_date to 2024-03-28
@@ -80,6 +81,7 @@ rv_garch <- rv_garch[rv_garch$Date >= test_set_start_date & rv_garch$Date <= "20
 ar_garch_norm <- ar_garch_norm[ar_garch_norm$Date >= test_set_start_date & ar_garch_norm$Date <= "2024-03-28", ]
 ar_garch_t <- ar_garch_t[ar_garch_t$Date >= test_set_start_date & ar_garch_t$Date <= "2024-03-28", ]
 egarch <- egarch[egarch$Date >= test_set_start_date & egarch$Date <= "2024-03-28", ]
+realized_garch <- realized_garch[realized_garch$Date >= test_set_start_date & realized_garch$Date <= "2024-03-28", ]
 
 # remove .O at the end of the Symbol for the garch models
 garch_norm$Symbol <- gsub("\\.O$", "", garch_norm$Symbol)
@@ -89,6 +91,7 @@ rv_garch$Symbol <- gsub("\\.O$", "", rv_garch$Symbol)
 ar_garch_norm$Symbol <- gsub("\\.O$", "", ar_garch_norm$Symbol)
 ar_garch_t$Symbol <- gsub("\\.O$", "", ar_garch_t$Symbol)
 egarch$Symbol <- gsub("\\.O$", "", egarch$Symbol)
+realized_garch$Symbol <- gsub("\\.O$", "", realized_garch$Symbol)
 
 
 ######### HAR ##############
@@ -169,6 +172,7 @@ rv_garch <- rv_garch[rv_garch$Symbol != "DOW", ]
 ar_garch_norm <- ar_garch_norm[ar_garch_norm$Symbol != "DOW", ]
 ar_garch_t <- ar_garch_t[ar_garch_t$Symbol != "DOW", ]
 egarch <- egarch[egarch$Symbol != "DOW", ]
+realized_garch <- realized_garch[realized_garch$Symbol != "DOW", ]
 #######################################################################################################
 # TEST MODELS
 #######################################################################################################
@@ -215,11 +219,11 @@ es_config_garch <- list(
 model_list_garch <- list(
   "GARCH" = garch_norm,
   "EGARCH" = egarch,
-  "RV_GARCH" = rv_garch,
   "AR_GARCH" = ar_garch_norm,
   "AR_GARCH_t" = ar_garch_t,
   "GARCH_t" = garch_t,
-  "GARCH_skew_t" = garch_skew_t
+  "GARCH_skew_t" = garch_skew_t,
+  "Realized_GARCH" = realized_garch
 )
 
 #### BOOSTERS ####
@@ -294,8 +298,8 @@ es_config_har <- list(
 
 # Model list
 model_list_HAR <- list(
-  "HAR" = har,
-  "HARQ" = harq,
+  # "HAR" = har,
+  # "HARQ" = harq,
   "HAR_QREG" = har_qreq,
   "HAR_IVOL_QREG" = har_ivol_qreq,
   "HARQ_QREG" = harq_qreq
@@ -331,9 +335,10 @@ run_esr_backtests <- function(all_model_groups, return_data, test_versions = c(1
 
           if (any(bad)) {
             dropped_cols <- names(model_data)[bad]
-            model_data <- model_data[ , !bad]
+            model_data <- model_data[, !bad]
             cat("  ⚠️  Dropped", sum(bad), "column(s) with empty or NA names from", model_name, "\n")
-            cat("  Columns dropped: "); dput(dropped_cols)
+            cat("  Columns dropped: ")
+            dput(dropped_cols)
           }
 
           symbols <- unique(model_data$Symbol)
