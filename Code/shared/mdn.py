@@ -85,7 +85,7 @@ def parse_mdn_output(mdn_out, n_mixtures):
     return pi, mu, sigma
 
 
-def univariate_mixture_mean_and_var_approx(pi, mu, sigma_):
+def mdn_mean_and_var(pi, mu, sigma_):
     """
     Creates a univariate approximation of the mixture distribution.
 
@@ -129,7 +129,7 @@ def predict_with_mc_dropout_mdn(model, X, T=100, n_mixtures=5):
         pi, mu, sigma = parse_mdn_output(mdn_out, n_mixtures)
 
         # compute mixture mean & var for each sample
-        mean_s, var_s = univariate_mixture_mean_and_var_approx(pi, mu, sigma)
+        mean_s, var_s = mdn_mean_and_var(pi, mu, sigma)
         mc_means.append(np.array(mean_s))
         mc_vars.append(np.array(var_s))
 
