@@ -23,7 +23,7 @@ from shared.mdn import (
     get_mdn_bias_initializer,
     get_mdn_kernel_initializer,
     parse_mdn_output,
-    univariate_mixture_mean_and_var_approx,
+    mdn_mean_and_var,
 )
 from shared.loss import (
     ece_mdn,
@@ -199,9 +199,12 @@ if __name__ == "__main__":
 
     # %%
     # Mixture moments
-    mean_sp, var_sp = univariate_mixture_mean_and_var_approx(pi_all, mu_all, sigma_all)
-    df["Mean_SP"] = mean_sp.numpy()
-    df["Vol_SP"] = np.sqrt(var_sp.numpy())
+    mixture_mean_sp, total_var = mdn_mean_and_var(pi_all, mu_all, sigma_all)
+    aleatoric_var = total_var - epistemic_all
+    mixture_mean_sp = mixture_mean_sp.numpy()
+    mixture_vol = np.sqrt(aleatoric_var.numpy())
+    df["Mean_SP"] = mixture_mean_sp
+    df["Vol_SP"] = mixture_vol
 
     # %%
     # Calculate NLL

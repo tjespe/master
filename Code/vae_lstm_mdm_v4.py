@@ -24,7 +24,16 @@ import os
 import warnings
 
 from shared.loss import mdn_crps_tf, mdn_nll_numpy, mdn_nll_tf
-from shared.mdn import calculate_es_for_quantile, calculate_intervals_vectorized, calculate_prob_above_zero_vectorized, get_mdn_bias_initializer, get_mdn_kernel_initializer, parse_mdn_output, plot_sample_days, univariate_mixture_mean_and_var_approx
+from shared.mdn import (
+    calculate_es_for_quantile,
+    calculate_intervals_vectorized,
+    calculate_prob_above_zero_vectorized,
+    get_mdn_bias_initializer,
+    get_mdn_kernel_initializer,
+    parse_mdn_output,
+    plot_sample_days,
+    mdn_mean_and_var,
+)
 from shared.conf_levels import format_cl
 from shared.processing import get_lstm_train_test_new
 
@@ -77,7 +86,7 @@ def build_vae_encoder(lookback_days, num_features, latent_dim):
     encoder_inputs = Input(shape=(lookback_days, num_features))
     x = LSTM(32, activation="tanh")(encoder_inputs)
     # You can add Dropout or more layers, etc.
-    x = Dropout(0.2)(x) # TODO added afterwards to prevent overfitting (remove?)
+    x = Dropout(0.2)(x)  # TODO added afterwards to prevent overfitting (remove?)
     z_mean = Dense(latent_dim, name="z_mean")(x)
     z_log_var = Dense(latent_dim, name="z_log_var")(x)
 
@@ -87,11 +96,7 @@ def build_vae_encoder(lookback_days, num_features, latent_dim):
         epsilon = tf.random.normal(shape=(tf.shape(z_mean)[0], latent_dim))
         return z_mean + tf.exp(0.5 * z_log_var) * epsilon
 
-    z = Lambda(
-        sampling,
-        name="z",
-        output_shape=(latent_dim,)
-    )([z_mean, z_log_var])
+    z = Lambda(sampling, name="z", output_shape=(latent_dim,))([z_mean, z_log_var])
     encoder = Model(encoder_inputs, [z_mean, z_log_var, z], name="encoder")
     return encoder
 
@@ -116,7 +121,7 @@ def build_vae_decoder(lookback_days, num_features, latent_dim):
 
 # 2.1.3) VAE model with custom loss
 class VAE(tf.keras.Model):
-    def __init__(self, encoder, decoder, beta=1.0, **kwargs): # TODO beta=1.0 earlier
+    def __init__(self, encoder, decoder, beta=1.0, **kwargs):  # TODO beta=1.0 earlier
         super(VAE, self).__init__(**kwargs)
         self.encoder = encoder
         self.decoder = decoder
@@ -140,7 +145,9 @@ class VAE(tf.keras.Model):
 
             # Reconstruction loss (OLD) # TODO: check if this is correct (original code new below)
             reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(tf.square(x - reconstructed), axis=[1,2]) # TODO should this be axis=[1,2] or axis=1?
+                tf.reduce_sum(
+                    tf.square(x - reconstructed), axis=[1, 2]
+                )  # TODO should this be axis=[1,2] or axis=1?
             )
 
             # Reconstruction loss (NEW) TODO: check if this is correct
@@ -166,9 +173,8 @@ class VAE(tf.keras.Model):
             "recon_loss": reconstruction_loss,
             "kl_loss": kl_loss,
         }
-    
 
-    def test_step(self, data): # TODO: check if this is correct (added afterwards)
+    def test_step(self, data):  # TODO: check if this is correct (added afterwards)
         if isinstance(data, tuple):  # If a tuple (X, X) is passed, extract X
             x, _ = data
         else:
@@ -179,15 +185,20 @@ class VAE(tf.keras.Model):
 
         # reconstruction_loss = tf.reduce_mean(tf.square(x - reconstructed))
         reconstruction_loss = tf.reduce_mean(
-                tf.reduce_sum(tf.square(x - reconstructed), axis=[1,2]) # TODO should this be axis=[1,2] or axis=1?
-            )
+            tf.reduce_sum(
+                tf.square(x - reconstructed), axis=[1, 2]
+            )  # TODO should this be axis=[1,2] or axis=1?
+        )
         kl_loss = -0.5 * tf.reduce_mean(
             tf.reduce_sum(1 + z_log_var - tf.square(z_mean) - tf.exp(z_log_var), axis=1)
         )
 
         total_loss = reconstruction_loss + self.beta * kl_loss
-        return {"loss": total_loss, "recon_loss": reconstruction_loss, "kl_loss": kl_loss}
-
+        return {
+            "loss": total_loss,
+            "recon_loss": reconstruction_loss,
+            "kl_loss": kl_loss,
+        }
 
     @classmethod
     def from_config(cls, config, custom_objects=None):
@@ -199,7 +210,8 @@ class VAE(tf.keras.Model):
         encoder = build_vae_encoder(LOOKBACK_DAYS, num_features, latent_dim)
         decoder = build_vae_decoder(LOOKBACK_DAYS, num_features, latent_dim)
         return cls(encoder, decoder, beta=1.0)
-    
+
+
 # %% [markdown]
 # # 2.2) Build & train the VAE
 num_features = X_train.shape[2]
@@ -212,14 +224,16 @@ def dummy_loss(y_true, y_pred):
 
 encoder = build_vae_encoder(LOOKBACK_DAYS, num_features, latent_dim)
 decoder = build_vae_decoder(LOOKBACK_DAYS, num_features, latent_dim)
-vae = VAE(encoder, decoder, beta=1.0) # TODO beta=1.0 earlier
-vae.compile(optimizer=Adam(learning_rate=1e-4), loss=dummy_loss) # TODO: check if this is correct (earlier: learning_rate=1e-3)  
+vae = VAE(encoder, decoder, beta=1.0)  # TODO beta=1.0 earlier
+vae.compile(
+    optimizer=Adam(learning_rate=1e-4), loss=dummy_loss
+)  # TODO: check if this is correct (earlier: learning_rate=1e-3)
 
 # %%
 # Load vae from file if it exists
-if os.path.exists("models/"+MODEL_NAME + "_vae.keras"):
+if os.path.exists("models/" + MODEL_NAME + "_vae.keras"):
     vae = tf.keras.models.load_model(
-        "models/"+MODEL_NAME + "_vae.keras",
+        "models/" + MODEL_NAME + "_vae.keras",
         custom_objects={"VAE": VAE, "dummy_loss": dummy_loss},
     )
 
@@ -230,11 +244,24 @@ if os.path.exists("models/"+MODEL_NAME + "_vae.keras"):
 early_stopping = tf.keras.callbacks.EarlyStopping(
     monitor="val_loss", patience=5, restore_best_weights=True
 )
-vae.fit(X_train, epochs=20, batch_size=32, validation_data=(X_val, X_val), verbose=1, callbacks=[early_stopping])
-#%%
-vae.save("models/"+MODEL_NAME + "_vae.keras")
+vae.fit(
+    X_train,
+    epochs=20,
+    batch_size=32,
+    validation_data=(X_val, X_val),
+    verbose=1,
+    callbacks=[early_stopping],
+)
+# %%
+vae.save("models/" + MODEL_NAME + "_vae.keras")
 # %% [markdown] # TODO onbly for testing (REMOVE AFTER TESTING)
-from vae_lstm_HELPERS import plot_loss, plot_reconstruction_distributions, visualize_latent_space, plot_reconstruction, compare_real_vs_generated
+from vae_lstm_HELPERS import (
+    plot_loss,
+    plot_reconstruction_distributions,
+    visualize_latent_space,
+    plot_reconstruction,
+    compare_real_vs_generated,
+)
 
 # Use after training
 plot_loss(vae.history)  # Plot loss curves
@@ -250,11 +277,13 @@ plot_reconstruction_distributions(vae, X_val)  # Check reconstructions
 Z_train_means, Z_train_log_vars, _ = encoder.predict(X_train, batch_size=32)
 Z_val_means, Z_val_log_vars, _ = encoder.predict(X_val, batch_size=32)
 
+
 # %%
 # Get samples from the latent space
 def get_embeddings_from_vae(encoder, X):
     z_mean, z_log_var, z_sample = encoder.predict(X, batch_size=32)
     return z_sample  # shape: (batch_size, latent_dim)
+
 
 Z_trains = []
 Z_vals = []
@@ -278,13 +307,13 @@ print(f"  Z_val:  {Z_val_samples.shape}")
 
 # %%
 # Save samples
-np.save("data/"+MODEL_NAME + "_Z_train_samples.npy", Z_train_samples)
-np.save("data/"+MODEL_NAME + "_Z_val_samples.npy", Z_val_samples)
+np.save("data/" + MODEL_NAME + "_Z_train_samples.npy", Z_train_samples)
+np.save("data/" + MODEL_NAME + "_Z_val_samples.npy", Z_val_samples)
 
 # %%
 # Load samples if found
-Z_train_samples = np.load("data/"+MODEL_NAME + "_Z_train_samples.npy")
-Z_val_samples = np.load("data/"+MODEL_NAME + "_Z_val_samples.npy")
+Z_train_samples = np.load("data/" + MODEL_NAME + "_Z_train_samples.npy")
+Z_val_samples = np.load("data/" + MODEL_NAME + "_Z_val_samples.npy")
 n_samples = Z_train_samples.shape[0] // Z_train_means.shape[0]
 y_train_broadcasted = np.tile(y_train, n_samples)
 y_val_broadcasted = np.tile(y_val, n_samples)
@@ -294,6 +323,7 @@ n_samples, "samples loaded"
 # # 4) Build predictors that takes latent samples (1 step)
 
 N_MIXTURES = 10
+
 
 def build_latent_linear_regression_predictor(latent_dim):
     """
@@ -347,6 +377,7 @@ def build_latent_mean_and_std_predictor(latent_dim):
     )
     return model
 
+
 def build_latent_ffnn_predictor(latent_dim):
     """
     Input shape: (batch, latent_dim)
@@ -374,6 +405,7 @@ def build_latent_ffnn_predictor(latent_dim):
         outputs=mdn_output,
     )
     return model
+
 
 def build_latent_mean_and_std_fnn_predictor(latent_dim):
     """
@@ -407,7 +439,6 @@ def build_latent_mean_and_std_fnn_predictor(latent_dim):
     return model
 
 
-
 def build_latent_lstm_predictor(latent_dim):
     """
     Input shape: (batch, 1, latent_dim)
@@ -436,14 +467,13 @@ def build_latent_lstm_predictor(latent_dim):
     )
     return model
 
+
 # %%
 def make_predictions_and_stats(preds, n_mixtures=N_MIXTURES):
     df_validation = pd.DataFrame(index=[validation_data.dates, validation_data.tickers])
     df_validation.index.names = ["Date", "Symbol"]
     pis, mus, sigmas = parse_mdn_output(preds, n_mixtures)
-    uni_mixture_mean_sp, uni_mixture_var_sp = univariate_mixture_mean_and_var_approx(
-        pis, mus, sigmas
-    )
+    uni_mixture_mean_sp, uni_mixture_var_sp = mdn_mean_and_var(pis, mus, sigmas)
     df_validation["NLL"] = mdn_nll_numpy(n_mixtures)(validation_data.y, preds)
     # df_validation["CRPS"] = mdn_crps_tf(n_mixtures)(validation_data.y, preds)
     df_validation["Pred_Mean"] = uni_mixture_mean_sp
@@ -451,18 +481,19 @@ def make_predictions_and_stats(preds, n_mixtures=N_MIXTURES):
     uni_mixture_std_sp = np.sqrt(uni_mixture_var_sp.numpy())
     df_validation["Pred_Std"] = uni_mixture_std_sp
     confidence_levels = [0.67, 0.90, 0.95, 0.98, 0.99, 0.995, 0.999]
-    intervals = calculate_intervals_vectorized(
-        pis, mus, sigmas, confidence_levels
-    )
+    intervals = calculate_intervals_vectorized(pis, mus, sigmas, confidence_levels)
     df_validation["Prob_Increase"] = calculate_prob_above_zero_vectorized(
         pis, mus, sigmas
     )
     for i, cl in enumerate(confidence_levels):
         df_validation[f"LB_{format_cl(cl)}"] = intervals[:, i, 0]  # Lower bound
         df_validation[f"UB_{format_cl(cl)}"] = intervals[:, i, 1]  # Upper bound
-        es_alpha = 1-(1-cl)/2
-        df_validation[f"ES_{format_cl(es_alpha)}"] = calculate_es_for_quantile(pis,mus,sigmas, intervals[:, i, 0])
+        es_alpha = 1 - (1 - cl) / 2
+        df_validation[f"ES_{format_cl(es_alpha)}"] = calculate_es_for_quantile(
+            pis, mus, sigmas, intervals[:, i, 0]
+        )
     return df_validation
+
 
 def merge_sample_preds(preds, n_samples):
     # Divide preds into n_samples parts
@@ -487,16 +518,23 @@ def merge_sample_preds(preds, n_samples):
     preds = np.concatenate([c_pis, c_mus, c_sigmas], axis=1)
     return preds
 
+
 # %%
 simple_regressor_on_means = build_latent_linear_regression_predictor(latent_dim)
-simple_regressor_on_means.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+simple_regressor_on_means.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+MODEL_NAME + "_simple_regressor_on_means.keras"):
+if os.path.exists("models/" + MODEL_NAME + "_simple_regressor_on_means.keras"):
     simple_regressor_on_means = tf.keras.models.load_model(
-        "models/"+MODEL_NAME + "_simple_regressor_on_means.keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + MODEL_NAME + "_simple_regressor_on_means.keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -523,7 +561,7 @@ extended_model_name = MODEL_NAME + "_simple_regressor_on_means"
 
 # %%
 # Save the model
-simple_regressor_on_means.save("models/"+extended_model_name+".keras")
+simple_regressor_on_means.save("models/" + extended_model_name + ".keras")
 
 # %%
 # Make predictions and calculate stats
@@ -558,17 +596,23 @@ for ticker in example_tickers:
 # %%
 # Create simple regressor on samples model
 simple_regressor_on_samples = build_latent_linear_regression_predictor(latent_dim)
-simple_regressor_on_samples.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+simple_regressor_on_samples.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
 simple_regressor_on_samples_model_name = MODEL_NAME + "_simple_regressor_on_samples"
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+simple_regressor_on_samples_model_name + ".keras"):
+if os.path.exists("models/" + simple_regressor_on_samples_model_name + ".keras"):
     simple_regressor_on_samples = tf.keras.models.load_model(
-        "models/"+simple_regressor_on_samples_model_name + ".keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + simple_regressor_on_samples_model_name + ".keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -592,15 +636,19 @@ simple_regressor_on_samples.fit(
 
 # %%
 # Save the model
-simple_regressor_on_samples.save("models/"+simple_regressor_on_samples_model_name + ".keras")
+simple_regressor_on_samples.save(
+    "models/" + simple_regressor_on_samples_model_name + ".keras"
+)
 
 # %%
 # Make predictions
-preds = merge_sample_preds(simple_regressor_on_samples.predict(Z_val_samples), n_samples)
+preds = merge_sample_preds(
+    simple_regressor_on_samples.predict(Z_val_samples), n_samples
+)
 
 # %%
 # Calculate stats
-df_validation = make_predictions_and_stats(preds, N_MIXTURES*n_samples)
+df_validation = make_predictions_and_stats(preds, N_MIXTURES * n_samples)
 df_validation.head()
 
 # %%
@@ -612,7 +660,7 @@ print("Saved predictions to:", pred_fname)
 # %%
 # Plot 10 charts with the distributions for 10 random days
 example_tickers = ["AAPL", "WMT", "GS"]
-pi_pred, mu_pred, sigma_pred = parse_mdn_output(preds, N_MIXTURES*n_samples)
+pi_pred, mu_pred, sigma_pred = parse_mdn_output(preds, N_MIXTURES * n_samples)
 for ticker in example_tickers:
     s = validation_data.sets[ticker]
     from_idx, to_idx = validation_data.get_range(ticker)
@@ -622,7 +670,7 @@ for ticker in example_tickers:
         pi_pred[from_idx:to_idx],
         mu_pred[from_idx:to_idx],
         sigma_pred[from_idx:to_idx],
-        N_MIXTURES*n_samples,
+        N_MIXTURES * n_samples,
         ticker=ticker,
         save_to=f"results/distributions/{ticker}_{simple_regressor_on_samples_model_name}.svg",
     )
@@ -640,7 +688,7 @@ for ax, ticker in zip(axes, example_tickers):
     s = validation_data.sets[ticker]
     from_idx, to_idx = validation_data.get_range(ticker)
     pi_pred_ticker = pi_pred[from_idx:to_idx]
-    for j in range(N_MIXTURES*n_samples):
+    for j in range(N_MIXTURES * n_samples):
         mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
         if mean_over_time < 0.01:
             continue
@@ -663,17 +711,25 @@ plt.show()
 # %%
 # Create simple regressor on mean and standard deviations of latent space
 simple_regressor_on_means_and_std = build_latent_mean_and_std_predictor(latent_dim)
-simple_regressor_on_means_and_std.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+simple_regressor_on_means_and_std.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
-simple_regressor_on_means_and_std_model_name = MODEL_NAME + "_simple_regressor_on_means_and_std"
+simple_regressor_on_means_and_std_model_name = (
+    MODEL_NAME + "_simple_regressor_on_means_and_std"
+)
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+simple_regressor_on_means_and_std_model_name + ".keras"):
+if os.path.exists("models/" + simple_regressor_on_means_and_std_model_name + ".keras"):
     simple_regressor_on_means_and_std = tf.keras.models.load_model(
-        "models/"+simple_regressor_on_means_and_std_model_name + ".keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + simple_regressor_on_means_and_std_model_name + ".keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -699,7 +755,9 @@ simple_regressor_on_means_and_std.fit(
 
 # %%
 # Save the model
-simple_regressor_on_means_and_std.save("models/"+simple_regressor_on_means_and_std_model_name + ".keras")
+simple_regressor_on_means_and_std.save(
+    "models/" + simple_regressor_on_means_and_std_model_name + ".keras"
+)
 
 # %%
 # Make predictions
@@ -770,17 +828,23 @@ plt.show()
 # %%
 # Create FFNN predictor based on latent means
 ffnn_on_latent_means = build_latent_ffnn_predictor(latent_dim)
-ffnn_on_latent_means.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+ffnn_on_latent_means.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
 ffnn_on_latent_means_model_name = MODEL_NAME + "_ffnn_on_latent_means"
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+ffnn_on_latent_means_model_name + ".keras"):
+if os.path.exists("models/" + ffnn_on_latent_means_model_name + ".keras"):
     ffnn_on_latent_means = tf.keras.models.load_model(
-        "models/"+ffnn_on_latent_means_model_name + ".keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + ffnn_on_latent_means_model_name + ".keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -804,7 +868,7 @@ ffnn_on_latent_means.fit(
 
 # %%
 # Save the model
-ffnn_on_latent_means.save("models/"+ffnn_on_latent_means_model_name + ".keras")
+ffnn_on_latent_means.save("models/" + ffnn_on_latent_means_model_name + ".keras")
 
 # %%
 # Make predictions
@@ -875,17 +939,23 @@ plt.show()
 # %%
 # Create FFNN predictor based on latent means and standard deviations
 ffnn_on_latent_means_and_std = build_latent_mean_and_std_fnn_predictor(latent_dim)
-ffnn_on_latent_means_and_std.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+ffnn_on_latent_means_and_std.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
 ffnn_on_latent_means_and_std_model_name = MODEL_NAME + "_ffnn_on_latent_means_and_std"
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+ffnn_on_latent_means_and_std_model_name + ".keras"):
+if os.path.exists("models/" + ffnn_on_latent_means_and_std_model_name + ".keras"):
     ffnn_on_latent_means_and_std = tf.keras.models.load_model(
-        "models/"+ffnn_on_latent_means_and_std_model_name + ".keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + ffnn_on_latent_means_and_std_model_name + ".keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -911,7 +981,9 @@ ffnn_on_latent_means_and_std.fit(
 
 # %%
 # Save the model
-ffnn_on_latent_means_and_std.save("models/"+ffnn_on_latent_means_and_std_model_name + ".keras")
+ffnn_on_latent_means_and_std.save(
+    "models/" + ffnn_on_latent_means_and_std_model_name + ".keras"
+)
 
 # %%
 # Make predictions
@@ -984,17 +1056,23 @@ plt.show()
 # %%
 # Create FFNN for predicting based on samples
 ffnn_on_latent_samples = build_latent_ffnn_predictor(latent_dim)
-ffnn_on_latent_samples.compile(optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES))
+ffnn_on_latent_samples.compile(
+    optimizer=Adam(learning_rate=1e-3), loss=mdn_nll_tf(N_MIXTURES)
+)
 
 # %%
 ffnn_on_latent_samples_model_name = MODEL_NAME + "_ffnn_on_latent_samples"
 
 # %%
 # Load regressor from file if it exists
-if os.path.exists("models/"+ffnn_on_latent_samples_model_name + ".keras"):
+if os.path.exists("models/" + ffnn_on_latent_samples_model_name + ".keras"):
     ffnn_on_latent_samples = tf.keras.models.load_model(
-        "models/"+ffnn_on_latent_samples_model_name + ".keras",
-        custom_objects={"loss_fn": mdn_nll_tf(N_MIXTURES), "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES), "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES)},
+        "models/" + ffnn_on_latent_samples_model_name + ".keras",
+        custom_objects={
+            "loss_fn": mdn_nll_tf(N_MIXTURES),
+            "mdn_kernel_initializer": get_mdn_kernel_initializer(N_MIXTURES),
+            "mdn_bias_initializer": get_mdn_bias_initializer(N_MIXTURES),
+        },
     )
 
     print("Loaded model from file")
@@ -1018,7 +1096,7 @@ ffnn_on_latent_samples.fit(
 
 # %%
 # Save the model
-ffnn_on_latent_samples.save("models/"+ffnn_on_latent_samples_model_name + ".keras")
+ffnn_on_latent_samples.save("models/" + ffnn_on_latent_samples_model_name + ".keras")
 
 # %%
 # Make predictions
@@ -1026,7 +1104,7 @@ preds = merge_sample_preds(ffnn_on_latent_samples.predict(Z_val_samples), n_samp
 
 # %%
 # Calculate stats
-df_validation = make_predictions_and_stats(preds, N_MIXTURES*n_samples)
+df_validation = make_predictions_and_stats(preds, N_MIXTURES * n_samples)
 df_validation.head()
 
 # %%
@@ -1039,7 +1117,7 @@ print("Saved predictions to:", pred_fname)
 # Plot 10 charts with the distributions for 10 random days
 example_tickers = ["AAPL", "WMT", "GS"]
 
-pi_pred, mu_pred, sigma_pred = parse_mdn_output(preds, N_MIXTURES*n_samples)
+pi_pred, mu_pred, sigma_pred = parse_mdn_output(preds, N_MIXTURES * n_samples)
 for ticker in example_tickers:
     s = validation_data.sets[ticker]
     from_idx, to_idx = validation_data.get_range(ticker)
@@ -1049,7 +1127,7 @@ for ticker in example_tickers:
         pi_pred[from_idx:to_idx],
         mu_pred[from_idx:to_idx],
         sigma_pred[from_idx:to_idx],
-        N_MIXTURES*n_samples,
+        N_MIXTURES * n_samples,
         ticker=ticker,
         save_to=f"results/distributions/{ticker}_{ffnn_on_latent_samples_model_name}.svg",
     )
@@ -1067,7 +1145,7 @@ for ax, ticker in zip(axes, example_tickers):
     s = validation_data.sets[ticker]
     from_idx, to_idx = validation_data.get_range(ticker)
     pi_pred_ticker = pi_pred[from_idx:to_idx]
-    for j in range(N_MIXTURES*n_samples):
+    for j in range(N_MIXTURES * n_samples):
         mean_over_time = np.mean(pi_pred_ticker[:, j], axis=0)
         if mean_over_time < 0.01:
             continue
