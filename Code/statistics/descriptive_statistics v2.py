@@ -346,6 +346,7 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
         
         # Set y-axis limits to [15,-18]
         ax.set_ylim([-20, 15])
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1f}%'))
 
         ax.xaxis.set_major_locator(mdates.YearLocator(2))  # One tick per year
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
@@ -395,7 +396,8 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
         ax2.set_ylim(0, 0.35)
 
         # Set x-axis limits to [-15, 15]
-        ax1.set_xlim(-12, 12)        
+        ax1.set_xlim(-12, 12)   
+        ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1f}%'))     
 
         # Combine legends manually
         lines, labels = ax1.get_legend_handles_labels()
