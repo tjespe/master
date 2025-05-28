@@ -3128,7 +3128,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
             true_ret = np.exp(true_log_ret) - 1
             ticker_df = df.xs(ticker, level="Symbol")
-            plt.figure(figsize=(7, 4))
+            plt.figure(figsize=(7, 4.5))
             plt.plot(
                 true_ret, label="Actual Returns", color="black", alpha=0.5, linewidth=1
             )
@@ -3180,10 +3180,11 @@ for model_set in [our, traditional, ml_benchmarks]:
             # Place legend below plot
             plt.legend(
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.15),
+                bbox_to_anchor=(0.5, -0.20),          
                 ncol=4,
                 frameon=False,
             )
+
             plt.ylabel("Returns")
             plt.xlabel("Date")
             # Ensure everything fits in the figure
@@ -3195,7 +3196,106 @@ for model_set in [our, traditional, ml_benchmarks]:
 
 
 # %%
-# Plot epistemic variance for the models that have that
+# Plot aleatoric time series chart with confidence intervals for each model
+example_tickers = ["AAPL", "WMT"]
+# Include more conf levels here because it is interesting to see
+conf_levels = CONFIDENCE_LEVELS + [0.99, 0.995]
+
+for model_set in [our, traditional, ml_benchmarks]:
+    for display_name, model_name in model_set:
+        entry = next(
+            (entry for entry in preds_per_model if entry["name"] == model_name), None
+        )
+        if entry is None:
+            print(f"Model {model_name} not found in preds_per_model")
+            continue
+        model_name = entry["name"]
+        log_df = pd.DataFrame(
+            index=[entry["symbols"], entry["dates"]],
+        )
+        log_df.index.names = ["Symbol", "Date"]
+        log_df["Mean"] = entry.get("mean_pred")
+        for cl in conf_levels:
+            if (lb := entry.get(f"LB_{format_cl(cl)}")) is not None:
+                log_df[f"LB_{format_cl(cl)}"] = np.array(lb)
+            if (ub := entry.get(f"UB_{format_cl(cl)}")) is not None:
+                log_df[f"UB_{format_cl(cl)}"] = np.array(ub)
+        df = np.exp(log_df) - 1
+        for ticker in example_tickers:
+            true_log_ret = df_validation.xs(ticker, level="Symbol")["LogReturn"]
+            true_ret = np.exp(true_log_ret) - 1
+            ticker_df = df.xs(ticker, level="Symbol")
+            plt.figure(figsize=(7, 4.5))
+            plt.plot(
+                true_ret, label="Actual Returns", color="black", alpha=0.5, linewidth=1
+            )
+            plt.plot(
+                ticker_df["Mean"],
+                label="Predicted Mean",
+                color=colors["secondary"],
+                linewidth=1,
+            )
+            for i, cl in enumerate(conf_levels):
+                lb = ticker_df.get(f"LB_{format_cl(cl)}")
+                ub = ticker_df.get(f"UB_{format_cl(cl)}")
+                if lb is None or ub is None or lb.isnull().any() or ub.isnull().any():
+                    # Skip if any of the bounds are NaN
+                    print(
+                        f"Skipping {model_name} for {ticker} at {cl} due to NaN values in bounds"
+                    )
+                    continue
+                alpha = 0.75 - i * 0.14
+                plt.fill_between(
+                    lb.index,
+                    lb,
+                    ub,
+                    color=colors["primary"],
+                    alpha=alpha,
+                    label=f"{format_cl(cl)}% Interval",
+                )
+                # Mark violations
+                violations = np.logical_or(
+                    true_ret < lb,
+                    true_ret > ub,
+                )
+                mark_color = (0.3 + i * 0.1,) * 3
+                # Commented out now because it is too crowded
+                # plt.scatter(
+                #     true_log_ret[violations].index,
+                #     true_log_ret[violations],
+                #     marker="x",
+                #     label=f"Exceedances",
+                #     color=mark_color,
+                #     s=100,
+                #     zorder=20 - i,
+                # )
+            plt.ylim(-0.2, 0.2)
+            # Format y ticks as pct
+            plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+            plt.xlim(ticker_df.index.min(), ticker_df.index.max())
+            plt.title(f"{display_name} aleatoric uncertainty for {ticker} on {TEST_SET} data")
+            # Place legend below plot
+            plt.legend(
+                loc="upper center",
+                bbox_to_anchor=(0.5, -0.20),          
+                ncol=4,
+                frameon=False,
+            )
+
+            plt.ylabel("Returns")
+            plt.xlabel("Date")
+            # Ensure everything fits in the figure
+            plt.tight_layout()
+            plt.savefig(f"results/time_series/aleatoric/{ticker}_aleatoric_uncertainty_{model_name}.pdf")
+            if is_notebook():
+                plt.show()
+            plt.close()
+
+
+
+
+# %%
+# Plot epistemic variance for the models that have that (With Zoom Inset)
 for model_set in [our, traditional, ml_benchmarks]:
     for display_name, model_name in model_set:
         entry = next(
@@ -3369,17 +3469,17 @@ for model_set in [our, traditional, ml_benchmarks]:
         for ticker in example_tickers:
             ticker_df = df.xs(ticker, level="Symbol")
             # Filter on first year
-            ticker_df = ticker_df.loc[
-                (ticker_df.index >= "2020-01-01") & (ticker_df.index < "2021-01-01")
-            ]
+            #ticker_df = ticker_df.loc[
+            #    (ticker_df.index >= "2020-01-01") & (ticker_df.index < "2021-01-01")
+            #]
             dates = ticker_df.index
             filtered_mean = ticker_df["Mean"]
             filtered_epistemic_sd = ticker_df["EpistemicSD"]
-            plt.figure(figsize=(8, 5))
+            plt.figure(figsize=(7, 4.5))
             plt.plot(
                 dates,
                 filtered_mean,
-                label="Predicted Mean",
+                label="Predicted Mean Return",
                 color=colors["secondary"],
                 linewidth=1,
             )
@@ -3409,17 +3509,21 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.title(
-                f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
+            #    f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
+                f"{display_name} epistemic uncertainty for {ticker} on {TEST_SET} data"
+
             )
+            plt.xlabel("Date")
+            plt.ylabel("Returns")
             plt.legend(
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.15),
-                ncol=3,
+                bbox_to_anchor=(0.5, -0.20),
+                ncol=2,
                 frameon=False,
             )
             plt.tight_layout()
             plt.savefig(
-                f"results/time_series/epistemic_no_actual/{ticker}_{model_name}.pdf",
+                f"results/time_series/epistemic_no_actual/{ticker}_epistemic_uncertainty_{model_name}.pdf",
             )
             plt.show()
             plt.close()
