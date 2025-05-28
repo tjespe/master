@@ -1,8 +1,8 @@
 # %%
 # Settings
-FNAME = "predictions/realized_garch_forecast_std.csv"
-MEAN_COL = "Mean"
-VOL_COL = "Forecast_Volatility"
+FNAME = "predictions/realized_garch_forecast_actual_norm.csv"
+MEAN_COL = "Mean_real_garch"
+VOL_COL = "Forecast_Volatility_real_garch"
 
 # %%
 # CD to parent directory
