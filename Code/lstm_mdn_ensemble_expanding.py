@@ -435,12 +435,59 @@ if __name__ == "__main__":
         plt.show()
     plt.close()
 
+
+    # %%
+    # 6c) Make plot for paper: 2x2 grid with 2 tickers and 2 random days - SAVE AS INDUVIDUAL FILES
+    # Create and save individual plots (7x4 inches each)
+    paper_name = "-".join(
+        (["RV"] if INCLUDE_1MIN_RV else []) + (["IV"] if INCLUDE_30_DAY_IVOL else [])
+    )
+
+    # Define tickers and dates to loop through
+    examples = [
+        ("AAPL", "2020-04-16"),
+        ("AAPL", "2023-06-06"),
+        ("WMT", "2020-04-16"),
+        ("WMT", "2023-06-06"),
+    ]
+
+    for i, (ticker, date) in enumerate(examples):
+        date = pd.to_datetime(date)
+        ticker_dates = filter_ndarray(ticker, dates)
+        day = len(ticker_dates) - list(ticker_dates).index(date)
+
+        # Create a new figure for each sample day
+        fig, ax = plt.subplots(figsize=(7, 4))
+        
+        ax.set_xlim(-0.1, 0.1)
+        plot_sample_day(
+            ticker_dates,
+            filter_ndarray(ticker, true_y),
+            filter_ndarray(ticker, pi_pred),
+            filter_ndarray(ticker, mu_pred),
+            filter_ndarray(ticker, sigma_pred),
+            N_MIXTURES * N_ENSEMBLE_MEMBERS,
+            ax,
+            ticker,
+            day,
+        )
+        ax.set_title(f"{date.strftime('%Y-%m-%d')} - LSTM-MDN-{paper_name} predicted return distribution for {ticker}", pad=15)
+        ax.set_xlabel("Return")
+        plt.tight_layout()
+        filename = f"results/distributions/{MODEL_NAME}_{ticker}_{date.date()}_single.pdf"
+        plt.savefig(filename)
+        
+        if is_notebook():
+            plt.show()
+        
+        plt.close()
+
     # %%
     # 7) Plot weights over time to show how they change
     # Dictionary to store union of legend entries
     for ticker in example_tickers:
         legend_dict = {}
-        plt.figure(figsize=(12, 6))
+        plt.figure(figsize=(7, 5))
         ax = plt.gca()
         pi_pred_ticker = filter_ndarray(ticker, pi_pred)
         for j in range(N_MIXTURES * N_ENSEMBLE_MEMBERS):
@@ -455,8 +502,13 @@ if __name__ == "__main__":
             # Only add new labels
             if f"$\pi_{{{j}}}$" not in legend_dict:
                 legend_dict[f"$\pi_{{{j}}}$"] = line
+        ax.set_xlim(
+            filter_ndarray(ticker, dates)[0],
+            filter_ndarray(ticker, dates)[-1]
+        )
+        ax.set_ylim(0, 0.1)
         ax.set_yticklabels(["{:.2f}%".format(x * 100) for x in ax.get_yticks()])
-        ax.set_title(f"Evolution of Mixture Weights for {ticker}")
+        ax.set_title(f"Evolution of LSTM-MDN-{paper_name} Mixture Weights for {ticker}")
         ax.set_xlabel("Time")
         ax.set_ylabel("Weight")
 
