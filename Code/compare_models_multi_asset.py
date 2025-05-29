@@ -1,4 +1,7 @@
 # %%
+import re
+from collections import defaultdict
+from pathlib import Path
 import sys
 from scipy import stats
 from sklearn.linear_model import LinearRegression
@@ -348,7 +351,18 @@ for version in [
                     ar_garch_vol_pred,
                 )
             ),
-            "crps": crps,
+            "crps": (
+                # The stored CRPS values for the normal distribution are not correct,
+                # so we re-calculate them here
+                crps_normal_univariate(
+                    y_true,
+                    mus,
+                    ar_garch_vol_pred,
+                )
+                if model_dist == "normal"
+                # But for the student-t, the stored values are correct
+                else combined_df.get("AR_GARCH_CRPS")
+            ),
             "ece": (
                 ece_student_t(y_true, mus, ar_garch_vol_pred, nus)
                 if model_dist == "t"
@@ -2220,7 +2234,8 @@ for alpha in mcs_results.keys():
 # %%
 # To better understand MCS results: calculate p-values of pairwise outperformance but
 # averaged per day as in the MCS test.
-for loss_fn in loss_fns:
+perform_pairwise_tests = False
+for loss_fn in loss_fns if perform_pairwise_tests else []:
     loss_df = loss_dfs[loss_fn]
     per_day_p_value_df = pd.DataFrame(index=loss_df.columns, columns=loss_df.columns)
     per_day_p_value_df.index.name = "Benchmark"
@@ -3746,49 +3761,86 @@ for cl in CONFIDENCE_LEVELS:
             title=f"Expected Shortfall ({cl * 100}%) for {example_stock}"
         )
 
+
 # %%
-# Plot ES for failing stocks for LSTM-IV
-db_p_values = {
-    "AAPL": 0,
-    "AMGN": 0.601,
-    "AMZN": 0.221,
-    "AXP": 0.939,
-    "BA": 0.693,
-    "CAT": 0.721,
-    "CRM": 0.257,
-    "CSCO": 0.922,
-    "CVX": 0.312,
-    "DIS": 0.201,
-    "GS": 0.45,
-    "HD": 0.884,
-    "HON": 0.156,
-    "IBM": 0.976,
-    "INTC": 0.926,
-    "JNJ": 0.014,
-    "JPM": 0.179,
-    "KO": 0.658,
-    "MCD": 0.014,
-    "MMM": 0.765,
-    "MRK": 0.957,
-    "MSFT": 0.011,
-    "NKE": 0,
-    "PG": 0.976,
-    "TRV": 0.96,
-    "UNH": 0.541,
-    "V": 0.908,
-    "VZ": 0.695,
-    "WMT": 0.937,
-}
-entry = next(
-    entry for entry in passing_models if entry["name"] == "LSTM MDN ivol-final-rolling"
+def parse_bayer_dimitriadis(file_path):
+    data = defaultdict(lambda: defaultdict(dict))
+    current_model = None
+    current_alpha = None
+
+    with open(file_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            model_match = re.match(r"Model: (.+)", line)
+            if model_match:
+                current_model = model_match.group(1)
+                continue
+
+            alpha_match = re.match(r"Alpha level: ([\d.]+)", line)
+            if alpha_match:
+                current_alpha = float(alpha_match.group(1))
+                continue
+
+            symbol_match = re.match(
+                r"Symbol: (\w+) p-value: ([\d.]+) \[(PASS|FAIL)\]", line
+            )
+            if symbol_match:
+                symbol, p_value, result = symbol_match.groups()
+                data[current_model][current_alpha][symbol] = {
+                    "p_value": float(p_value),
+                    "result": result,
+                }
+
+    return data
+
+
+# Usage
+file_path = "results/bayer_dimitriadis.txt"
+bd_test_results = parse_bayer_dimitriadis(file_path)
+bd_test_results
+
+
+# %%
+# Turn into dataframe
+def structured_data_to_df(data):
+    rows = []
+    for model, alphas in data.items():
+        for alpha, symbols in alphas.items():
+            for symbol, values in symbols.items():
+                rows.append(
+                    {
+                        "Model": model,
+                        "Alpha": alpha,
+                        "Symbol": symbol,
+                        "p-value": values["p_value"],
+                        "Result": values["result"],
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+bd_test_results_df = structured_data_to_df(bd_test_results)
+bd_test_results_df = bd_test_results_df.pivot_table(
+    index="Model", columns=["Symbol", "Alpha"], values=["p-value"]
 )
-alpha = 0.99
+bd_test_results_df
+
+# %%
+# Inspect a model failing at a specific alpha level to understand why
+model_name_db = "LSTM_IV_ensemble_rolling"
+model_name_here = "LSTM MDN ivol-final-rolling"
+alpha = 0.01
+
+es_alpha = 1 - alpha
+cl = 1 - (alpha * 2)
+entry = next(entry for entry in preds_per_model if entry["name"] == model_name_here)
 es_df = pd.DataFrame(
     {
         "Date": entry["dates"],
         "Symbol": entry["symbols"],
-        "ES": entry[f"ES_{format_cl(alpha)}"],
-        "VaR": entry[f"LB_{format_cl(1-((1-alpha)*2))}"],
+        "ES": entry[f"ES_{format_cl(es_alpha)}"],
+        "VaR": entry[f"LB_{format_cl(cl)}"],
     }
 ).set_index(["Date", "Symbol"])
 es_df["Actual"] = df_validation["LogReturn"]
@@ -3819,14 +3871,14 @@ for stock in es_df.index.get_level_values("Symbol").unique():
             ha="center",
             va="bottom",
         )
-    p = db_p_values.get(stock, None)
+    p = bd_test_results_df.loc[model_name_db]["p-value"][stock][alpha]
     violations_df = stock_df[violations].copy()
     violations_df["Loss - ES"] = violations_df["Actual"] - violations_df["ES"]
     mean_diff = violations_df["Loss - ES"].mean()
     # Do a t-test on the mean difference to see if it is significantly different from 0
     t_stat, p_diff = ttest_1samp(violations_df["Loss - ES"], 0)
     # Test whether the rate of exceedances is significantly different from the expected rate
-    p_rate = 1 - stats.binom.cdf(violations.sum(), len(stock_df), 1 - alpha)
+    p_rate = 1 - stats.binom.cdf(violations.sum(), len(stock_df), alpha)
     # Do a joint test of the mean difference and the rate of exceedances
     joint_stat = -2 * (np.log(p_rate) + np.log(p_diff))
     recreated_p = 1 - stats.chi2.cdf(joint_stat, df=2)
@@ -3837,12 +3889,12 @@ for stock in es_df.index.get_level_values("Symbol").unique():
         f"Mean diff: {mean_diff:.3f}\n"
         f"$p$ for diff $\\ne$ 0: {p_diff:.3f}\n"
         f"Rate of exceedances: {violations.sum()/len(stock_df):.3f}\n"
-        f"$p$ for rate $\\ne$ {1 - alpha:.2f}: {p_rate:.3f}\n"
+        f"$p$ for rate $\\ne$ {alpha:.2f}: {p_rate:.3f}\n"
         f"Joint $p$-value: {recreated_p:.3f}\n"
-        f"Test Result: {'FAIL' if p < 0.05 else 'PASS'}\n"
-        f"$p$-value: {p:.3f}",
+        f"DB Test Result: {'FAIL' if p < 0.05 else 'PASS'}\n"
+        f"DB $p$-value: {p:.3f}",
     )
-    plt.title(f"ES and VaR ({alpha * 100}%) for {stock}")
+    plt.title(f"ES and VaR ({format_cl(es_alpha)}%) for {stock}")
     plt.axhline(0, color="red", linestyle="--")
     plt.legend(loc="upper left", bbox_to_anchor=(1, 1))
     plt.show()
