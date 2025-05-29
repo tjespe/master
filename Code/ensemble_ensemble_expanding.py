@@ -223,13 +223,13 @@ if __name__ == "__main__":
     tf.keras.backend.clear_session()
     gc.collect()
     # Calculate per symbol to avoid OOM errors
-    df = df.groupby("Symbol").apply(
-        lambda group: group.assign(
-            CRPS=mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS)(
-                true_y[group.index], y_pred_all[group.index]
-            )
-        )
-    )
+    for symbol in df["Symbol"].unique():
+        symbol_mask = df["Symbol"] == symbol
+        true_y_symbol = true_y[symbol_mask]
+        y_pred_symbol = y_pred_all[symbol_mask]
+        df.loc[symbol_mask, "CRPS"] = mdn_crps_tf(
+            SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS
+        )(true_y_symbol, y_pred_symbol).numpy()
 
     # %%
     # Calculate ECE

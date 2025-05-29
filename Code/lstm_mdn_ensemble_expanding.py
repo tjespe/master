@@ -12,9 +12,10 @@ from settings import (
 )
 import multiprocessing as mp
 import shared.styling_guidelines_graphs
+import sys
 
 
-VERSION = "rv-and-ivol-final-rolling"
+VERSION = sys.argv[1] if len(sys.argv) > 1 else "rv-and-ivol-final-rolling"
 
 # %%
 # Feature selection
