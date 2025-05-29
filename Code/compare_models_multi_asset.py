@@ -41,6 +41,8 @@ from arch.bootstrap import MCS
 import matplotlib.ticker as mtick
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes, mark_inset
 from matplotlib import dates as mdates
+from statsmodels.tsa.ar_model import AutoReg
+from statsmodels.stats.diagnostic import acorr_ljungbox
 
 
 # %%
@@ -3195,7 +3197,7 @@ for model_set in [our, traditional, ml_benchmarks]:
             # Place legend below plot
             plt.legend(
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.20),          
+                bbox_to_anchor=(0.5, -0.20),
                 ncol=4,
                 frameon=False,
             )
@@ -3288,11 +3290,13 @@ for model_set in [our, traditional, ml_benchmarks]:
             # Format y ticks as pct
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.xlim(ticker_df.index.min(), ticker_df.index.max())
-            plt.title(f"{display_name} aleatoric uncertainty for {ticker} on {TEST_SET} data")
+            plt.title(
+                f"{display_name} aleatoric uncertainty for {ticker} on {TEST_SET} data"
+            )
             # Place legend below plot
             plt.legend(
                 loc="upper center",
-                bbox_to_anchor=(0.5, -0.20),          
+                bbox_to_anchor=(0.5, -0.20),
                 ncol=4,
                 frameon=False,
             )
@@ -3301,12 +3305,12 @@ for model_set in [our, traditional, ml_benchmarks]:
             plt.xlabel("Date")
             # Ensure everything fits in the figure
             plt.tight_layout()
-            plt.savefig(f"results/time_series/aleatoric/{ticker}_aleatoric_uncertainty_{model_name}.pdf")
+            plt.savefig(
+                f"results/time_series/aleatoric/{ticker}_aleatoric_uncertainty_{model_name}.pdf"
+            )
             if is_notebook():
                 plt.show()
             plt.close()
-
-
 
 
 # %%
@@ -3484,9 +3488,9 @@ for model_set in [our, traditional, ml_benchmarks]:
         for ticker in example_tickers:
             ticker_df = df.xs(ticker, level="Symbol")
             # Filter on first year
-            #ticker_df = ticker_df.loc[
+            # ticker_df = ticker_df.loc[
             #    (ticker_df.index >= "2020-01-01") & (ticker_df.index < "2021-01-01")
-            #]
+            # ]
             dates = ticker_df.index
             filtered_mean = ticker_df["Mean"]
             filtered_epistemic_sd = ticker_df["EpistemicSD"]
@@ -3524,9 +3528,8 @@ for model_set in [our, traditional, ml_benchmarks]:
             )
             plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
             plt.title(
-            #    f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
+                #    f"{display_name} return predictions with epistemic uncertainty ({ticker}, {TEST_SET} data)"
                 f"{display_name} epistemic uncertainty for {ticker} on {TEST_SET} data"
-
             )
             plt.xlabel("Date")
             plt.ylabel("Returns")
@@ -3985,9 +3988,22 @@ for stock in es_df.index.get_level_values("Symbol").unique():
     t_stat, p_diff = ttest_1samp(violations_df["Loss - ES"], 0)
     # Test whether the rate of exceedances is significantly different from the expected rate
     p_rate = 1 - stats.binom.cdf(violations.sum(), len(stock_df), alpha)
+    # Test whether exceedances are independent using an AR(p) model
+
+    # Fit an AR(p) model to the exceedances
+    lags = 30
+    exceedances = np.where(stock_df["Actual"] < stock_df["VaR"], 1, 0)
+    ar_model = AutoReg(exceedances, lags=lags, old_names=False)
+    ar_fit = ar_model.fit()
+    # Perform the Ljung-Box test for independence
+    lb_res = acorr_ljungbox(
+        ar_fit.resid, lags=[lags], return_df=False
+    )  # Use 10 lags for the test
+    p_serial = lb_res["lb_pvalue"].values[0]
+
     # Do a joint test of the mean difference and the rate of exceedances
-    joint_stat = -2 * (np.log(p_rate) + np.log(p_diff))
-    recreated_p = 1 - stats.chi2.cdf(joint_stat, df=2)
+    joint_stat = -2 * (np.log(p_rate) + np.log(p_diff) + np.log(p_serial))
+    recreated_p = 1 - stats.chi2.cdf(joint_stat, df=3)
 
     plt.text(
         stock_df.index[-1] + pd.Timedelta(days=10),
@@ -3996,6 +4012,7 @@ for stock in es_df.index.get_level_values("Symbol").unique():
         f"$p$ for diff $\\ne$ 0: {p_diff:.3f}\n"
         f"Rate of exceedances: {violations.sum()/len(stock_df):.3f}\n"
         f"$p$ for rate $\\ne$ {alpha:.2f}: {p_rate:.3f}\n"
+        f"Serial independence $p$-value: {p_serial:.3f}\n"
         f"Joint $p$-value: {recreated_p:.3f}\n"
         f"DB Test Result: {'FAIL' if p < 0.05 else 'PASS'}\n"
         f"DB $p$-value: {p:.3f}",
