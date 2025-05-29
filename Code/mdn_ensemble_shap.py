@@ -15,7 +15,7 @@ import shared.styling_guidelines_graphs
 
 # %%
 # Model loading parameters
-VERSION = "rvol-ivol"  # "ivol-final-rolling"
+VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         0.95,  # 97.5% VaR
         0.98,  # 99% VaR
     ]
-
+    # %%
     def predict(x_flat: np.ndarray) -> np.ndarray:
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
         raw, epistemic_var = ensemble_model.predict(X)
@@ -186,7 +186,15 @@ if __name__ == "__main__":
             (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
         )
         model_display_name = f"{model_base_name}-{version_expl}"
-        plt.title(f"SHAP analysis of {model_display_name} {metric} estimates")
+        plt.title(f"SHAP analysis of {model_display_name} {metric} estimates", fontsize=18, ha='center', x=0.2)
+        ax = plt.gca()
+        ax.set_xlabel(ax.get_xlabel(), fontsize=14)  # X-axis label
+        ax.set_ylabel(ax.get_ylabel(), fontsize=14) 
+        fig = plt.gcf()
+        axes = fig.axes
+        colorbar_ax = axes[1]  # Second axis is the color bar
+        colorbar_ax.set_ylabel("Feature value", fontsize=14)  
+        colorbar_ax.tick_params(labelsize=12)
         plt.savefig(
             f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
             bbox_inches="tight",
