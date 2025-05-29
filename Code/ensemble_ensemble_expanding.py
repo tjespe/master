@@ -223,7 +223,7 @@ if __name__ == "__main__":
     tf.keras.backend.clear_session()
     gc.collect()
     # Calculate per symbol to avoid OOM errors
-    df.groupby("Symbol").apply(
+    df = df.groupby("Symbol").apply(
         lambda group: group.assign(
             CRPS=mdn_crps_tf(SUBMODEL_TOTAL_MIXTURES * N_BASE_MODELS)(
                 true_y[group.index], y_pred_all[group.index]
