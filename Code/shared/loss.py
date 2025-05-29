@@ -363,18 +363,18 @@ def l1_cdf_distance(mu, sigma, xg, wg):
 ##############################################################################
 # 4) Single-component CRPS formula for Normal(μ,σ)
 ##############################################################################
+
 def crps_normal(y, mu, sigma):
     """
     CRPS for a single Normal(μ,σ) vs. scalar y:
-      CRPS(N(μ,σ), y) = σ * [ z(2Φ(z) - 1) + 2φ(z) - 1/√π ],
-      where z = (y - μ)/(σ √2).
-    Shapes broadcast as [B, M] if y is [B,1].
+        CRPS(N(μ,σ), y) = σ * [ z(2Φ(z) - 1) + 2φ(z) - 1/√π ],
+        where z = (y - μ)/σ.
     """
     sigma = tf.maximum(sigma, 1e-12)
-    z = (y - mu) / (sigma * tf.sqrt(2.0))
+    z = (y - mu) / sigma
 
     pdf_z = 1.0 / tf.sqrt(2.0 * np.pi) * tf.exp(-0.5 * z * z)
-    cdf_z = 0.5 * (1.0 + tf.math.erf(z))
+    cdf_z = 0.5 * (1.0 + tf.math.erf(z / tf.sqrt(2.0)))
 
     return sigma * (z * (2.0 * cdf_z - 1.0) + 2.0 * pdf_z - 1.0 / tf.sqrt(np.pi))
 
