@@ -331,18 +331,22 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
 
     # --- Sub-function 1: Time-Series Plot ---
     def plot_time_series(data, symbol, return_col):
-        plt.figure(figsize=(10, 6))
+        plt.figure(figsize=(7, 4))
 
         # Make sure Date is datetime
         data['Date'] = pd.to_datetime(data['Date'], errors='coerce')
         data = data.dropna(subset=['Date'])
 
-        plt.plot(data['Date'], data[return_col], color='black', linewidth=0.5)
+        plt.plot(data['Date'], data[return_col], color='black', linewidth=0.1)
 
         ax = plt.gca()
 
         # Set x-axis limits to actual data range
         ax.set_xlim([data['Date'].min(), data['Date'].max()])
+        
+        # Set y-axis limits to [15,-18]
+        ax.set_ylim([-20, 15])
+        ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1f}%'))
 
         ax.xaxis.set_major_locator(mdates.YearLocator(2))  # One tick per year
         ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
@@ -351,16 +355,20 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
         plt.xlabel("Date")
         plt.ylabel("Returns")
         plt.tight_layout()
+        plt.savefig(f"results/descriptive_statistics/descriptive_statistics_{symbol}_daily_return_plot.pdf")
         plt.show()
 
     # --- Sub-function 2: Histogram with Scaled Normal Curve ---
     def plot_histogram_with_normal(data, symbol, return_col):
-        fig, ax1 = plt.subplots(figsize=(10, 6))
+        fig, ax1 = plt.subplots(figsize=(7, 4))
 
         # Plot histogram (left y-axis)
         sns.histplot(data[return_col], bins=100, stat='frequency',
                     kde=False, color=colors['primary'], edgecolor='black',
-                    label="Returns Histogram", ax=ax1)
+                    label="Returns Histogram", ax=ax1, 
+                    #make the linewidht thinner 
+                    linewidth=0.1
+                    )
 
         ax1.set_xlabel("Return")
         ax1.set_ylabel("Frequency")
@@ -383,6 +391,14 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
         ax1.set_ylim(bottom=0)
         ax2.set_ylim(bottom=0)
 
+        # set y-axis limits to [0, 2500] for left y-axis and [0, 0.3] for right y-axis
+        ax1.set_ylim(0, 2500)
+        ax2.set_ylim(0, 0.35)
+
+        # Set x-axis limits to [-15, 15]
+        ax1.set_xlim(-12, 12)   
+        ax1.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'{x:.1f}%'))     
+
         # Combine legends manually
         lines, labels = ax1.get_legend_handles_labels()
         lines2, labels2 = ax2.get_legend_handles_labels()
@@ -390,9 +406,8 @@ def plot_return_analysis(df, symbol, return_col='Total Return'):
 
         plt.title(f"{symbol} Daily Returns Histogram with Normal Curve")
         plt.tight_layout()
+        plt.savefig(f"results/descriptive_statistics/descriptive_statistics_{symbol}_daily_return_histogram.pdf")
         plt.show()
-
-
 
     # Call both subplots
     plot_time_series(symbol_df, symbol, return_col)
