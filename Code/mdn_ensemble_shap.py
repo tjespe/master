@@ -6,25 +6,47 @@ and Expected Shortfall (ES), then run SHAP analysis on each quantity.
 """
 
 from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
+from sklearn.linear_model import LinearRegression
 from lstm_mdn_ensemble import build_lstm_mdn
 from shared.conf_levels import format_cl, get_VaR_level
 from shared.jupyter import is_notebook
 from transformer_mdn_ensemble import build_transformer_mdn
 from settings import SUFFIX
-import shared.styling_guidelines_graphs
+from shared.styling_guidelines_graphs import colors
 
-# %%
 # Model loading parameters
+# %%
+# VERSION = "rv-and-ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
+# MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
 MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
 # Function for building the model
+# BUILD_FN = build_lstm_mdn  # build_transformer_mdn  # build_lstm_mdn
 BUILD_FN = build_transformer_mdn  # build_lstm_mdn
+
+# %%
+# Feature name mapping
+FEATURE_NAME_MAPPING = {
+    "RV": "RV",
+    "BPV": "BPV",
+    "Good": "Good",
+    "Bad": "Bad",
+    "RV_5": "RV_5",
+    "BPV_5": "BPV_5",
+    "Good_5": "Good_5",
+    "Bad_5": "Bad_5",
+    "RQ": "RQ",
+    "RQ_5": "RQ_5",
+    "10 Day Call IVOL": "10 Day Call IVOL",
+    "Historical Call IVOL": "Historical Call IVOL",
+}
 
 # %%
 # Structural parameters
@@ -164,7 +186,9 @@ if __name__ == "__main__":
     # %%
     # Present results
     feature_names = [
-        f"{feat} ({LOOKBACK_DAYS - lag} days ago)".replace("(1 days", "(1 day")
+        f"{FEATURE_NAME_MAPPING[feat]} ({LOOKBACK_DAYS - lag} days ago)".replace(
+            "(1 days", "(1 day"
+        )
         for lag in range(LOOKBACK_DAYS)
         for feat in cols
     ]
@@ -208,5 +232,143 @@ if __name__ == "__main__":
         )
         if is_notebook():
             plt.show()
+
+    # %%
+    # Calculate feature interactions
+    # Compute mean absolute SHAP value across all samples and outputs
+    metric = "ES 97.5%"
+    output_i = output_names.index(metric)
+    mean_abs_shap = np.abs(shap_values[:, :, output_i]).mean(axis=0)
+
+    # Get indices of top 20 features
+    top_k = 10
+    top_idx = np.argsort(mean_abs_shap)[-top_k:]
+
+    # Subset SHAP and input arrays
+    shap_subset = shap_values[:, top_idx, output_i]
+    Xtf_subset = Xtf[:, top_idx]
+    feature_names_subset = [feature_names[i] for i in top_idx]
+
+    # Calculate partial interaction effects: to what degree can the value of one feature
+    # explain the SHAP value of another feature, adjusted for correlations.
+    pairwise_interaction = np.zeros((top_k, top_k))
+    pairwise_coefficients = np.zeros((top_k, top_k))
+
+    for i in range(top_k):
+        y = shap_subset[:, i]  # SHAP for feature i
+        Xi = Xtf_subset[:, i].reshape(-1, 1)
+        # Add a square term for the feature to capture non-linear effects
+        # base_X = np.column_stack((Xi, Xi**2))
+        base_X = Xi
+        # fit base: SHAP_i ~ X_i
+        base = LinearRegression().fit(base_X, y)
+        R2_base = base.score(base_X, y)
+
+        for j in range(top_k):
+            if j == i:
+                pairwise_interaction[i, j] = 0.0
+                continue
+
+            Xj = Xtf_subset[:, j].reshape(-1, 1)
+            # full_X = np.column_stack((Xi, Xi**2, Xj, Xj**2, Xj * Xi))
+            full_X = np.column_stack((Xi, Xj))
+            full = LinearRegression().fit(full_X, y)
+            # print(
+            #     dict(
+            #         zip(
+            #             ["Xi", "Xi^2", "Xj", "Xj^2", "Xi*Xj"],
+            #             [round(float(n), 5) for n in full.coef_],
+            #         )
+            #     )
+            # )
+            pairwise_coefficients[i, j] = full.coef_[1]
+
+            R2_full = full.score(full_X, y)
+
+            pairwise_interaction[i, j] = max(0, R2_full - R2_base)
+
+    # %%
+    # Plot the pairwise interaction heatmap
+    # Define a fixed color range for better comparison
+    vmin, vmax = 0.0, 0.15
+
+    plt.figure(figsize=(12, 10))
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "custom_heatmap",
+        [
+            colors["primary"],
+            colors["muted"],
+            colors["accent"],
+            colors["secondary"],
+            colors["highlight"],
+        ],
+        N=256,
+    )
+    im = plt.imshow(pairwise_interaction, cmap=cmap, norm=norm, aspect="auto")
+
+    # ticks
+    plt.xticks(np.arange(top_k), feature_names_subset, rotation=90)
+    plt.yticks(np.arange(top_k), feature_names_subset)
+
+    # axis labels
+    plt.xlabel("Input feature $j$ (values)", fontsize=14)
+    plt.ylabel("SHAP value for feature $i$ (importances)", fontsize=14)
+
+    # colorbar
+    cbar = plt.colorbar(im)
+    cbar.set_label("Partial $R^2$ of $X_j$ explaining $SHAP_i$", fontsize=12)
+
+    # disable grid
+    plt.grid(False)
+
+    # in each cell, add a + or - sign if the coefficient is positive or negative
+    for i in range(top_k):
+        for j in range(top_k):
+            if pairwise_coefficients[i, j] > 0:
+                sign = "+"
+            elif pairwise_coefficients[i, j] < 0:
+                sign = "-"
+            else:
+                sign = ""
+            plt.text(
+                j,
+                i,
+                sign,
+                ha="center",
+                va="center",
+                color="white" if abs(pairwise_coefficients[i, j]) > 0.1 else "black",
+            )
+
+    # title
+    plt.title(f"SHAP Interaction Heatmap (Top {top_k} Features)", fontsize=16)
+
+    plt.tight_layout()
+    plt.savefig(
+        f"results/xai/pairwise_r2_shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
+        dpi=300,
+    )
+
+    # %%
+    # Plot a similar heatmap for the coefficients
+    plt.figure(figsize=(12, 10))
+    im = plt.imshow(pairwise_coefficients, cmap="viridis", aspect="auto")
+    # ticks
+    plt.xticks(np.arange(top_k), feature_names_subset, rotation=90)
+    plt.yticks(np.arange(top_k), feature_names_subset)
+    # axis labels
+    plt.xlabel("Input feature j (values)", fontsize=14)
+    plt.ylabel("SHAP value for feature i (importances)", fontsize=14)
+    # colorbar
+    cbar = plt.colorbar(im)
+    cbar.set_label("Coefficient of $X_j$ in $SHAP_i$", fontsize=12)
+    # title
+    plt.title("SHAP Coefficient Heatmap (Top 20 Features)", fontsize=16)
+    plt.tight_layout()
+    plt.savefig(
+        f"results/xai/pairwise_coeff_shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
+        dpi=300,
+    )
+
 
 # %%
