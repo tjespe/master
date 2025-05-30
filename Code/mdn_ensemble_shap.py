@@ -100,6 +100,13 @@ if __name__ == "__main__":
     cols = list(train.df.columns)[1:]
 
     # %%
+    confidence_levels = [
+        0.90,  # 95% VaR
+        0.95,  # 97.5% VaR
+        0.98,  # 99% VaR
+    ]
+
+    # %%
     # Load latest ensemble
     submodels = [BUILD_FN(num_features, None) for _ in range(N_ENSEMBLE_MEMBERS)]
     ensemble_model = MDNEnsemble(submodels, N_MIXTURES)
@@ -120,12 +127,6 @@ if __name__ == "__main__":
     Xt = X_test[Xt_idx]
     Xtf = flatten(Xt)
 
-    # %%
-    confidence_levels = [
-        0.90,  # 95% VaR
-        0.95,  # 97.5% VaR
-        0.98,  # 99% VaR
-    ]
     # %%
     def predict(x_flat: np.ndarray) -> np.ndarray:
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
@@ -186,14 +187,19 @@ if __name__ == "__main__":
             (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
         )
         model_display_name = f"{model_base_name}-{version_expl}"
-        plt.title(f"SHAP analysis of {model_display_name} {metric} estimates", fontsize=18, ha='center', x=0.2)
+        plt.title(
+            f"SHAP analysis of {model_display_name} {metric} estimates",
+            fontsize=18,
+            ha="center",
+            x=0.2,
+        )
         ax = plt.gca()
         ax.set_xlabel(ax.get_xlabel(), fontsize=14)  # X-axis label
-        ax.set_ylabel(ax.get_ylabel(), fontsize=14) 
+        ax.set_ylabel(ax.get_ylabel(), fontsize=14)
         fig = plt.gcf()
         axes = fig.axes
         colorbar_ax = axes[1]  # Second axis is the color bar
-        colorbar_ax.set_ylabel("Feature value", fontsize=14)  
+        colorbar_ax.set_ylabel("Feature value", fontsize=14)
         colorbar_ax.tick_params(labelsize=12)
         plt.savefig(
             f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
