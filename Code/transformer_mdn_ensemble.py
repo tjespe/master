@@ -581,7 +581,7 @@ if __name__ == "__main__":
             # Only add new labels
             if f"$\pi_{{{j}}}$" not in legend_dict:
                 legend_dict[f"$\pi_{{{j}}}$"] = line
-        ax.set_yticklabels(["{:.2f}%".format(x * 100) for x in ax.get_yticks()])
+        ax.set_yticklabels(["{:.0f}%".format(x * 100) for x in ax.get_yticks()])
         ax.set_title(f"Evolution of Mixture Weights for {ticker}")
         ax.set_xlabel("Time")
         ax.set_ylabel("Weight")
