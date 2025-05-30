@@ -20,13 +20,13 @@ from statsmodels.stats.diagnostic import linear_reset
 
 # Model loading parameters
 # %%
-VERSION = "ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
-# VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+#VERSION = "rv-and-ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+VERSION = "ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
-MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
-# MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
+#MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
+MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
 MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
@@ -48,7 +48,7 @@ FEATURE_NAME_MAPPING = {
     "RQ": "RQ$_{1\\text{-}min}$",
     "RQ_5": "RQ$_{5\\text{-}min}$",
     "10 Day Call IVOL": "IV$_{10\\text{-}day}$",
-    "Historical Call IVOL": "IV$_{20\\text{-}day}$"
+    "Historical Call IVOL": "IV$_{30\\text{-}day}$"
 }
 
 # %%
