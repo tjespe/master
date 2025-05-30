@@ -20,13 +20,13 @@ from statsmodels.stats.diagnostic import linear_reset
 
 # Model loading parameters
 # %%
-# VERSION = "rv-and-ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
-VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+VERSION = "ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+# VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
-# MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
-MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
+MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
+# MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
 MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
@@ -37,18 +37,18 @@ BUILD_FN = build_transformer_mdn  # build_lstm_mdn
 # %%
 # Feature name mapping
 FEATURE_NAME_MAPPING = {
-    "RV": "RV",
-    "BPV": "BPV",
-    "Good": "Good",
-    "Bad": "Bad",
-    "RV_5": "RV_5",
-    "BPV_5": "BPV_5",
-    "Good_5": "Good_5",
-    "Bad_5": "Bad_5",
-    "RQ": "RQ",
-    "RQ_5": "RQ_5",
-    "10 Day Call IVOL": "10 Day Call IVOL",
-    "Historical Call IVOL": "Historical Call IVOL",
+    "RV": "RV$_{1\\text{-}min}$",
+    "RV_5": "RV$_{5\\text{-}min}$",
+    "BPV": "BPV$_{1\\text{-}min}$",
+    "BPV_5": "BPV$_{5\\text{-}min}$",
+    "Good": "RV$^+_{1\\text{-}min}$",
+    "Good_5": "RV$^+_{5\\text{-}min}$",
+    "Bad": "RV$^-_{1\\text{-}min}$",
+    "Bad_5": "RV$^-_{5\\text{-}min}$",
+    "RQ": "RQ$_{1\\text{-}min}$",
+    "RQ_5": "RQ$_{5\\text{-}min}$",
+    "10 Day Call IVOL": "IV$_{10\\text{-}day}$",
+    "Historical Call IVOL": "IV$_{20\\text{-}day}$"
 }
 
 # %%
@@ -200,6 +200,15 @@ if __name__ == "__main__":
         *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
         *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
     ]
+    bounds = {
+        "Volatility": (-0.004, 0.002),
+        "VaR 95%": (-0.01, 0.01),
+        "VaR 97.5%": (-0.01, 0.01),
+        "VaR 99%": (-0.01, 0.01),
+        "ES 95%": (-0.004, 0.012),
+        "ES 97.5%": (-0.01, 0.015),
+        "ES 99%": (-0.01, 0.018),
+    }
     top_n = 10  # Number of features to show in summary plot
     for i, metric in enumerate(output_names):
         shap.summary_plot(
@@ -214,16 +223,23 @@ if __name__ == "__main__":
             (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
         )
         model_display_name = f"{model_base_name}-{version_expl}"
-        plt.title(
-            f"SHAP analysis of {model_display_name} {metric} estimates",
-            fontsize=18,
-            ha="center",
-            x=0.2,
-        )
+        #plt.title(
+        #    f"SHAP analysis of {model_display_name} {metric} estimates",
+        #    fontsize=18,
+        #    ha="center",
+        #)
+        plt.xlim(*bounds[metric])
         ax = plt.gca()
         ax.set_xlabel(ax.get_xlabel(), fontsize=14)  # X-axis label
         ax.set_ylabel(ax.get_ylabel(), fontsize=14)
         fig = plt.gcf()
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        fig.suptitle(
+            f"SHAP analysis of {model_display_name} {metric} estimates",
+            fontsize=18,
+            ha="center",
+            x=0.5  # Center of the figure
+        )
         axes = fig.axes
         colorbar_ax = axes[1]  # Second axis is the color bar
         colorbar_ax.set_ylabel("Feature value", fontsize=14)
