@@ -6,25 +6,50 @@ and Expected Shortfall (ES), then run SHAP analysis on each quantity.
 """
 
 from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
+from sklearn.linear_model import LinearRegression
 from lstm_mdn_ensemble import build_lstm_mdn
 from shared.conf_levels import format_cl, get_VaR_level
 from shared.jupyter import is_notebook
 from transformer_mdn_ensemble import build_transformer_mdn
 from settings import SUFFIX
-import shared.styling_guidelines_graphs
+from shared.styling_guidelines_graphs import colors
+import statsmodels.api as sm
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+from statsmodels.stats.diagnostic import linear_reset
 
-# %%
 # Model loading parameters
-VERSION = "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+# %%
+#VERSION = "rv-and-ivol-final-rolling"  # "rvol-ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
+VERSION = "ivol"  # "rv-and-ivol-final-rolling" for LSTM-MDN
 # SHAP takes a long time to run, so we only look at a subset of the data
 ANALYSIS_START_DATE = "2024-02-27"
 # Model name (used for storing results)
+#MODEL_NAME = f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 MODEL_NAME = f"transformer_mdn_ensemble_{VERSION}_test_expanding"  # f"lstm_mdn_ensemble{SUFFIX}_v{VERSION}_test"
 # Filename for weights. Important that the loaded model is not trained on data after
 # the ANALYSIS_START_DATE.
 MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
 # Function for building the model
+# BUILD_FN = build_lstm_mdn  # build_transformer_mdn  # build_lstm_mdn
 BUILD_FN = build_transformer_mdn  # build_lstm_mdn
+
+# %%
+# Feature name mapping
+FEATURE_NAME_MAPPING = {
+    "RV": "RV$_{1\\text{-}min}$",
+    "RV_5": "RV$_{5\\text{-}min}$",
+    "BPV": "BPV$_{1\\text{-}min}$",
+    "BPV_5": "BPV$_{5\\text{-}min}$",
+    "Good": "RV$^+_{1\\text{-}min}$",
+    "Good_5": "RV$^+_{5\\text{-}min}$",
+    "Bad": "RV$^-_{1\\text{-}min}$",
+    "Bad_5": "RV$^-_{5\\text{-}min}$",
+    "RQ": "RQ$_{1\\text{-}min}$",
+    "RQ_5": "RQ$_{5\\text{-}min}$",
+    "10 Day Call IVOL": "IV$_{10\\text{-}day}$",
+    "Historical Call IVOL": "IV$_{30\\text{-}day}$"
+}
 
 # %%
 # Structural parameters
@@ -100,6 +125,13 @@ if __name__ == "__main__":
     cols = list(train.df.columns)[1:]
 
     # %%
+    confidence_levels = [
+        0.90,  # 95% VaR
+        0.95,  # 97.5% VaR
+        0.98,  # 99% VaR
+    ]
+
+    # %%
     # Load latest ensemble
     submodels = [BUILD_FN(num_features, None) for _ in range(N_ENSEMBLE_MEMBERS)]
     ensemble_model = MDNEnsemble(submodels, N_MIXTURES)
@@ -120,12 +152,6 @@ if __name__ == "__main__":
     Xt = X_test[Xt_idx]
     Xtf = flatten(Xt)
 
-    # %%
-    confidence_levels = [
-        0.90,  # 95% VaR
-        0.95,  # 97.5% VaR
-        0.98,  # 99% VaR
-    ]
     # %%
     def predict(x_flat: np.ndarray) -> np.ndarray:
         X = x_flat.reshape(-1, LOOKBACK_DAYS, num_features)
@@ -163,7 +189,9 @@ if __name__ == "__main__":
     # %%
     # Present results
     feature_names = [
-        f"{feat} ({LOOKBACK_DAYS - lag} days ago)".replace("(1 days", "(1 day")
+        f"{FEATURE_NAME_MAPPING[feat]} ({LOOKBACK_DAYS - lag} days ago)".replace(
+            "(1 days", "(1 day"
+        )
         for lag in range(LOOKBACK_DAYS)
         for feat in cols
     ]
@@ -172,6 +200,15 @@ if __name__ == "__main__":
         *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
         *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
     ]
+    bounds = {
+        "Volatility": (-0.004, 0.002),
+        "VaR 95%": (-0.01, 0.01),
+        "VaR 97.5%": (-0.01, 0.01),
+        "VaR 99%": (-0.01, 0.01),
+        "ES 95%": (-0.004, 0.012),
+        "ES 97.5%": (-0.01, 0.015),
+        "ES 99%": (-0.01, 0.018),
+    }
     top_n = 10  # Number of features to show in summary plot
     for i, metric in enumerate(output_names):
         shap.summary_plot(
@@ -186,14 +223,26 @@ if __name__ == "__main__":
             (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
         )
         model_display_name = f"{model_base_name}-{version_expl}"
-        plt.title(f"SHAP analysis of {model_display_name} {metric} estimates", fontsize=18, ha='center', x=0.2)
+        #plt.title(
+        #    f"SHAP analysis of {model_display_name} {metric} estimates",
+        #    fontsize=18,
+        #    ha="center",
+        #)
+        plt.xlim(*bounds[metric])
         ax = plt.gca()
         ax.set_xlabel(ax.get_xlabel(), fontsize=14)  # X-axis label
-        ax.set_ylabel(ax.get_ylabel(), fontsize=14) 
+        ax.set_ylabel(ax.get_ylabel(), fontsize=14)
         fig = plt.gcf()
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        fig.suptitle(
+            f"SHAP analysis of {model_display_name} {metric} estimates",
+            fontsize=18,
+            ha="center",
+            x=0.5  # Center of the figure
+        )
         axes = fig.axes
         colorbar_ax = axes[1]  # Second axis is the color bar
-        colorbar_ax.set_ylabel("Feature value", fontsize=14)  
+        colorbar_ax.set_ylabel("Feature value", fontsize=14)
         colorbar_ax.tick_params(labelsize=12)
         plt.savefig(
             f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
@@ -202,5 +251,6 @@ if __name__ == "__main__":
         )
         if is_notebook():
             plt.show()
+
 
 # %%
