@@ -3033,6 +3033,7 @@ for display_name, model_name in our:
     print("\\\\")
 
 # %%
+import math
 # Look at how different loss functions change over time for the best performing models of each type
 for variant in ["", "cumulative_"]:
     for title, loss_fn in [
@@ -3046,6 +3047,7 @@ for variant in ["", "cumulative_"]:
         series = []
         models = [
             # "HAR_IVOL-QREG",
+            "LSTM QREG iv",
             "Benchmark DB IV",
             "Benchmark Catboost RV_IV",
             "GARCH",
@@ -3099,7 +3101,7 @@ for variant in ["", "cumulative_"]:
             n_models += 1
         if variant == "cumulative_":
             title = f"Relative cumulative {title}"
-        plt.title(title)
+        plt.title(title, x=0.5)
         plt.tight_layout()
         plt.xlim(
             loss_df.index.get_level_values("Date").min(),
@@ -3109,8 +3111,8 @@ for variant in ["", "cumulative_"]:
         plt.xlabel("Date")
         plt.legend(
             loc="upper center",
-            bbox_to_anchor=(0.5, -0.15),
-            ncol=n_models / 2,
+            bbox_to_anchor=(0.45, -0.15),
+            ncol=math.ceil(n_models / 2),
             frameon=False,
         )
         plt.savefig(f"results/loss/{variant}{loss_fn}.pdf")
