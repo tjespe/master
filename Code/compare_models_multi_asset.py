@@ -3036,11 +3036,11 @@ for display_name, model_name in our:
 # Look at how different loss functions change over time for the best performing models of each type
 for variant in ["", "cumulative_"]:
     for title, loss_fn in [
-        ("Negative Log-Likelihood (NLL)", "nll"),
-        ("Fissler-Ziegel loss (FZ) for 95% ES", "FZ0_95"),
-        ("Fissler-Ziegel loss (FZ) for 97.5% ES", "FZ0_97.5"),
-        ("Quantile Loss (QL) for the 2.5% quantile", "quantile_loss_2.5"),
-        ("Quantile Loss (QL) for the 1% quantile", "quantile_loss_1"),
+        ("Negative Log-Likelihood (NLL) on test data", "nll"),
+        ("Fissler-Ziegel loss (FZ) for 95% ES on test data", "FZ0_95"),
+        ("Fissler-Ziegel loss (FZ) for 97.5% ES on test data", "FZ0_97.5"),
+        ("Quantile Loss (QL) for the 2.5% quantile on test data", "quantile_loss_2.5"),
+        ("Quantile Loss (QL) for the 1% quantile on test data", "quantile_loss_1"),
     ]:
         plt.figure(figsize=(7, 4))
         series = []
@@ -3098,7 +3098,7 @@ for variant in ["", "cumulative_"]:
             )
             n_models += 1
         if variant == "cumulative_":
-            title = f"Cumulative {title}"
+            title = f"Relative cumulative {title}"
         plt.title(title)
         plt.tight_layout()
         plt.xlim(
