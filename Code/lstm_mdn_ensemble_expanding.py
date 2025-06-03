@@ -509,7 +509,7 @@ if __name__ == "__main__":
                 legend_dict[f"$\pi_{{{j}}}$"] = line
         ax.set_xlim(filter_ndarray(ticker, dates)[0], filter_ndarray(ticker, dates)[-1])
         ax.set_ylim(0, 0.1)
-        ax.set_yticklabels(["{:.0f}%".format(x * 100) for x in ax.get_yticks()])
+        ax.set_yticklabels(["{:.1f}%".format(x * 100) for x in ax.get_yticks()])
         ax.set_title(f"Evolution of LSTM-MDN-{paper_name} Mixture Weights for {ticker}")
         ax.set_xlabel("Time")
         ax.set_ylabel("Weight")
