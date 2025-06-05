@@ -34,7 +34,6 @@ MODEL_FNAME = f"models/rolling/{MODEL_NAME}_{ANALYSIS_START_DATE}.h5"
 # BUILD_FN = build_lstm_mdn  # build_transformer_mdn  # build_lstm_mdn
 BUILD_FN = build_transformer_mdn  # build_lstm_mdn
 
-# %%
 # Feature name mapping
 FEATURE_NAME_MAPPING = {
     "RV": "RV$_{1\\text{-}min}$",
@@ -48,7 +47,7 @@ FEATURE_NAME_MAPPING = {
     "RQ": "RQ$_{1\\text{-}min}$",
     "RQ_5": "RQ$_{5\\text{-}min}$",
     "10 Day Call IVOL": "IV$_{10\\text{-}day}$",
-    "Historical Call IVOL": "IV$_{30\\text{-}day}$"
+    "Historical Call IVOL": "IV$_{20\\text{-}day}$"
 }
 
 # %%
@@ -186,8 +185,9 @@ if __name__ == "__main__":
         f"results/xai/raw/{MODEL_NAME}_{ANALYSIS_START_DATE}_shap.npy"
     )
 
+
     # %%
-    # Present results
+    # Present results 1 (NORMAL PLOT SIZE APPENDIX GRAPHS)
     feature_names = [
         f"{FEATURE_NAME_MAPPING[feat]} ({LOOKBACK_DAYS - lag} days ago)".replace(
             "(1 days", "(1 day"
@@ -246,6 +246,87 @@ if __name__ == "__main__":
         colorbar_ax.tick_params(labelsize=12)
         plt.savefig(
             f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}.pdf",
+            bbox_inches="tight",
+            dpi=300,
+        )
+        if is_notebook():
+            plt.show()
+
+
+# %%
+
+
+    # %%
+    # Present results 2 (TALL PLOT SIZE FOR IN TEXT GRAPHS)
+    feature_names = [
+        f"{FEATURE_NAME_MAPPING[feat]} ({LOOKBACK_DAYS - lag} days ago)".replace(
+            "(1 days", "(1 day"
+        )
+        for lag in range(LOOKBACK_DAYS)
+        for feat in cols
+    ]
+    output_names = [
+        "Volatility",
+        *[f"VaR {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
+        *[f"ES {format_cl(get_VaR_level(cl))}%" for cl in confidence_levels],
+    ]
+    bounds = {
+        "Volatility": (-0.004, 0.002),
+        "VaR 95%": (-0.01, 0.01),
+        "VaR 97.5%": (-0.01, 0.01),
+        "VaR 99%": (-0.01, 0.01),
+        "ES 95%": (-0.004, 0.012),
+        "ES 97.5%": (-0.01, 0.015),
+        "ES 99%": (-0.01, 0.018),
+    }
+    top_n = 10  # Number of features to show in summary plot
+    for i, metric in enumerate(output_names):
+        shap.summary_plot(
+            shap_values[:, :, i],
+            Xtf,
+            show=False,
+            feature_names=feature_names,
+            max_display=top_n,
+        )
+        model_base_name = "LSTM-MDN" if "lstm" in MODEL_NAME else "Transformer-MDN"
+        version_expl = "-".join(
+            (["RV"] if "rv" in VERSION else []) + (["IV"] if "iv" in VERSION else [])
+        )
+        model_display_name = f"{model_base_name}-{version_expl}"
+        #plt.title(
+        #    f"SHAP analysis of {model_display_name} {metric} estimates",
+        #    fontsize=18,
+        #    ha="center",
+        #)
+        fig = plt.gcf()
+        fig.set_size_inches(8, 11) 
+        plt.xlim(*bounds[metric])
+        ax = plt.gca()
+        ax.set_xlabel(ax.get_xlabel(), fontsize=16)  # X-axis label
+        ax.set_ylabel(ax.get_ylabel(), fontsize=16)
+        ax.tick_params(axis='y', labelsize=16)
+
+        for collection in ax.collections:
+            if hasattr(collection, 'set_sizes'):
+                orig_sizes = collection.get_sizes()
+                new_sizes = [s * 4 for s in orig_sizes]  # Increase dot size
+                collection.set_sizes(new_sizes)
+
+
+        fig = plt.gcf()
+        fig.tight_layout(rect=[0, 0, 1, 0.96])
+        fig.suptitle(
+            f"SHAP analysis of {model_display_name} {metric} estimates",
+            fontsize=20,
+            ha="center",
+            x=0.5  # Center of the figure
+        )
+        axes = fig.axes
+        colorbar_ax = axes[1]  # Second axis is the color bar
+        colorbar_ax.set_ylabel("Feature value", fontsize=16)
+        colorbar_ax.tick_params(labelsize=14)
+        plt.savefig(
+            f"results/xai/shap_{metric}_{MODEL_NAME}_{ANALYSIS_START_DATE}_TALL_SIZE.pdf",
             bbox_inches="tight",
             dpi=300,
         )
